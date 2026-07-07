@@ -1,0 +1,18 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Fedora minimal template configuration
+Inherits base settings from fedora/template.jinja
+#}
+
+{%- import "fedora/template.jinja" as template_base -%}
+{% set base = template_base.base -%}
+{% set version = template_base.version -%}
+{% set flavor = 'minimal' -%}
+{% set repo = template_base.repo -%}
+{% if flavor -%}
+  {% set flavor = '-' ~ flavor -%}
+{% endif -%}
+{% set template = base ~ '-' ~ version ~ flavor -%}
+{% set template_clean = base ~ flavor -%}

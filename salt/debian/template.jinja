@@ -1,0 +1,19 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Debian base template configuration
+Version and repo are configurable via pillar:
+  qvm:debian:version (default: 13)
+  qvm:debian:repo (default: qubes-templates-itl)
+#}
+
+{% set base = 'debian' -%}
+{% set version = salt['pillar.get']('qvm:debian:version', '13') -%}
+{% set flavor = '' -%}
+{% set repo = salt['pillar.get']('qvm:debian:repo', 'qubes-templates-itl') -%}
+{% if flavor -%}
+  {% set flavor = '-' ~ flavor -%}
+{% endif -%}
+{% set template = base ~ '-' ~ version ~ flavor -%}
+{% set template_clean = base ~ flavor -%}

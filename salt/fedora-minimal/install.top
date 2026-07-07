@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+{%- import "fedora-minimal/template.jinja" as template -%}
+base:
+  '{{ template.template }}':
+    - fedora-minimal.install

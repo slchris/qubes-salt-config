@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# salt-lint configuration for qubes-salt-config.
+# https://github.com/warpnet/salt-lint
+
+# Only lint Salt state/top files.
+extensions:
+  - ".sls"
+  - ".top"
+
+skip_list:
+  # 204: Lines should be no longer than 160 chars (package lists / Jinja).
+  - "204"
+  # 205: "Use .sls as a Salt State file extension" — false positive on .top
+  #      files, which correctly use the .top extension.
+  - "205"
+  # 207: File modes should always be encoded as a string ('0644'), but many
+  #      Qubes states pass numeric modes to qvm.* which is fine.
+  - "207"
+  # 208: File modes should always contain a leading zero — same rationale.
+  - "208"

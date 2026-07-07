@@ -1,0 +1,19 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Fedora base template configuration (full/xfce version)
+Version and repo are configurable via pillar:
+  qvm:fedora:version (default: 42)
+  qvm:fedora:repo (default: qubes-templates-itl)
+#}
+
+{% set base = 'fedora' -%}
+{% set version = salt['pillar.get']('qvm:fedora:version', '42') -%}
+{% set flavor = '' -%}
+{% set repo = salt['pillar.get']('qvm:fedora:repo', 'qubes-templates-itl') -%}
+{% if flavor -%}
+  {% set flavor = '-' ~ flavor -%}
+{% endif -%}
+{% set template = base ~ '-' ~ version ~ flavor -%}
+{% set template_clean = base ~ flavor -%}

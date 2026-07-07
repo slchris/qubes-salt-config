@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Lint Salt states and top files on every push and pull request.
+
+name: lint
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install yamllint
+        run: pip install yamllint
+      - name: Run yamllint (pure YAML only)
+        # Jinja-templated Salt states are linted by salt-lint, not yamllint, so
+        # only pure-YAML files are passed explicitly here.
+        run: |
+          yamllint -c .yamllint \
+            pillar/top.sls pillar/user.sls salt/top.sls \
+            .yamllint .salt-lint .github/workflows/lint.yml
+
+  salt-lint:
+    name: salt-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install salt-lint
+        run: pip install salt-lint
+      - name: Run salt-lint
+        run: |
+          find salt \( -name '*.sls' -o -name '*.top' \) \
+            -print0 | xargs -0 --no-run-if-empty salt-lint
+
+  top-pairing:
+    name: top/sls pairing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Check every state .sls has a matching .top
+        run: python3 scripts/check_top_pairing.py

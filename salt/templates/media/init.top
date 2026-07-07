@@ -1,0 +1,11 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - templates.media.create
+  'tpl-media':
+    - templates.media.install

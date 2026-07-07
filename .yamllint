@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# yamllint configuration for qubes-salt-config.
+#
+# yamllint only lints PURE YAML here (pillar data, the global top files, and
+# CI/workflow YAML). The Jinja-templated Salt states under salt/**/*.sls and
+# salt/**/*.top are NOT valid standalone YAML, so they are linted by salt-lint
+# (which is Jinja-aware) instead — see .salt-lint and scripts/lint.sh.
+
+extends: default
+
+# yamllint matches yaml-files against basenames, so ".sls" is listed here to
+# allow the pure-YAML pillar/*.sls and top.sls files that are passed explicitly
+# on the command line. The Jinja states under salt/** are never passed to
+# yamllint (see scripts/lint.sh and the CI workflow), so this does not pull
+# them in.
+yaml-files:
+  - "*.yaml"
+  - "*.yml"
+  - "*.sls"
+
+rules:
+  # Salt states routinely exceed 80 cols due to Jinja and package lists.
+  line-length:
+    max: 120
+    level: warning
+    allow-non-breakable-words: true
+  # Salt uses True/False/On/Off as ordinary scalars; do not flag them.
+  truthy:
+    allowed-values: ["true", "false", "True", "False"]
+    check-keys: false
+  # Salt states do not start with a `---` document marker.
+  document-start: disable
+  # Jinja control blocks make strict indentation checks noisy.
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+    level: warning
+  # Comment spacing/format is noisy with SPDX headers and Jinja comments.
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+  comments-indentation: disable
+  # Trailing empty lines / newline at EOF still enforced (defaults).
