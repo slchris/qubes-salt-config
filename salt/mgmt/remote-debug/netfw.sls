@@ -85,11 +85,9 @@ nft add rule ip qubes custom-forward iifgroup 1 ip daddr "$DEST" tcp dport "$FWD
 
 "remote-debug-netfw-write-{{ hop }}":
   cmd.run:
-    - name: >-
-        qvm-run --pass-io -u root -- {{ hop }}
-        'cat > /rw/config/qubes-firewall-user-script;
-         chmod 0755 /rw/config/qubes-firewall-user-script'
-        < {{ staged }}
+    - name: |
+        cat {{ staged }} | qvm-run --pass-io -u root -- {{ hop }} \
+          'cat > /rw/config/qubes-firewall-user-script && chmod 0755 /rw/config/qubes-firewall-user-script'
     - onlyif: qvm-check --running {{ hop }}
     - require:
       - file: "remote-debug-netfw-stage-{{ hop }}"
