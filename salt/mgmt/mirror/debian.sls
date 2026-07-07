@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Chris Su
 SPDX-License-Identifier: MIT
 
 Point a Debian template's apt sources at a mirror (layer 2). Runs INSIDE the
-template. Reads pillar qvm:mirror:debian_baseurl.
+template. Reads cfg.mirror.debian_baseurl from config.jinja.
 
   sudo qubesctl --skip-dom0 --targets=debian-13-minimal state.apply mgmt.mirror.debian
 
@@ -11,7 +11,8 @@ Backs up sources to *.qbak on first change. Also mirrors security.debian.org to
 <baseurl>-security (TUNA layout: /debian and /debian-security).
 #}
 
-{%- set m = salt['pillar.get']('qvm:mirror', {}) -%}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set m = cfg.mirror -%}
 {%- set enabled = m.get('enabled', False) -%}
 {%- set url = m.get('debian_baseurl', '') -%}
 {%- set sec_url = url ~ '-security' if url else '' -%}

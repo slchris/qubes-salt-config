@@ -4,7 +4,7 @@ SPDX-License-Identifier: MIT
 
 Install the dom0-access channel for the remote-debug jump qube (dom0).
 
-Two modes, chosen by pillar remote_debug:dom0_access:
+Two modes, chosen by cfg.remote_debug.dom0_access in config.jinja:
   "whitelist" (default, safer) — installs the qubes.RemoteDebug qrexec service
       (an allow-list wrapper) plus a policy permitting ONLY the jump qube to
       call it. A compromise of the jump qube cannot run arbitrary dom0 commands.
@@ -15,7 +15,8 @@ Two modes, chosen by pillar remote_debug:dom0_access:
 Both are single files under /etc/qubes/policy.d and are removed by teardown.sls.
 #}
 
-{%- set rd = salt['pillar.get']('remote_debug', {}) -%}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set rd = cfg.remote_debug -%}
 {%- set qube = rd.get('qube', 'mgmt-jump') -%}
 {%- set mode = rd.get('dom0_access', 'whitelist') -%}
 

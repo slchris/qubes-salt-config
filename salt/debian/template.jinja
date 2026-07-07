@@ -3,15 +3,14 @@ SPDX-FileCopyrightText: 2026 Chris Su
 SPDX-License-Identifier: MIT
 
 Debian base template configuration
-Version and repo are configurable via pillar:
-  qvm:debian:version (default: 13)
-  qvm:debian:repo (default: qubes-templates-itl)
+Version and repo are configurable in config.jinja (cfg.qvm.debian).
 #}
 
+{% from 'config.jinja' import cfg with context -%}
 {% set base = 'debian' -%}
-{% set version = salt['pillar.get']('qvm:debian:version', '13') -%}
+{% set version = cfg.qvm.debian.get('version', '13') -%}
 {% set flavor = '' -%}
-{% set repo = salt['pillar.get']('qvm:debian:repo', 'qubes-templates-itl') -%}
+{% set repo = cfg.qvm.debian.get('repo', 'qubes-templates-itl') -%}
 {% if flavor -%}
   {% set flavor = '-' ~ flavor -%}
 {% endif -%}

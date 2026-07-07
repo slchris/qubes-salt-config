@@ -3,15 +3,14 @@ SPDX-FileCopyrightText: 2026 Chris Su
 SPDX-License-Identifier: MIT
 
 Fedora base template configuration (full/xfce version)
-Version and repo are configurable via pillar:
-  qvm:fedora:version (default: 43)
-  qvm:fedora:repo (default: qubes-templates-itl)
+Version and repo are configurable in config.jinja (cfg.qvm.fedora).
 #}
 
+{% from 'config.jinja' import cfg with context -%}
 {% set base = 'fedora' -%}
-{% set version = salt['pillar.get']('qvm:fedora:version', '43') -%}
+{% set version = cfg.qvm.fedora.get('version', '43') -%}
 {% set flavor = '' -%}
-{% set repo = salt['pillar.get']('qvm:fedora:repo', 'qubes-templates-itl') -%}
+{% set repo = cfg.qvm.fedora.get('repo', 'qubes-templates-itl') -%}
 {% if flavor -%}
   {% set flavor = '-' ~ flavor -%}
 {% endif -%}

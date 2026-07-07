@@ -3,8 +3,6 @@
 #
 # Configure GPG in gpg qube
 
-{% set user = salt['pillar.get']('user', {}) %}
-
 # Create GPG directory
 "gpg-directory":
   file.directory:

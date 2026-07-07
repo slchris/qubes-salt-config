@@ -3,9 +3,11 @@ SPDX-FileCopyrightText: 2026 Chris Su
 SPDX-License-Identifier: MIT
 #}
 
+{% from 'config.jinja' import cfg with context %}
+
 {% if grains['nodename'] != 'dom0' %}
 
-{% set default_shell = salt['pillar.get']('user:shell:default', 'bash') %}
+{% set default_shell = cfg.user.shell.get('default', 'bash') %}
 
 "dotfiles-shell-bashrc":
   file.managed:

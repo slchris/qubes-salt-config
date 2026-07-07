@@ -3,7 +3,7 @@ SPDX-FileCopyrightText: 2026 Chris Su
 SPDX-License-Identifier: MIT
 
 Point a Fedora template's dnf repos at a mirror (layer 2). Runs INSIDE the
-template. Reads pillar qvm:mirror:fedora_baseurl.
+template. Reads cfg.mirror.fedora_baseurl from config.jinja.
 
   sudo qubesctl --skip-dom0 --targets=fedora-43-minimal state.apply mgmt.mirror.fedora
 
@@ -12,7 +12,8 @@ keeping dnf's $releasever/$basearch variables so the repo tracks the template
 version. Backs up the repo files to *.qbak on first change.
 #}
 
-{%- set m = salt['pillar.get']('qvm:mirror', {}) -%}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set m = cfg.mirror -%}
 {%- set enabled = m.get('enabled', False) -%}
 {%- set url = m.get('fedora_baseurl', '') -%}
 

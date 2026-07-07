@@ -14,7 +14,8 @@ install it in the template first:
       mgmt.remote-debug.install
 #}
 
-{%- set rd = salt['pillar.get']('remote_debug', {}) -%}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set rd = cfg.remote_debug -%}
 {%- set keys = rd.get('authorized_keys', []) -%}
 {%- set port = rd.get('ssh_port', 22) -%}
 

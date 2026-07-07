@@ -8,7 +8,8 @@ A dedicated, networked AppVM that terminates SSH from your dev machine and
 relays commands into dom0. Keep it dedicated — do not reuse a dev/build qube.
 #}
 
-{%- set rd = salt['pillar.get']('remote_debug', {}) -%}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set rd = cfg.remote_debug -%}
 {%- set qube = rd.get('qube', 'mgmt-jump') -%}
 {%- set template = rd.get('template', 'debian-13-minimal') -%}
 {%- set label = rd.get('label', 'red') -%}

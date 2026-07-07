@@ -19,8 +19,9 @@ available. See salt/gentoo/README.md. This formula only clones/derives from an
 already-installed Gentoo template; it does not build the base template itself.
 #}
 
+{% from 'config.jinja' import cfg with context -%}
 {% set base = 'gentoo' -%}
-{% set flavor = salt['pillar.get']('qvm:gentoo:flavor', 'xfce') -%}
+{% set flavor = cfg.qvm.get('gentoo', {}).get('flavor', 'xfce') -%}
 {% if flavor -%}
   {% set flavor = '-' ~ flavor -%}
 {% endif -%}

@@ -59,9 +59,12 @@ fi
 # Project name (used for directory naming)
 PROJECT="slchris"
 
-# Source and destination directories
+# Source and destination directories.
+# NOTE: this project does NOT use Salt pillar (see minion.d/slchris.conf). All
+# user config lives in salt/config.jinja. We still actively REMOVE any old
+# /srv/pillar/slchris that earlier versions deployed, because a bare top.sls
+# there breaks Qubes dom0 pillar loading system-wide.
 SALT_SRC="${PROJECT_DIR}/salt"
-PILLAR_SRC="${PROJECT_DIR}/pillar"
 MINION_SRC="${PROJECT_DIR}/minion.d"
 SALT_DST="/srv/salt/${PROJECT}"
 PILLAR_DST="/srv/pillar/${PROJECT}"
@@ -69,7 +72,6 @@ MINION_DST="/etc/salt/minion.d"
 
 # Check source directories exist
 [ -d "$SALT_SRC" ] || die "Salt source directory not found: $SALT_SRC"
-[ -d "$PILLAR_SRC" ] || die "Pillar source directory not found: $PILLAR_SRC"
 [ -d "$MINION_SRC" ] || die "Minion config source directory not found: $MINION_SRC"
 
 echo ""
@@ -78,13 +80,12 @@ echo "  ====================================="
 echo ""
 echo "Source directories:"
 echo "  Salt:   $SALT_SRC"
-echo "  Pillar: $PILLAR_SRC"
 echo "  Minion: $MINION_SRC"
 echo ""
 echo "Destination directories:"
 echo "  Salt:   $SALT_DST"
-echo "  Pillar: $PILLAR_DST"
 echo "  Minion: $MINION_DST"
+echo "  (pillar is NOT used; any old $PILLAR_DST is removed)"
 echo ""
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -92,24 +93,23 @@ if [ "$DRY_RUN" -eq 1 ]; then
     echo ""
 fi
 
-# Clean old installation
+# Clean old installation. Removing $PILLAR_DST is important: a stale bare
+# top.sls there breaks Qubes dom0 pillar loading. This project uses no pillar.
 if [ "$DRY_RUN" -eq 1 ]; then
     echo "  rm -rf $SALT_DST"
-    echo "  rm -rf $PILLAR_DST"
+    echo "  rm -rf $PILLAR_DST   # remove old, broken pillar deployment"
 else
-    info "Cleaning old installation..."
+    info "Cleaning old installation (incl. any old pillar)..."
     rm -rf "$SALT_DST"
     rm -rf "$PILLAR_DST"
 fi
 
-# Create destination directories
+# Create destination directory
 if [ "$DRY_RUN" -eq 1 ]; then
     echo "  mkdir -p $SALT_DST"
-    echo "  mkdir -p $PILLAR_DST"
 else
     info "Ensuring directories exist..."
     mkdir -p "$SALT_DST"
-    mkdir -p "$PILLAR_DST"
 fi
 
 # Copy minion config
@@ -128,24 +128,12 @@ else
     cp -r "$SALT_SRC"/* "$SALT_DST"/
 fi
 
-# Copy pillar files
-if [ "$DRY_RUN" -eq 1 ]; then
-    echo "  cp -r $PILLAR_SRC/* $PILLAR_DST/"
-else
-    info "Copying pillar files..."
-    cp -r "$PILLAR_SRC"/* "$PILLAR_DST"/
-fi
-
-# Sync salt modules
+# Sync salt modules (no pillar to refresh — this project uses config.jinja).
 if [ "$DRY_RUN" -eq 1 ]; then
     echo "  qubesctl saltutil.sync_all"
-    echo "  qubesctl saltutil.refresh_pillar"
 else
     info "Syncing salt modules..."
     qubesctl saltutil.sync_all
-    
-    info "Refreshing pillar data..."
-    qubesctl saltutil.refresh_pillar
 fi
 
 echo ""
@@ -155,21 +143,21 @@ echo "============================================================"
 echo "  NEXT STEPS - READ CAREFULLY"
 echo "============================================================"
 echo ""
-echo "  Files deployed to /srv/salt/${PROJECT} and /srv/pillar/${PROJECT}"
-echo "  The minion config sets this as the ONLY file_root (like qusal)"
-echo "  So you DON'T need a prefix when applying states"
+echo "  Files deployed to /srv/salt/${PROJECT} (added to file_roots)."
+echo "  No prefix needed when applying states (like qusal)."
+echo "  Configuration is in /srv/salt/${PROJECT}/config.jinja (NOT pillar)."
 echo ""
-echo "  1. Install base templates (REQUIRED FIRST):"
+echo "  1. Edit your configuration (versions, mirror, remote-debug, ...):"
+echo "     sudo vim /srv/salt/${PROJECT}/config.jinja"
+echo "     # takes effect on the next state.apply; no refresh_pillar needed"
+echo ""
+echo "  2. Install base templates (REQUIRED FIRST):"
 echo "     sudo qubesctl state.apply debian-minimal.clone"
 echo "     sudo qubesctl state.apply fedora-minimal.clone"
 echo ""
-echo "  2. Create base DVM templates:"
+echo "  3. Create base DVM templates:"
 echo "     sudo qubesctl state.apply debian-minimal.create"
 echo "     sudo qubesctl state.apply fedora-minimal.create"
-echo ""
-echo "  3. Edit your configuration:"
-echo "     sudo vim /srv/pillar/${PROJECT}/user.sls"
-echo "     sudo qubesctl saltutil.refresh_pillar"
 echo ""
 echo "  4. Create templates (example: dev):"
 echo "     sudo qubesctl state.apply templates.dev.create"

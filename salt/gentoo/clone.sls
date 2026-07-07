@@ -19,8 +19,9 @@ Behaviour:
 See salt/gentoo/README.md for how to build the template with qubes-builder.
 #}
 
+{%- from 'config.jinja' import cfg with context -%}
 {%- import slsdotpath ~ "/template.jinja" as template -%}
-{%- set repo = salt['pillar.get']('qvm:gentoo:repo', '') -%}
+{%- set repo = cfg.qvm.get('gentoo', {}).get('repo', '') -%}
 
 {% if grains['nodename'] == 'dom0' %}
 

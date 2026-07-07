@@ -6,7 +6,7 @@ Point dom0 repos at a mirror (dom0). Two layers:
   Layer 1 — template download source: /etc/qubes/repo-templates/*.repo
   Layer 3 — dom0 update source:        /etc/yum.repos.d/qubes-dom0.repo
 
-Reads pillar qvm:mirror. Only runs when qvm:mirror:enabled is true and the
+Reads cfg.mirror from config.jinja. Only runs when qvm:mirror:enabled is true and the
 relevant baseurl is non-empty. Originals are backed up to *.qbak on first
 change; comment metalink/mirrorlist out so the baseurl is used.
 
@@ -15,7 +15,8 @@ change; comment metalink/mirrorlist out so the baseurl is used.
 Revert by restoring the .qbak files (see README).
 #}
 
-{%- set m = salt['pillar.get']('qvm:mirror', {}) -%}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set m = cfg.mirror -%}
 {%- set enabled = m.get('enabled', False) -%}
 {%- set tmpl_url = m.get('templates_baseurl', '') -%}
 {%- set dom0_url = m.get('dom0_baseurl', '') -%}
@@ -27,7 +28,7 @@ Revert by restoring the .qbak files (see README).
 # no-op so `state.apply` reports success instead of "0 states run -> failed".
 "mirror-dom0-disabled":
   test.succeed_without_changes:
-    - name: "mgmt.mirror: qvm:mirror:enabled is false — nothing to do. Set it true in pillar, then saltutil.refresh_pillar."
+    - name: "mgmt.mirror: mirror.enabled is false in config.jinja — nothing to do. Set it True and re-apply."
 {% endif %}
 
 {% if enabled and tmpl_url %}

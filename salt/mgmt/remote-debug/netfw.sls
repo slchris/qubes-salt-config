@@ -18,14 +18,15 @@ Apply targeting the two service qubes:
   sudo qubesctl --skip-dom0 --targets=sys-net,sys-firewall \
       state.apply mgmt.remote-debug.netfw
 
-Requires pillar remote_debug:network == "portforward".
+Requires cfg.remote_debug.network == "portforward" in config.jinja.
 
 NOTE: Port forwarding through Qubes' double NAT is the most environment-specific
 part of this formula (uplink interface name, LAN subnet). If it does not work,
 docs/remote-debug.md has the manual steps and a mesh-VPN alternative.
 #}
 
-{%- set rd = salt['pillar.get']('remote_debug', {}) -%}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set rd = cfg.remote_debug -%}
 {%- set qube = rd.get('qube', 'mgmt-jump') -%}
 {%- set ext_port = rd.get('ssh_port', 2333) -%}
 {%- set network = rd.get('network', 'portforward') -%}
@@ -51,7 +52,7 @@ docs/remote-debug.md has the manual steps and a mesh-VPN alternative.
     - contents: |
         #!/bin/sh
         # remote-debug port-forward ({{ host }}) — nftables, Qubes 4.2/4.3.
-        # Managed by mgmt.remote-debug.netfw. Edit pillar, not this file.
+        # Managed by mgmt.remote-debug.netfw. Edit config.jinja, not this file.
         EXT_PORT={{ ext_port }}
         FWD_DPORT={{ fwd_dport }}
         LAN="{{ lan }}"

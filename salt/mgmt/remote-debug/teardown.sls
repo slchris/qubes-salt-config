@@ -7,10 +7,11 @@ Tear down remote-debug: revoke dom0 access and remove the jump qube (dom0).
   sudo qubesctl state.apply mgmt.remote-debug.teardown
 
 Removing the policy instantly revokes dom0 access even if the qube still runs.
-Set pillar remote_debug:keep_qube: true to revoke access but keep the qube.
+Set cfg.remote_debug.keep_qube: True in config.jinja to revoke access but keep the qube.
 #}
 
-{%- set rd = salt['pillar.get']('remote_debug', {}) -%}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set rd = cfg.remote_debug -%}
 {%- set qube = rd.get('qube', 'mgmt-jump') -%}
 {%- set keep = rd.get('keep_qube', False) -%}
 

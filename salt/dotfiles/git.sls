@@ -15,10 +15,12 @@ Configure in pillar (user.sls):
         email: "your@email.com"
 #}
 
+{% from 'config.jinja' import cfg with context %}
+
 {% if grains['nodename'] != 'dom0' %}
 
 {% set qube_name = grains['nodename'] %}
-{% set git_config = salt['pillar.get']('qubes:' ~ qube_name ~ ':git', {}) %}
+{% set git_config = cfg.qubes.get(qube_name, {}).get('git', {}) %}
 
 {% if git_config %}
 {% set git_name = git_config.get('name', 'Your Name') %}
