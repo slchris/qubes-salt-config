@@ -41,6 +41,14 @@ Requires cfg.remote_debug.network == "portforward" in config.jinja.
 
 {#- The firewall script for a hop. $DEST is resolved at run time inside the hop
     by qube name, so it survives IP changes. -#}
+{#- Resolve the next-hop IPs in dom0 (where this runs). A qube cannot resolve a
+    DOWNSTREAM qube's name (getent hosts sys-firewall fails inside sys-net), so
+    we look them up here via qvm-prefs and bake the IP into each hop's script.
+    Re-run `state.apply mgmt.remote-debug.netfw` if a qube is rebuilt and its IP
+    changes. -#}
+{%- set sysfw_ip = salt['cmd.run']('qvm-prefs ' ~ sysfw ~ ' ip', python_shell=True).strip() -%}
+{%- set jump_ip = salt['cmd.run']('qvm-prefs ' ~ qube ~ ' ip', python_shell=True).strip() -%}
+
 {%- macro fw_script(hop) -%}
 #!/bin/sh
 # remote-debug port-forward ({{ hop }}) — nftables. Managed by
@@ -49,14 +57,14 @@ EXT_PORT={{ ext_port }}
 LAN="{{ lan }}"
 {% if hop == 'sys-net' -%}
 FWD_DPORT={{ ext_port }}
-DEST="$(getent hosts {{ sysfw }} | awk '{print $1; exit}')"
+DEST="{{ sysfw_ip }}"
 {% else -%}
 FWD_DPORT=22
-DEST="$(getent hosts {{ qube }} | awk '{print $1; exit}')"
+DEST="{{ jump_ip }}"
 {% endif -%}
-[ -n "$DEST" ] || { echo "remote-debug: cannot resolve next hop" >&2; exit 0; }
+[ -n "$DEST" ] || { echo "remote-debug: next-hop IP empty (re-run netfw from dom0)" >&2; exit 0; }
 nft delete chain ip qubes custom-dnat-remotedebug 2>/dev/null || true
-nft add chain ip qubes custom-dnat-remotedebug '{ type nat hook prerouting priority filter + 1 ; policy accept ; }'
+nft add chain ip qubes custom-dnat-remotedebug '{ type nat hook prerouting priority -99 ; policy accept ; }'
 {% if hop == 'sys-net' -%}
 UPLINK="$(ip -4 route show default | awk '{print $5; exit}')"
 [ -n "$UPLINK" ] || exit 0
