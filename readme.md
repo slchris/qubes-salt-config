@@ -27,7 +27,9 @@ Features:
 
 ## Installation
 
-See the [detailed installation instructions](docs/install.md).
+See the [detailed installation instructions](docs/install.md), or the
+[deployment checklist](docs/deploy-checklist.md) for an ordered, check-off
+guide from a fresh machine to templates + management + remote debug.
 
 For a fast local development loop (package on your dev machine → push over the
 LAN → deploy to dom0), see the [local development deploy guide](docs/dev-deploy.md).
@@ -179,6 +181,7 @@ scripts/
   check_top_pairing.py  # Enforce .sls <-> .top pairing
 docs/
   install.md            # Detailed installation guide
+  deploy-checklist.md   # Ordered deploy checklist (fresh machine -> everything)
   dev-deploy.md         # Local dev loop: package -> LAN -> dom0
   mirror.md             # Optional download mirror (TUNA / kernel.org)
   remote-debug.md       # SSH-driven debugging via a jump qube
