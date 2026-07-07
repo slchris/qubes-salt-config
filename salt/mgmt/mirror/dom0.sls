@@ -20,9 +20,17 @@ Revert by restoring the .qbak files (see README).
 {%- set tmpl_url = m.get('templates_baseurl', '') -%}
 {%- set dom0_url = m.get('dom0_baseurl', '') -%}
 
-{% if grains['nodename'] == 'dom0' and enabled %}
+{% if grains['nodename'] == 'dom0' %}
 
-{% if tmpl_url %}
+{% if not enabled %}
+# Mirror is disabled (pillar qvm:mirror:enabled is not true). Emit a visible
+# no-op so `state.apply` reports success instead of "0 states run -> failed".
+"mirror-dom0-disabled":
+  test.succeed_without_changes:
+    - name: "mgmt.mirror: qvm:mirror:enabled is false — nothing to do. Set it true in pillar, then saltutil.refresh_pillar."
+{% endif %}
+
+{% if enabled and tmpl_url %}
 # Layer 1: repoint every template repo's baseurl host+prefix, keep the path tail.
 "mirror-templates-backup":
   cmd.run:
@@ -44,7 +52,7 @@ Revert by restoring the .qbak files (see README).
     - unless: grep -rq "{{ tmpl_url }}" /etc/qubes/repo-templates/*.repo
 {% endif %}
 
-{% if dom0_url %}
+{% if enabled and dom0_url %}
 # Layer 3: dom0 update source.
 "mirror-dom0-backup":
   cmd.run:
