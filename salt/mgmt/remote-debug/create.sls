@@ -22,13 +22,16 @@ relays commands into dom0. Keep it dedicated — do not reuse a dev/build qube.
     - name: {{ qube }}
     - template: {{ template }}
     - label: {{ label }}
-    - flags:
-      - net
 
 "remote-debug-prefs-{{ qube }}":
   qvm.prefs:
     - name: {{ qube }}
     - netvm: {{ netvm }}
+    # mgmt-jump is a normal AppVM that CONSUMES network from sys-firewall.
+    # It must NOT provide network — the old `net` create flag set
+    # provides_network=True, which made Qubes treat it like a service qube and
+    # left its own NIC (enX0) DOWN with no IP (root cause of the SSH timeout).
+    - provides_network: False
     - require:
       - qvm: "remote-debug-create-{{ qube }}"
 
