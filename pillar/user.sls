@@ -21,8 +21,8 @@ qvm:
     version: "13"
     repo: "qubes-templates-itl"
   fedora:
-    # Fedora template version (e.g., 42, 43)
-    version: "42"
+    # Fedora template version (e.g., 43, 44)
+    version: "43"
     repo: "qubes-templates-itl"
   # Whonix configuration (if using Whonix templates)
   whonix:

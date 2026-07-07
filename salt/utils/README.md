@@ -47,7 +47,7 @@ qvm:
     version: "13"    # Will use debian-13 and debian-13-minimal
     repo: "qubes-templates-itl"
   fedora:
-    version: "42"    # Will use fedora-42 and fedora-42-minimal
+    version: "43"    # Will use fedora-43 and fedora-43-minimal
     repo: "qubes-templates-itl"
 ```
 

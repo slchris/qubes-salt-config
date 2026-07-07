@@ -43,7 +43,7 @@ Before using any template, ensure:
 | [gpg](gpg/) | GPG key management (offline) | tpl-gpg, gpg |
 | [vault](vault/) | Password management (offline) | tpl-vault, vault |
 
-### Fedora-based (fedora-42)
+### Fedora-based (fedora-43)
 
 | Template | Description | Qubes Created |
 |----------|-------------|---------------|

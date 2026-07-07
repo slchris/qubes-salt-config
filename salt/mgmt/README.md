@@ -16,11 +16,11 @@ This module creates a management DispVM template (dvm-mgmt) that is used for:
 *   Opening disposable consoles
 *   Salt management operations
 
-The management qube uses `fedora-42-minimal` as its base template for a lightweight footprint.
+The management qube uses `fedora-43-minimal` as its base template for a lightweight footprint.
 
 ## Prerequisites
 
-The full Fedora template (`fedora-42`) is required as bootstrap because it has polkit 
+The full Fedora template (`fedora-43`) is required as bootstrap because it has polkit 
 configured for passwordless sudo. The minimal template does not have this.
 
 ## Installation
@@ -33,11 +33,11 @@ sudo qubesctl state.sls qvm.default-mgmt-dvm
 
 # Create fedora (full) template and dvm - needed for polkit/sudo
 sudo qubesctl state.apply fedora.create
-sudo qubesctl --skip-dom0 --targets=fedora-42 state.apply fedora.install
+sudo qubesctl --skip-dom0 --targets=fedora-43 state.apply fedora.install
 
 # Create fedora-minimal template (uses dvm-fedora for management)
 sudo qubesctl state.apply fedora-minimal.create
-sudo qubesctl --skip-dom0 --targets=fedora-42-minimal state.apply fedora-minimal.install
+sudo qubesctl --skip-dom0 --targets=fedora-43-minimal state.apply fedora-minimal.install
 ```
 
 ### Install mgmt
@@ -61,7 +61,7 @@ sudo qubesctl state.apply fedora-minimal.prefs
 
 | Qube | Type | Description |
 |------|------|-------------|
-| tpl-mgmt | Template | Base template (from fedora-42-minimal) |
+| tpl-mgmt | Template | Base template (from fedora-43-minimal) |
 | dvm-mgmt | DispVM Template | Management DispVM for salt operations |
 
 ## Usage

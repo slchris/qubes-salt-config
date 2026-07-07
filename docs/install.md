@@ -37,7 +37,7 @@ It is recommended to use a separate qube from your normal operations as this ins
 1.  Install `git` in the qube. If using an AppVM, install it in the TemplateVM and restart the AppVM:
 
     ```sh
-    # In TemplateVM (e.g., debian-13 or fedora-42)
+    # In TemplateVM (e.g., debian-13 or fedora-43)
     # Debian:
     sudo apt install git
     # Fedora:
@@ -103,8 +103,8 @@ Before copying anything to Dom0, read the [Qubes OS warning about copying to dom
 Ensure base templates are available. Install if not present:
 
 ```sh
-# Check and install fedora-42-minimal for mgmt
-qvm-check fedora-42-minimal || sudo qubes-dom0-update qubes-template-fedora-42-minimal
+# Check and install fedora-43-minimal for mgmt
+qvm-check fedora-43-minimal || sudo qubes-dom0-update qubes-template-fedora-43-minimal
 
 # Check and install debian-13 for other templates (optional)
 qvm-check debian-13 || sudo qubes-dom0-update qubes-template-debian-13
@@ -174,7 +174,7 @@ sudo qubesctl saltutil.refresh_pillar
 | tools | debian-13 | Office (GIMP, LibreOffice) |
 | gpg | debian-13 | GPG key management |
 | vault | debian-13 | Password management (KeePassXC, pass) |
-| vpn | fedora-42 | VPN gateway (WireGuard, OpenVPN) |
+| vpn | fedora-43 | VPN gateway (WireGuard, OpenVPN) |
 
 ### Create a Template (Example: dev)
 
@@ -283,7 +283,7 @@ This creates:
 
 ## Template Upgrade
 
-Template upgrade refers to major version upgrades (e.g., debian-13 → debian-14, fedora-42 → fedora-43).
+Template upgrade refers to major version upgrades (e.g., debian-13 → debian-14, fedora-43 → fedora-43).
 
 The template version is controlled via pillar configuration. To upgrade templates:
 
@@ -301,7 +301,7 @@ The template version is controlled via pillar configuration. To upgrade template
         version: "13"    # Change to new version
         repo: "qubes-templates-itl"
       fedora:
-        version: "42"    # Change to new version
+        version: "43"    # Change to new version
         repo: "qubes-templates-itl"
     ```
 

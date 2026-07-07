@@ -64,7 +64,13 @@ sudo qubesctl state.apply fedora-minimal.create
 | [tools](salt/templates/tools/) | debian-13-minimal | General utilities | tpl-tools, dvm-tools |
 | [gpg](salt/templates/gpg/) | debian-13-minimal | GPG key management (offline) | tpl-gpg, gpg |
 | [vault](salt/templates/vault/) | debian-13-minimal | Password management (offline) | tpl-vault, vault |
-| [vpn](salt/templates/vpn/) | fedora-42-minimal | VPN gateway | tpl-vpn, sys-vpn |
+| [vpn](salt/templates/vpn/) | fedora-43-minimal | VPN gateway | tpl-vpn, sys-vpn |
+| [mcp](salt/templates/mcp/) | debian-13-minimal | MCP server & AI app development | tpl-mcp, dvm-mcp, mcp |
+| [gentoo-dev](salt/templates/gentoo-dev/) | gentoo-xfce | Ebuild/package development | tpl-gentoo-dev, gentoo-dev |
+
+**Note:** `gentoo-dev` requires a Gentoo base template, which Qubes does not ship
+ready-to-clone. See [salt/gentoo](salt/gentoo/) for how to build it with
+qubes-builder before applying `gentoo-dev`.
 
 ## Usage
 
@@ -216,9 +222,9 @@ Template versions are configured via pillar (`pillar/user.sls`):
 ```yaml
 qvm:
   debian:
-    version: "12"         # Change to upgrade (e.g., "13")
+    version: "13"         # Change to upgrade (e.g., "14")
   fedora:
-    version: "41"         # Change to upgrade (e.g., "42")
+    version: "43"         # Change to upgrade (e.g., "44")
 ```
 
 After changing versions:
