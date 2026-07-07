@@ -36,7 +36,7 @@ Revert by restoring the .qbak files (see README).
   cmd.run:
     - name: |
         for f in /etc/qubes/repo-templates/*.repo; do
-          sed -i -E 's#^(\s*)(metalink|mirrorlist)\s*=#\1#\2=#' "$f"
+          sed -i -E 's|^(\s*)(metalink\|mirrorlist)\s*=|\1#\2=|' "$f"
           sed -i -E 's#^(\s*baseurl\s*=\s*)https?://[^/]+(/.*)#\1{{ tmpl_url }}\2#' "$f"
         done
     - require:
@@ -54,7 +54,7 @@ Revert by restoring the .qbak files (see README).
 "mirror-dom0-repoint":
   cmd.run:
     - name: |
-        sed -i -E 's#^(\s*)(metalink|mirrorlist)\s*=#\1#\2=#' /etc/yum.repos.d/qubes-dom0.repo
+        sed -i -E 's|^(\s*)(metalink\|mirrorlist)\s*=|\1#\2=|' /etc/yum.repos.d/qubes-dom0.repo
         sed -i -E 's#^(\s*baseurl\s*=\s*)https?://[^/]+(/.*)#\1{{ dom0_url }}\2#' /etc/yum.repos.d/qubes-dom0.repo
     - require:
       - cmd: mirror-dom0-backup

@@ -29,7 +29,7 @@ version. Backs up the repo files to *.qbak on first change.
   cmd.run:
     - name: |
         # Disable metalink/mirrorlist and set explicit baseurls on the mirror.
-        sed -i -E 's#^(metalink|mirrorlist)=#\#&#' \
+        sed -i -E 's|^(metalink\|mirrorlist)=|#&|' \
           /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora-updates.repo 2>/dev/null || true
         # fedora (releases) and updates paths on the mirror (TUNA-style layout).
         dnf config-manager --setopt=fedora.baseurl='{{ url }}/releases/$releasever/Everything/$basearch/os/' --save fedora 2>/dev/null || true
