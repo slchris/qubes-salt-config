@@ -88,11 +88,27 @@ cat "${CAPFILE_PREFIX}-$SYSFW.txt" 2>/dev/null | head -40
 echo "--- capture: $JUMP (does the SYN reach jump + does it SYN-ACK back?) ---"
 cat "${CAPFILE_PREFIX}-$JUMP.txt" 2>/dev/null | head -40
 
-sec "5. conntrack for the flow (sys-net + sys-firewall)"
-for q in "$SYSNET" "$SYSFW"; do
+sec "5. conntrack for the flow (all hops)"
+for q in "$SYSNET" "$SYSFW" "$JUMP"; do
     echo "--- [$q] conntrack dport $EXT_PORT / 22 ---"
     run_in "$q" "conntrack -L 2>/dev/null | grep -E 'dport=${EXT_PORT}|dport=22' | head -10 || echo 'no conntrack tool/entries'"
 done
+
+sec "6. DID THE SYN REACH mgmt-jump? (does it show a half-open connection to :22)"
+# A SYN-RECV entry means the SYN arrived at the jump but the handshake didn't
+# complete (reply path broken). No entry at all means the packet never arrived
+# (forward/route broken between sys-firewall and jump).
+echo "--- [$JUMP] sockets in SYN-RECV to :22 ---"
+run_in "$JUMP" "ss -tan 2>/dev/null | grep ':22' || echo 'no :22 sockets seen'"
+echo "--- [$JUMP] nft input chain counters (did input see the packet?) ---"
+run_in "$JUMP" 'nft list ruleset 2>/dev/null | grep -iE "dport 22|hook input|counter" | head || echo "no nft ruleset on jump"'
+echo "--- [$JUMP] all nft (empty means no firewall here) ---"
+run_in "$JUMP" 'nft list tables 2>&1'
+
+sec "7. SNAT check on sys-firewall (was source rewritten to the gateway?)"
+# If masquerade worked, mgmt-jump should see src = sys-firewall's jump-side IP
+# (10.138.30.107 via vif), NOT 10.137.0.8. That is what lets the reply route back.
+run_in "$SYSFW" 'nft list chain ip qubes custom-snat-remotedebug 2>&1'
 
 rm -f "${CAPFILE_PREFIX}"-*.txt 2>/dev/null
 echo
