@@ -78,8 +78,15 @@ UPLINK="$(ip -4 route show default | awk '{print $5; exit}')"
 nft add rule ip qubes custom-dnat-remotedebug iifname "$UPLINK" ip saddr "$LAN" tcp dport "$EXT_PORT" ct state new,established,related counter dnat to "${DEST}:${FWD_DPORT}"
 nft add rule ip qubes custom-forward iifname "$UPLINK" ip saddr "$LAN" ip daddr "$DEST" tcp dport "$FWD_DPORT" ct state new,established,related counter accept
 {% else -%}
-nft add rule ip qubes custom-dnat-remotedebug iifgroup 1 tcp dport "$EXT_PORT" ct state new,established,related counter dnat to "${DEST}:${FWD_DPORT}"
-nft add rule ip qubes custom-forward iifgroup 1 ip daddr "$DEST" tcp dport "$FWD_DPORT" ct state new,established,related counter accept
+# sys-firewall: the forwarded packet arrives with dst = sys-firewall's own IP
+# (it was DNAT'd there by sys-net) on the external port. Match on that dst IP
+# rather than iifgroup — the upstream interface group is not reliably 1, which
+# is why the DNAT never matched and the packet stalled here (conntrack showed
+# dst=<sysfw>:2333 UNREPLIED, un-DNAT'd).
+SELF="$(ip -4 route get {{ jump_ip }} 2>/dev/null | sed -n 's/.*src \([0-9.]*\).*/\1/p')"
+[ -n "$SELF" ] || SELF="{{ sysfw_ip }}"
+nft add rule ip qubes custom-dnat-remotedebug ip daddr "$SELF" tcp dport "$EXT_PORT" ct state new,established,related counter dnat to "${DEST}:${FWD_DPORT}"
+nft add rule ip qubes custom-forward ip daddr "$DEST" tcp dport "$FWD_DPORT" ct state new,established,related counter accept
 {% endif -%}
 {%- endmacro %}
 
