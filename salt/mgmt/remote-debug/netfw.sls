@@ -63,8 +63,15 @@ FWD_DPORT=22
 DEST="{{ jump_ip }}"
 {% endif -%}
 [ -n "$DEST" ] || { echo "remote-debug: next-hop IP empty (re-run netfw from dom0)" >&2; exit 0; }
+# DNAT (prerouting) rewrites the destination to the next hop. We ALSO need SNAT
+# (postrouting masquerade) so the next hop sees this gateway as the source —
+# otherwise its reply goes back to the original client IP, which it cannot route,
+# and the connection hangs. This is why plain DNAT alone timed out.
 nft delete chain ip qubes custom-dnat-remotedebug 2>/dev/null || true
+nft delete chain ip qubes custom-snat-remotedebug 2>/dev/null || true
 nft add chain ip qubes custom-dnat-remotedebug '{ type nat hook prerouting priority -99 ; policy accept ; }'
+nft add chain ip qubes custom-snat-remotedebug '{ type nat hook postrouting priority 99 ; policy accept ; }'
+nft add rule ip qubes custom-snat-remotedebug ip daddr "$DEST" tcp dport "$FWD_DPORT" counter masquerade
 {% if hop == 'sys-net' -%}
 UPLINK="$(ip -4 route show default | awk '{print $5; exit}')"
 [ -n "$UPLINK" ] || exit 0
