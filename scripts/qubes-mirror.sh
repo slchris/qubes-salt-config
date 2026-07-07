@@ -27,7 +27,8 @@
 #   sudo ./scripts/qubes-mirror.sh --dry-run --templates-url URL
 #
 # The URLs are your choice. This script itself ships no default; the recommended
-# default (mirrors.kernel.org, verified to carry the Qubes r4.3 repos) lives in
+# default (Tsinghua TUNA, mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum, verified
+# to carry the Qubes r4.3 repos; kernel.org for outside China) lives in
 # pillar/user.sls under qvm:mirror. See docs/mirror.md.
 
 set -eu

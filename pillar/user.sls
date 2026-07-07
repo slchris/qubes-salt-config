@@ -41,24 +41,25 @@ qvm:
   #
   # Only set the layers you actually need; blank/absent URLs are left untouched.
   #
-  # The defaults below use mirrors.kernel.org (a fast, global CDN mirror that is
-  # verified to carry the Qubes r4.3 repos). Note: the big China mirrors (e.g.
-  # TUNA) do NOT mirror Qubes, so there is no mainland-China-fast default — pick
-  # whatever is fastest from your location, or keep the official source by
-  # leaving `enabled: false`.
+  # The defaults below use Tsinghua TUNA (mirrors.tuna.tsinghua.edu.cn), which
+  # is verified to carry the Qubes r4.3 repos under /qubesos/ and is fast from
+  # mainland China. If you are outside China, mirrors.kernel.org (a global CDN)
+  # is usually a better choice — swap the URLs below. Keep `enabled: false` to
+  # stay on the official ITL source.
+  #
+  # Verified working (2026): TUNA base for Qubes is /qubesos/repo/yum (note the
+  # path is "qubesos", not "qubes").
   mirror:
     enabled: false
     # Layer 1 — Qubes template download source (qvm-template / qubes-dom0-update
     # qubes-template-*). This is the one that stalls when it can't reach ITL.
-    templates_baseurl: "https://mirrors.kernel.org/qubes/repo/yum"
+    templates_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum"
     # Layer 2 — in-template OS package sources.
-    #   Debian example: https://deb.debian.org/debian
-    #   Fedora example: https://download.fedoraproject.org/pub/fedora/linux
-    debian_baseurl: ""
-    fedora_baseurl: ""
+    debian_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/debian"
+    fedora_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/fedora/linux"
     # Layer 3 — dom0 update source (Qubes' own packages). Optional; higher risk,
     # change only if dom0 updates are also unreachably slow.
-    dom0_baseurl: "https://mirrors.kernel.org/qubes/repo/yum"
+    dom0_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum"
 
 # =============================================================================
 # Per-Qube Configuration
