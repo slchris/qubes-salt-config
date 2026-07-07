@@ -68,19 +68,31 @@ nft add rule ip qubes custom-forward iifgroup 1 ip daddr "$DEST" tcp dport "$FWD
 {% endif -%}
 {%- endmacro %}
 
-{#- For each hop: write the script into its /rw/config via qvm-run, make it
-    executable, and run it now. Base64 avoids all quoting problems over qvm-run. -#}
+{#- For each hop: stage the firewall script as a dom0 temp file (Salt-native
+    file.managed, no jinja filters), then stream it into the hop's /rw/config
+    via `qvm-run --pass-io`, chmod, and run it now. Using file.managed +
+    --pass-io avoids both b64encode (absent in this Salt) and shell quoting. -#}
 {% for hop in [sysnet, sysfw] %}
 {%   set script = fw_script('sys-net' if hop == sysnet else 'sys-firewall') %}
+{%   set staged = '/tmp/remote-debug-fw-' ~ hop ~ '.sh' %}
+
+"remote-debug-netfw-stage-{{ hop }}":
+  file.managed:
+    - name: {{ staged }}
+    - mode: '0644'
+    - contents: |
+        {{ script | indent(8) }}
 
 "remote-debug-netfw-write-{{ hop }}":
   cmd.run:
     - name: >-
-        printf '%s' '{{ script | b64encode }}'
-        | qvm-run --pass-io -u root -- {{ hop }}
-        'base64 -d > /rw/config/qubes-firewall-user-script;
+        qvm-run --pass-io -u root -- {{ hop }}
+        'cat > /rw/config/qubes-firewall-user-script;
          chmod 0755 /rw/config/qubes-firewall-user-script'
+        < {{ staged }}
     - onlyif: qvm-check --running {{ hop }}
+    - require:
+      - file: "remote-debug-netfw-stage-{{ hop }}"
 
 "remote-debug-netfw-apply-{{ hop }}":
   cmd.run:
