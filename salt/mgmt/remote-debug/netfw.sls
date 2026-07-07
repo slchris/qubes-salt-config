@@ -78,6 +78,14 @@ UPLINK="$(ip -4 route show default | awk '{print $5; exit}')"
 nft add rule ip qubes custom-dnat-remotedebug iifname "$UPLINK" ip saddr "$LAN" tcp dport "$EXT_PORT" ct state new,established,related counter dnat to "${DEST}:${FWD_DPORT}"
 nft add rule ip qubes custom-forward iifname "$UPLINK" ip saddr "$LAN" ip daddr "$DEST" tcp dport "$FWD_DPORT" ct state new,established,related counter accept
 {% else -%}
+# Flush any stale ARP/neigh entry for the jump. Each restart of the jump gives
+# it a new vif, but a leftover PERMANENT neigh entry can pin the old vif/MAC, so
+# forwarded packets go to a dead interface (sys-firewall->jump silently fails
+# even though the jump has a working IP). Deleting it forces re-learning.
+ip neigh flush to "$DEST" 2>/dev/null || true
+for d in $(ip -o link show | sed -n 's/^[0-9]*: \(vif[0-9.]*\).*/\1/p'); do
+  ip neigh del "$DEST" dev "$d" 2>/dev/null || true
+done
 # sys-firewall: the forwarded packet arrives with dst = sys-firewall's own IP
 # (it was DNAT'd there by sys-net) on the external port. Match on that dst IP
 # rather than iifgroup — the upstream interface group is not reliably 1, which
