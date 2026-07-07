@@ -21,6 +21,10 @@ configure.sls has an in-qube fallback, but prefer this.
       - pkg: remote-debug-openssh-update
     - pkgs:
       - openssh-server
+      # REQUIRED on *-minimal templates: without the networking agent the
+      # AppVM's NIC (enX0) never comes up and it has no IP, so nothing can reach
+      # sshd. minimal templates do not ship this by default.
+      - qubes-core-agent-networking
 
 # Do not auto-start sshd template-wide; the jump AppVM starts it via rc.local.
 "remote-debug-openssh-disabled-in-template":
