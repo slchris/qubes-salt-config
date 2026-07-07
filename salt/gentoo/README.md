@@ -65,7 +65,7 @@ cd ~/qubes-builderv2
 
 # 2. Use the official Gentoo config as a starting point.
 cp example-configs/gentoo.yml builder.yml
-#   Edit builder.yml: set `qubes-release` (e.g. r4.2) and keep only the
+#   Edit builder.yml: set `qubes-release` (e.g. r4.3) and keep only the
 #   flavor(s) you want under `templates:` (gentoo / gentoo-minimal / gentoo-xfce).
 
 # 3. Build one template (repeat per flavor). This is the long step.

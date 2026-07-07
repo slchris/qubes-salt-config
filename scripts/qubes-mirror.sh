@@ -26,8 +26,9 @@
 #   sudo ./scripts/qubes-mirror.sh --disable            # restore all *.qbak
 #   sudo ./scripts/qubes-mirror.sh --dry-run --templates-url URL
 #
-# The URLs are your choice; this script ships no default mirror. Examples for
-# a Tsinghua (TUNA) mirror are in docs/mirror.md.
+# The URLs are your choice. This script itself ships no default; the recommended
+# default (mirrors.kernel.org, verified to carry the Qubes r4.3 repos) lives in
+# pillar/user.sls under qvm:mirror. See docs/mirror.md.
 
 set -eu
 

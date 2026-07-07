@@ -26,7 +26,7 @@ qubes-salt-config install and update guide.
 
 Your current setup needs to fulfill the following requirements:
 
-*   Qubes OS R4.2 or later
+*   Qubes OS R4.3 (R4.2 reached end of life on 2026-06-21)
 *   Internet connection
 *   A qube with `git` installed for downloading
 

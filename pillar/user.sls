@@ -40,21 +40,25 @@ qvm:
   # Leave `enabled: false` (or blank URLs) to keep the official sources.
   #
   # Only set the layers you actually need; blank/absent URLs are left untouched.
+  #
+  # The defaults below use mirrors.kernel.org (a fast, global CDN mirror that is
+  # verified to carry the Qubes r4.3 repos). Note: the big China mirrors (e.g.
+  # TUNA) do NOT mirror Qubes, so there is no mainland-China-fast default — pick
+  # whatever is fastest from your location, or keep the official source by
+  # leaving `enabled: false`.
   mirror:
     enabled: false
     # Layer 1 — Qubes template download source (qvm-template / qubes-dom0-update
     # qubes-template-*). This is the one that stalls when it can't reach ITL.
-    # Example (Tsinghua): https://mirrors.tuna.tsinghua.edu.cn/qubes/repo/yum
-    templates_baseurl: ""
+    templates_baseurl: "https://mirrors.kernel.org/qubes/repo/yum"
     # Layer 2 — in-template OS package sources.
-    #   Debian example: https://mirrors.tuna.tsinghua.edu.cn/debian
-    #   Fedora example: https://mirrors.tuna.tsinghua.edu.cn/fedora/linux
+    #   Debian example: https://deb.debian.org/debian
+    #   Fedora example: https://download.fedoraproject.org/pub/fedora/linux
     debian_baseurl: ""
     fedora_baseurl: ""
     # Layer 3 — dom0 update source (Qubes' own packages). Optional; higher risk,
     # change only if dom0 updates are also unreachably slow.
-    #   Example: https://mirrors.tuna.tsinghua.edu.cn/qubes/repo/yum
-    dom0_baseurl: ""
+    dom0_baseurl: "https://mirrors.kernel.org/qubes/repo/yum"
 
 # =============================================================================
 # Per-Qube Configuration

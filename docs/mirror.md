@@ -52,10 +52,10 @@ directly in **dom0** without Salt:
 ```sh
 # 1. Stop the stuck qubesctl (Ctrl-C in its terminal).
 
-# 2. Point the template repo at a mirror (example: Tsinghua TUNA).
+# 2. Point the template repo at a mirror (kernel.org, verified fast + global).
 #    This backs up the originals to *.qbak automatically.
 sudo ~/QubesIncoming/<qube>/qubes-salt-config/scripts/qubes-mirror.sh \
-    --templates-url https://mirrors.tuna.tsinghua.edu.cn/qubes/repo/yum
+    --templates-url https://mirrors.kernel.org/qubes/repo/yum
 
 # 3. Download the template directly (you now see real progress / errors).
 sudo qubes-dom0-update --clean qubes-template-debian-13-minimal
@@ -69,7 +69,7 @@ If you don't have the repo checked out in dom0 yet, the same effect by hand:
 
 ```sh
 sudo sed -i.qbak -E \
-  's#https?://[^ ]*yum.qubes-os.org#https://mirrors.tuna.tsinghua.edu.cn/qubes/repo/yum#g' \
+  's#https?://[^ ]*yum.qubes-os.org#https://mirrors.kernel.org/qubes/repo/yum#g' \
   /etc/qubes/repo-templates/*.repo
 sudo sed -i -E 's/^(\s*)(metalink|mirrorlist)\s*=/\1#\2=/' /etc/qubes/repo-templates/*.repo
 ```
@@ -85,9 +85,9 @@ with the script.
     qvm:
       mirror:
         enabled: true
-        templates_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/qubes/repo/yum"
-        debian_baseurl:    "https://mirrors.tuna.tsinghua.edu.cn/debian"
-        fedora_baseurl:    "https://mirrors.tuna.tsinghua.edu.cn/fedora/linux"
+        templates_baseurl: "https://mirrors.kernel.org/qubes/repo/yum"
+        debian_baseurl:    "https://deb.debian.org/debian"
+        fedora_baseurl:    "https://download.fedoraproject.org/pub/fedora/linux"
         dom0_baseurl:      ""    # leave blank to keep dom0 on the official source
     ```
 
@@ -102,11 +102,11 @@ with the script.
 
     # Layer 1 (template download) + layer 3 (dom0):
     sudo ./scripts/qubes-mirror.sh \
-        --templates-url https://mirrors.tuna.tsinghua.edu.cn/qubes/repo/yum
+        --templates-url https://mirrors.kernel.org/qubes/repo/yum
 
     # Preview without writing:
     sudo ./scripts/qubes-mirror.sh --dry-run \
-        --templates-url https://mirrors.tuna.tsinghua.edu.cn/qubes/repo/yum
+        --templates-url https://mirrors.kernel.org/qubes/repo/yum
     ```
 
 3. Layer 2 (in-template `apt`/`dnf`) **cannot** be set from dom0. Passing
@@ -115,7 +115,7 @@ with the script.
 
     ```sh
     sudo ./scripts/qubes-mirror.sh \
-        --debian-url https://mirrors.tuna.tsinghua.edu.cn/debian
+        --debian-url https://deb.debian.org/debian
     # -> prints the sed/apt commands to run inside debian-13-minimal
     ```
 
@@ -135,16 +135,26 @@ template (e.g. `sudo mv /etc/apt/sources.list.qbak /etc/apt/sources.list`).
 
 ## Picking a mirror
 
-This project ships **no** default mirror URL — you choose one you trust. Things
-to check for whatever mirror you pick:
+The default in `pillar/user.sls` is **`mirrors.kernel.org`** — a large, global
+kernel.org edge-CDN mirror that is verified to carry the Qubes **r4.3** repos and
+is a reliable improvement over the sometimes-slow ITL origin. It is not
+region-locked, so it is a safe general default. You can substitute any mirror you
+trust.
 
-*   It carries the Qubes template repo (`.../qubes/repo/yum/rX.Y/templates-itl`)
-    for **layer 1**.
+> **Note for users in mainland China:** the big domestic mirrors (TUNA, USTC,
+> Aliyun, etc.) do **not** mirror the Qubes repos, so there is no
+> China-local-fast option for layer 1/3 — `mirrors.kernel.org` is usually still
+> the best reachable choice. For layer 2 (in-template Debian/Fedora packages)
+> you *can* use a domestic mirror, since those distros are mirrored widely.
+
+When choosing any mirror, check that:
+
+*   It carries the Qubes template repo (`.../qubes/repo/yum/r4.3/templates-itl`)
+    for **layer 1** — test with
+    `curl -I <baseurl>/r4.3/templates-itl/repodata/repomd.xml` (expect `200`).
 *   It carries Debian and/or Fedora for **layer 2**, at a path layout your
     `sources.list` / `.repo` baseurl expects.
 *   It is reasonably fresh (mirrors that lag cause signature/metadata errors).
 
-The `mirrors.tuna.tsinghua.edu.cn` (Tsinghua TUNA) URLs used above are only
-examples of a large, current mirror; substitute any mirror appropriate for your
-location. Always keep `gpgcheck` on — see
+Always keep `gpgcheck` on — see
 [Important: signatures still apply](#important-signatures-still-apply).
