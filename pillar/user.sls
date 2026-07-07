@@ -25,8 +25,11 @@ qvm:
     version: "43"
     repo: "qubes-templates-itl"
   # Whonix configuration (if using Whonix templates)
+  # Qubes 4.3 ships Whonix 18 (templates: whonix-gateway-18 /
+  # whonix-workstation-18). Note the version is NOT part of a single template
+  # name like debian-13 — it applies to both the gateway and workstation.
   whonix:
-    version: "17"
+    version: "18"
     repo: "qubes-templates-community"
 
   # ===========================================================================
