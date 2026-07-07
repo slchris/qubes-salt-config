@@ -85,4 +85,26 @@ install it in the template first:
       - file: remote-debug-authorized-keys
       - cmd: remote-debug-ensure-sshd
 
+# Open inbound SSH on this AppVM. Qubes AppVMs drop incoming connections by
+# default (nftables `custom-input` chain), so even though sshd listens and the
+# port-forward delivers the packet, it is dropped here without this rule. This
+# is added to /rw/config/qubes-firewall-user-script so it re-applies on boot.
+"remote-debug-inbound-fw":
+  file.managed:
+    - name: /rw/config/qubes-firewall-user-script
+    - mode: '0755'
+    - user: root
+    - group: root
+    - contents: |
+        #!/bin/sh
+        # remote-debug: accept inbound SSH (Qubes AppVMs drop input by default).
+        nft add rule ip qubes custom-input tcp dport 22 ct state new,established,related counter accept 2>/dev/null || true
+
+"remote-debug-inbound-fw-now":
+  cmd.run:
+    - name: /rw/config/qubes-firewall-user-script
+    - runas: root
+    - require:
+      - file: remote-debug-inbound-fw
+
 {% endif %}
