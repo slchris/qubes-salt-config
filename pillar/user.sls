@@ -65,6 +65,38 @@ qvm:
     dom0_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum"
 
 # =============================================================================
+# Remote Debug (OPT-IN) — SSH into a jump qube to drive this machine
+# =============================================================================
+# Deploy with: sudo qubesctl state.apply mgmt.remote-debug
+# See docs/remote-debug.md. This is a DEVELOPMENT convenience with a real
+# security cost — read the security section before enabling.
+remote_debug:
+  # Jump qube: a dedicated networked AppVM that terminates SSH.
+  qube: "mgmt-jump"
+  template: "debian-13-minimal"
+  label: "red"
+  # SSH public key(s) allowed to log in (your dev machine). One per list item.
+  authorized_keys:
+    # yamllint disable-line rule:line-length
+    - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDFBtGrp0fsGhJ2mCiDtGnOWHbmAscWMnfPwkcvmbj6C2sotpstfSFPd63bzME8shQZYJmNJp9aS5VdW9L1bTpfCHkTm/6l9bOT2r2hsLMUxHpd8FK+k7qiUGvpuQu2QAy+q4MD93Mvna0rwwwNEd4TPMVzi7S8V5wPuzOK4aU/QIW8UwnWKRNFGokiCl3ySOd6NFxpvsp259N0KKL01Xc71QBy5BzrKPOco+1wlFqrtUrSQt9TsbtLrj2yYY+1RcD6JJlt2OoCJs0WHEXbyYw30PdNZVB4oJF1lzjAZTE9miyxxGDDixygCLBHcspVcj62T/5QYOP9QG+vU0y0wlXyYE4g6SI+UUJeNu0ZVpi1APzlA4TpxyAqLGQIzfBeyEAEObFZlENhZ/LV5ZDleYgD/wkTONm8aRq6ScmUdZPlel3z9wOfbr2TAuSxL93HoxqamQG7wGHD5iBpwn/gysr/gEkURZz/umFqep/KNi3gIpwcP9iBsbvBV6bUeVg7M0JrxYp+MCALY339Haw1b0yfqdxbL2bNl30D6IQOquv5IrTiMnYwKBK37tdhdwTG12Lj03FGxSNkIFLy5D+ZLBXdFtPhOXtwOOnDQ6K9pJ+2bURLDjVc/bIEZ6w22xj+tjykciTsUg4lHsQzvwkHA1xd4UwEyJXe7FPOdtQ9eOJy5w== cardno:11_023_204"
+  # dom0 access mode reachable from the jump qube:
+  #   "whitelist" — a qrexec service that only runs an allowed set of commands
+  #                 (salt + qvm-create/run/copy/prefs + dom0-update). Safer.
+  #   "shell"     — qubes.VMShell: ANY dom0 command. Convenient, but a
+  #                 compromise of the jump qube compromises the whole system.
+  dom0_access: "whitelist"
+  # Network exposure so your LAN machine can reach the jump qube's sshd:
+  #   "portforward" — DNAT sys-net(physical IP):<port> -> sys-firewall -> jump:22
+  #   "none"        — no forwarding installed (use a mesh VPN yourself, or the
+  #                   Qubes console); sshd still runs in the jump qube.
+  network: "portforward"
+  ssh_port: 2333            # external port on sys-net's physical IP
+  netvm: "sys-firewall"
+  # LAN subnet allowed to reach the forwarded port (source match in sys-net's
+  # nftables DNAT rule). Narrow this to your real subnet.
+  lan_subnet: "10.42.0.0/24"
+
+# =============================================================================
 # Per-Qube Configuration
 # =============================================================================
 # Git configuration is per-qube, not per-template.

@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+base:
+  'mgmt-jump':
+    - mgmt.remote-debug.configure

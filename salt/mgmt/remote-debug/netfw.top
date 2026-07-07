@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+base:
+  'sys-net':
+    - mgmt.remote-debug.netfw
+  'sys-firewall':
+    - mgmt.remote-debug.netfw

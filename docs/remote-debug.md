@@ -9,6 +9,13 @@ by hand at the physical console.
 > runs sshd and never gets network — SSH terminates in a dedicated AppVM
 > ("jump qube"), which reaches dom0 through qrexec.
 
+> **There is now a Salt formula that does all of this for you** — deploy with
+> `sudo qubesctl state.apply mgmt.remote-debug.*` and configure it via the
+> `remote_debug` block in `pillar/user.sls`. See
+> [salt/mgmt/remote-debug](../salt/mgmt/remote-debug/README.md). The manual
+> steps below explain the same mechanism and are useful for understanding or
+> one-off setups.
+
 ## Table of Contents
 
 *   [Architecture](#architecture)

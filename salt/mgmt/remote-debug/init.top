@@ -1,0 +1,29 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Full remote-debug deployment across all targets. Enable and apply with:
+  sudo qubesctl top.enable mgmt.remote-debug
+  sudo qubesctl --all state.highstate    # or apply the targets below in order
+  sudo qubesctl top.disable mgmt.remote-debug
+
+Order matters: create the qube (dom0) and install sshd in the template BEFORE
+configuring the qube; install dom0 access; then the port-forward. Because
+qubesctl applies dom0 and VMs in one highstate pass but cannot create-then-
+configure a brand-new qube in a single pass, see docs/remote-debug.md for the
+recommended step-by-step apply. This top is the aggregate reference.
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.remote-debug.create
+    - mgmt.remote-debug.dom0-access
+  'debian-13-minimal':
+    - mgmt.remote-debug.install
+  'mgmt-jump':
+    - mgmt.remote-debug.configure
+  'sys-net':
+    - mgmt.remote-debug.netfw
+  'sys-firewall':
+    - mgmt.remote-debug.netfw

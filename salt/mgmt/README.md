@@ -71,6 +71,11 @@ After installation, dvm-mgmt becomes the default `management_dispvm`. It is used
 *   Running `qubesctl --targets=QUBE state.apply STATE` on DomU qubes
 *   Opening a disposable console with `qvm-console-dispvm`
 
+## Sub-formulas
+
+*   [remote-debug](remote-debug/) — deploy an SSH jump qube to drive this
+    machine (Salt in dom0, file transfer, qube builds) from a dev laptop.
+
 ## License
 
 SPDX-License-Identifier: MIT

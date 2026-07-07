@@ -1,0 +1,48 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# qrexec service: qubes.RemoteDebug
+# Runs in dom0. Reads ONE command line on stdin from the jump qube and executes
+# it only if it matches the allow-list below. This is the "whitelist" dom0
+# access mode for remote-debug — safer than qubes.VMShell because a compromised
+# jump qube cannot run arbitrary dom0 commands, only these.
+#
+# The first stdin line is the requested command. Everything after the first
+# newline is passed as stdin to the executed command (e.g. salt piping).
+
+set -u
+
+read -r cmdline || exit 1
+
+# Allow-list: extended regexes matched against the WHOLE command line.
+# Covers: Salt (state.apply / saltutil / pillar), template downloads, and the
+# qube-management verbs needed to build Gentoo templates (create/run/copy/prefs).
+# Deliberately EXCLUDES destructive/broad verbs (qvm-remove, qvm-kill --all,
+# qubes-prefs writes, arbitrary shell) — add here only if you truly need them.
+ALLOW=(
+  '^qubesctl (--[a-z0-9=,._-]+ )*(state\.(apply|show_top|highstate)|saltutil\.(sync_all|refresh_pillar)|pillar\.items|top\.(enable|disable))( [a-zA-Z0-9=,._-]+)*( test=(True|False))?$'
+  '^qubes-dom0-update( --clean)?( --action=[a-z]+)? [a-zA-Z0-9._+-]+$'
+  '^qvm-check [a-zA-Z0-9._-]+$'
+  '^qvm-ls( --raw-list)?$'
+  '^qvm-create (--template [a-zA-Z0-9._-]+ )?(--label [a-z]+ )?[a-zA-Z0-9._-]+$'
+  '^qvm-prefs [a-zA-Z0-9._-]+ [a-z_]+ [a-zA-Z0-9=:._/ -]*$'
+  '^qvm-run (--no-gui )?(--pass-io )?(-u [a-z]+ )?-- [a-zA-Z0-9._-]+ .+$'
+  '^qvm-copy-to-vm [a-zA-Z0-9._-]+ [a-zA-Z0-9._/-]+$'
+  '^qvm-volume (list|info)( [a-zA-Z0-9:._-]+)?$'
+  '^qvm-shutdown( --wait)? [a-zA-Z0-9._-]+$'
+  '^qvm-start [a-zA-Z0-9._-]+$'
+)
+
+allowed=0
+for re in "${ALLOW[@]}"; do
+    if [[ "$cmdline" =~ $re ]]; then allowed=1; break; fi
+done
+
+if [ "$allowed" -ne 1 ]; then
+    echo "remote-debug: command not allowed: $cmdline" >&2
+    exit 126
+fi
+
+# Execute. Remaining stdin (after the command line) is forwarded to the command.
+exec bash -c "$cmdline"
