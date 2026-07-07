@@ -32,33 +32,58 @@ if no Gentoo template is present.
 
 ## Obtaining the Gentoo template
 
-### Option A — Build with qubes-builder (source of truth)
+### Option A — Build with qubes-builderv2 (source of truth)
 
-Gentoo templates are built from the official
-[qubes-template-configs](https://github.com/QubesOS/qubes-template-configs) and
-[qubes-gentoo](https://github.com/QubesOS/qubes-gentoo) repositories.
+There is no qusal / community Salt formula that builds a Gentoo template — the
+only upstream path is Qubes' own build system. It is driven by three official
+components:
 
-> **Note:** Building a Gentoo template compiles everything from source and can
-> take **half a day or more** per template. Do this on capable hardware.
+*   [qubes-builderv2](https://github.com/QubesOS/qubes-builderv2) — the build
+    orchestrator (the `./qb` tool). Ships `example-configs/gentoo.yml`.
+*   [qubes-builder-gentoo](https://github.com/QubesOS/qubes-builder-gentoo) —
+    the Gentoo plugin: it downloads the **latest systemd stage3** from
+    `distfiles.gentoo.org`, GPG- and SHA512-verifies it, extracts it into a
+    chroot, syncs Portage, then emerges the package lists per flavor.
+*   [qubes-gentoo](https://github.com/QubesOS/qubes-gentoo) — the Qubes **ebuild
+    overlay** (qubes-core-agent etc.), selected per Qubes release by Git branch.
 
-High-level steps (run in a dedicated build qube, not dom0):
+So the base is **not** an existing template you clone — it is bootstrapped from a
+Gentoo stage3 tarball and compiled from source. Flavors produced:
+`gentoo` (gnome), `gentoo-minimal`, `gentoo-xfce`.
+
+> **Note:** This compiles everything from source. Upstream sets a per-template
+> `timeout: 86400` (24h) and a 30 GB root — plan for **many hours** on capable
+> hardware.
+
+Steps (run in a dedicated Fedora/Debian build qube, not dom0):
 
 ```sh
-# In a Fedora/Debian build qube with qubes-builder installed:
+# 1. Get qubes-builderv2 and its dependencies (see its README for the full
+#    dependency install; it uses a Docker/podman executor by default).
 git clone https://github.com/QubesOS/qubes-builderv2 ~/qubes-builderv2
 cd ~/qubes-builderv2
 
-# Use a Gentoo template config (flavor: gentoo-xfce / gentoo / gentoo-minimal)
-# from qubes-template-configs as your builder.conf, then:
-./qb --template-name gentoo-xfce template build
+# 2. Use the official Gentoo config as a starting point.
+cp example-configs/gentoo.yml builder.yml
+#   Edit builder.yml: set `qubes-release` (e.g. r4.2) and keep only the
+#   flavor(s) you want under `templates:` (gentoo / gentoo-minimal / gentoo-xfce).
 
-# Copy the resulting template RPM into dom0 and install it:
-#   qvm-run --pass-io <build-qube> 'cat <path-to>.rpm' > gentoo-xfce.rpm
-#   sudo qubes-dom0-update --action=install ./gentoo-xfce.rpm
+# 3. Build one template (repeat per flavor). This is the long step.
+./qb --builder-conf builder.yml -c builder-gentoo package fetch
+./qb --builder-conf builder.yml template all
+#   The template .rpm lands under ~/qubes-builderv2/artifacts/templates/
+
+# 4. Move the resulting .rpm into dom0 and install it. From dom0:
+#   qvm-run --pass-io <build-qube> \
+#     'cat ~/qubes-builderv2/artifacts/templates/qubes-template-gentoo-xfce-*.rpm' \
+#     > /tmp/gentoo-xfce.rpm
+#   sudo qubes-dom0-update --action=install /tmp/gentoo-xfce.rpm
 ```
 
-Refer to the official Qubes template-building documentation for the exact,
-up-to-date invocation, as builder flags change between versions.
+The exact `./qb` stages and flags change between builderv2 versions — always
+cross-check the current
+[qubes-builderv2 README](https://github.com/QubesOS/qubes-builderv2) and
+`example-configs/gentoo.yml`.
 
 ### Option B — Community repository
 
