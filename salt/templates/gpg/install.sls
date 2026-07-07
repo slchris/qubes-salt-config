@@ -14,6 +14,11 @@
     - require:
       - pkg: gpg-update
     - pkgs:
+      # Update-proxy / networking support so the (minimal-based) TEMPLATE can
+      # install packages at all. This does NOT make the gpg AppVM networked —
+      # that is controlled by netvm="" in create.sls; it only lets the template
+      # reach the Qubes update proxy. Minimal templates lack this by default.
+      - qubes-core-agent-networking
       # GPG core
       - gnupg
       - gnupg-agent
