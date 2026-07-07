@@ -5,6 +5,12 @@ or when the UpdateVM routes over Tor), you can point Qubes at a faster mirror.
 This is **opt-in** and **off by default** — the official sources stay in use
 unless you deliberately switch.
 
+> **Two ways to apply it:** the Salt formula
+> [mgmt.mirror](../salt/mgmt/mirror/README.md) (`state.apply mgmt.mirror.*`,
+> driven by the `qvm:mirror` pillar block — recommended, re-applies on redeploy)
+> or the one-off script `scripts/qubes-mirror.sh` documented below. Both edit
+> the same files; the pillar `enabled: true` flag gates the formula.
+
 > **Symptom this solves:** `sudo qubesctl state.apply debian-minimal.clone`
 > hangs for a long time. That state runs `qvm.template_installed`, i.e. it
 > **downloads** `debian-13-minimal` from the ITL template repo — it is not a

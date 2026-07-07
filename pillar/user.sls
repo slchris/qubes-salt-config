@@ -53,7 +53,7 @@ qvm:
   # Verified working (2026): TUNA base for Qubes is /qubesos/repo/yum (note the
   # path is "qubesos", not "qubes").
   mirror:
-    enabled: false
+    enabled: true
     # Layer 1 — Qubes template download source (qvm-template / qubes-dom0-update
     # qubes-template-*). This is the one that stalls when it can't reach ITL.
     templates_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum"

@@ -73,6 +73,8 @@ After installation, dvm-mgmt becomes the default `management_dispvm`. It is used
 
 ## Sub-formulas
 
+*   [mirror](mirror/) — point Qubes at a download mirror (template downloads,
+    in-template apt/dnf, dom0 updates) via `state.apply`, driven by pillar.
 *   [remote-debug](remote-debug/) — deploy an SSH jump qube to drive this
     machine (Salt in dom0, file transfer, qube builds) from a dev laptop.
 

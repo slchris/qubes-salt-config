@@ -1,0 +1,19 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Apply all mirror layers. dom0 layer runs in dom0; the apt/dnf layers run in the
+respective templates. Apply per-target (a template must be targeted explicitly):
+  sudo qubesctl state.apply mgmt.mirror.dom0
+  sudo qubesctl --skip-dom0 --targets=debian-13-minimal state.apply mgmt.mirror.debian
+  sudo qubesctl --skip-dom0 --targets=fedora-43-minimal state.apply mgmt.mirror.fedora
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.mirror.dom0
+  'debian-13-minimal':
+    - mgmt.mirror.debian
+  'fedora-43-minimal':
+    - mgmt.mirror.fedora

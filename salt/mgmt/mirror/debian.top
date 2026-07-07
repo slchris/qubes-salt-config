@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+base:
+  'debian-13-minimal':
+    - mgmt.mirror.debian
