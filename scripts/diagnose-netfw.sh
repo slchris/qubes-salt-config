@@ -45,8 +45,27 @@ run_in "$JUMP" 'ss -tlnp | grep ":22" || echo NO_SSHD_LISTEN'
 sec "2. jump: FULL nft ruleset (does it have a qubes table? is input drop? is custom-input empty?)"
 run_in "$JUMP" 'nft list ruleset 2>&1 || echo "nft failed"'
 
-sec "3. jump: L2 + interface state (is eth0 up? what is its gateway/neigh?)"
-run_in "$JUMP" 'ip -4 addr show eth0 2>&1; echo "--- route ---"; ip route 2>&1; echo "--- neigh ---"; ip neigh 2>&1'
+sec "3. jump: NETWORK HEALTH (root cause suspect — does the qube even have a NIC?)"
+echo "--- all links (lo only == no network!) ---"
+run_in "$JUMP" 'ip -o link show 2>&1'
+echo "--- all addrs ---"
+run_in "$JUMP" 'ip -o addr show 2>&1'
+echo "--- /sys/class/net (kernel-visible interfaces) ---"
+run_in "$JUMP" 'ls -1 /sys/class/net/ 2>&1'
+echo "--- default route ---"
+run_in "$JUMP" 'ip route 2>&1'
+echo "--- qubes network service ---"
+run_in "$JUMP" 'systemctl is-active qubes-network 2>&1; systemctl status qubes-network 2>&1 | tail -6'
+echo "--- qubesdb network values (what IP/gw Qubes told the qube to use) ---"
+run_in "$JUMP" 'for k in /qubes-ip /qubes-netmask /qubes-gateway /qubes-primary-dns; do printf "%s = " "$k"; qubesdb-read "$k" 2>&1; echo; done'
+echo "--- dmesg network/vif errors ---"
+run_in "$JUMP" 'dmesg 2>/dev/null | grep -iE "eth0|vif|xen-netfront|network" | tail -8 || echo "no dmesg access"'
+
+sec "3b. jump: dom0-side network prefs"
+echo "provides_network: $(qvm-prefs "$JUMP" provides_network 2>&1)"
+echo "visible_ip:       $(qvm-prefs "$JUMP" visible_ip 2>&1)"
+echo "mac:              $(qvm-prefs "$JUMP" mac 2>&1)"
+echo "qrexec/features:  $(qvm-features "$JUMP" 2>&1 | grep -iE 'net|ip' || echo none)"
 
 sec "4. sys-firewall: interfaces, route to jump, neigh entry for jump"
 run_in "$SYSFW" "ip -4 -o addr show | grep -E 'vif|eth'; echo '--- route get jump ---'; ip route get ${JUMP_IP}; echo '--- neigh for jump ---'; ip neigh | grep ${JUMP_IP} || echo 'NO NEIGH ENTRY for jump (ARP not resolved!)'"
