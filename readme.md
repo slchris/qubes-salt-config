@@ -180,6 +180,8 @@ scripts/
 docs/
   install.md            # Detailed installation guide
   dev-deploy.md         # Local dev loop: package -> LAN -> dom0
+  mirror.md             # Optional download mirror (TUNA / kernel.org)
+  remote-debug.md       # SSH-driven debugging via a jump qube
 ```
 
 ## Key Concepts (from qusal)
