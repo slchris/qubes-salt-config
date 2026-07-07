@@ -110,6 +110,10 @@ qvm-check fedora-43-minimal || sudo qubes-dom0-update qubes-template-fedora-43-m
 qvm-check debian-13 || sudo qubes-dom0-update qubes-template-debian-13
 ```
 
+> If a template download is very slow or appears to hang, the ITL source may be
+> unreachable from your location. See the [mirror guide](mirror.md) to point
+> Qubes at a faster mirror (opt-in).
+
 ### Step 2: Create Management Environment
 
 Using top.enable (recommended):

@@ -32,6 +32,9 @@ See the [detailed installation instructions](docs/install.md).
 For a fast local development loop (package on your dev machine → push over the
 LAN → deploy to dom0), see the [local development deploy guide](docs/dev-deploy.md).
 
+If template downloads are slow or stall (e.g. far from the ITL CDN), you can
+optionally point Qubes at a faster mirror — see the [mirror guide](docs/mirror.md).
+
 ### Quick Start
 
 ```sh
@@ -171,6 +174,7 @@ pillar/
 scripts/
   setup.sh              # Setup script for dom0
   package.sh            # Package for deployment
+  qubes-mirror.sh       # Optional: point Qubes at a download mirror
   lint.sh               # Run yamllint + salt-lint locally
   check_top_pairing.py  # Enforce .sls <-> .top pairing
 docs/
