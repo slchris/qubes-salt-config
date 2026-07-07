@@ -22,10 +22,12 @@ install it in the template first:
 {% if grains['nodename'] != 'dom0' %}
 
 # Fallback: ensure sshd exists in this qube (prefer installing in the template).
+# Check the binary path directly — sshd lives in /usr/sbin, which is not on a
+# non-login PATH, so `command -v sshd` gives false negatives.
 "remote-debug-ensure-sshd":
   cmd.run:
     - name: |
-        if ! command -v sshd >/dev/null 2>&1; then
+        if [ ! -x /usr/sbin/sshd ]; then
           apt-get update && apt-get install -y openssh-server
         fi
     - runas: root

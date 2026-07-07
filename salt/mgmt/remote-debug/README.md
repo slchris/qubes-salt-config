@@ -25,7 +25,7 @@ without ever putting sshd or network on dom0.
 | `install` | template | install `openssh-server` in the jump qube's template |
 | `configure` | jump qube | authorized_keys, hardened sshd, persist via rc.local |
 | `dom0-access` | dom0 | qrexec policy so the jump qube can drive dom0 |
-| `netfw` | sys-net, sys-firewall | nftables port-forward so the LAN can reach sshd |
+| `netfw` | dom0 (pushes to sys-net + sys-firewall via qvm-run) | nftables port-forward so the LAN can reach sshd |
 | `teardown` | dom0 | revoke dom0 access and remove the jump qube |
 
 ## Configure
@@ -70,8 +70,10 @@ sudo qubesctl --skip-dom0 --targets=mgmt-jump state.apply mgmt.remote-debug.conf
 # 4. Install the dom0 access channel (whitelist service + policy)
 sudo qubesctl state.apply mgmt.remote-debug.dom0-access
 
-# 5. Port-forward through sys-net + sys-firewall (nftables)
-sudo qubesctl --skip-dom0 --targets=sys-net,sys-firewall state.apply mgmt.remote-debug.netfw
+# 5. Port-forward through sys-net + sys-firewall (nftables).
+#    Runs in dom0 and pushes the firewall script into both hops via qvm-run —
+#    sys-net cannot run qubesctl (Qubes denies it the admin API by design).
+sudo qubesctl state.apply mgmt.remote-debug.netfw
 ```
 
 Find the address to SSH to — the **physical IP held by `sys-net`**:

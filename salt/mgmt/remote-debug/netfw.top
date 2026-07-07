@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: MIT
 
 base:
-  'sys-net':
-    - mgmt.remote-debug.netfw
-  'sys-firewall':
+  'dom0':
+    - match: nodegroup
     - mgmt.remote-debug.netfw
