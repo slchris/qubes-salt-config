@@ -14,6 +14,7 @@ without ever putting sshd or network on dom0.
 *   [Configure](#configure)
 *   [Deploy](#deploy)
 *   [Using it](#using-it)
+*   [Troubleshooting](#troubleshooting)
 *   [Security](#security)
 *   [Teardown](#teardown)
 
@@ -130,6 +131,35 @@ ssh qubes-jump "dom0 'qvm-run --pass-io mgmt-jump \"cat ~/incoming/foo\" > /tmp/
 ssh qubes-jump "dom0 'qvm-create --template debian-13-minimal --label black gentoo-build'"
 ssh qubes-jump "dom0 'qvm-run --pass-io -- gentoo-build \"cd ~/qubes-builderv2 && ./qb ...\"'"
 ```
+
+## Troubleshooting
+
+Port-forwarding an external connection down to an AppVM runs against Qubes'
+default isolation, so several independent things must all be right. If SSH
+times out, work through these (the bundled `scripts/diagnose-netfw.sh`, run in
+dom0, checks all of them and prints per-hop PASS/FAIL verdicts).
+
+**The `dom0()` command returns empty / "looks broken".** The whitelist service
+allows a **single command only — no shell pipes**. `dom0 'qvm-ls | head'` is
+rejected (empty output); use `dom0 'qvm-ls --raw-list'` and pipe on your side.
+
+**SSH times out — diagnose in this order:**
+
+| Symptom (in dom0) | Cause | Fix |
+|---|---|---|
+| `qvm-run -u root mgmt-jump 'ip -o addr show'` shows **no eth0 / no IP** | jump has no network | Ensure `qvm-prefs mgmt-jump provides_network` is **False** (the `net` create flag wrongly sets it True), and that the template has `qubes-core-agent-networking` (minimal templates don't by default — `install` adds it). Then restart the jump. |
+| jump **pings its gateway OK** but `sys-firewall -> jump:22` FAILs, and the sys-firewall neigh entry is `PERMANENT` | **stale ARP** — each jump restart changes its vif; a leftover neigh pins the dead vif | On sys-firewall: `ip neigh flush to <jump-ip>` (netfw now does this automatically on every firewall load). |
+| jump `nft` input chain shows `policy drop; jump custom-input` and the custom-input accept **counter is 0** | inbound dropped by the jump, or the packet never arrived | If counter 0, the packet isn't arriving — it's the ARP/network issue above, not input. If packets hit the drop, the `custom-input tcp dport 22 accept` rule (added by `configure`) is missing. |
+| conntrack on sys-firewall shows the flow **UNREPLIED with dst still `<sys-firewall-ip>:2333`** (not DNAT'd) | DNAT rule not matching | netfw matches `ip daddr <sys-firewall-ip>` (not `iifgroup`), which is reliable; re-run `state.apply mgmt.remote-debug.netfw`. |
+| everything above passes but the handshake still hangs | missing SNAT | netfw adds a postrouting masquerade so replies route back; confirm `custom-snat-remotedebug` exists on both hops. |
+
+**`qubesctl --targets=sys-net ... netfw` fails with "denied admin.vm.List".**
+Expected — sys-net can't run qubesctl. netfw runs in **dom0** (no `--targets`)
+and pushes to the hops via qvm-run: `sudo qubesctl state.apply mgmt.remote-debug.netfw`.
+
+**After any change, re-package and re-deploy** — editing the repo does not
+change `/srv/salt/slchris` until you run `setup.sh` again; `saltutil.sync_all`
+does not copy files.
 
 ## Security
 
