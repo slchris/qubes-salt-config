@@ -258,7 +258,9 @@ git pull
 
 ## Packaging
 
-Create a tarball for deploying to new machines:
+Create a tarball for deploying to new machines. For an iterative dev loop that
+pushes your working copy over the LAN instead, see
+[dev-deploy.md](dev-deploy.md).
 
 ### Create Package
 

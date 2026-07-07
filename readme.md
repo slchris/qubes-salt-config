@@ -29,6 +29,9 @@ Features:
 
 See the [detailed installation instructions](docs/install.md).
 
+For a fast local development loop (package on your dev machine → push over the
+LAN → deploy to dom0), see the [local development deploy guide](docs/dev-deploy.md).
+
 ### Quick Start
 
 ```sh
@@ -168,8 +171,11 @@ pillar/
 scripts/
   setup.sh              # Setup script for dom0
   package.sh            # Package for deployment
+  lint.sh               # Run yamllint + salt-lint locally
+  check_top_pairing.py  # Enforce .sls <-> .top pairing
 docs/
   install.md            # Detailed installation guide
+  dev-deploy.md         # Local dev loop: package -> LAN -> dom0
 ```
 
 ## Key Concepts (from qusal)
