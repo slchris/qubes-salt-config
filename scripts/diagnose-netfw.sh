@@ -2,15 +2,15 @@
 # SPDX-FileCopyrightText: 2026 Chris Su
 # SPDX-License-Identifier: MIT
 #
-# Diagnose the remote-debug port-forward path end to end.
-# Run in DOM0. It captures packets on all three hops WHILE you SSH from your
-# LAN machine, plus each hop's nft rules / counters / routing, into one file.
+# One-shot, comprehensive diagnosis of the remote-debug port-forward path.
+# Run in DOM0. Collects EVERYTHING needed to locate where the double-NAT
+# forward breaks, so no follow-up commands are needed.
 #
 #   sudo ./scripts/diagnose-netfw.sh
-#   # when it says "NOW: from your Mac run: ssh -p 2333 user@<sys-net-ip>",
-#   # do that within the countdown.
+#   # keep it running; when it prints the SSH prompt, run from your Mac:
+#   #   ssh -p 2333 user@<sys-net-physical-ip>
 #
-# Then upload /tmp/qsc-netfw.txt, e.g. from a networked qube:
+# Then upload /tmp/qsc-netfw.txt from a networked qube:
 #   cat /tmp/qsc-netfw.txt | qvm-run --pass-io <netqube> \
 #     'curl -s -X POST --data-binary @- "https://pb.plz.ac/"'
 
@@ -25,91 +25,64 @@ CAP_SECS=12
 
 exec > "$OUT" 2>&1
 sec() { echo; echo "===== $1 ====="; }
+run_in() { local q="$1"; shift; qvm-run --pass-io -u root -- "$q" "$*" 2>&1; }
 
-run_in() {  # run_in <qube> <cmd...>
-    local q="$1"; shift
-    qvm-run --pass-io -u root -- "$q" "$*" 2>&1
-}
+FW_IP="$(qvm-prefs "$SYSFW" ip 2>&1)"
+JUMP_IP="$(qvm-prefs "$JUMP" ip 2>&1)"
 
-echo "remote-debug netfw diagnose"
+echo "remote-debug netfw diagnose (comprehensive)"
 echo "hops: $SYSNET -> $SYSFW -> $JUMP   ext_port=$EXT_PORT"
 
-sec "0. resolved IPs (dom0 view)"
-echo "sys-firewall ip: $(qvm-prefs "$SYSFW" ip 2>&1)"
-echo "mgmt-jump ip:    $(qvm-prefs "$JUMP" ip 2>&1)"
+sec "0. IPs / netvm"
+echo "sys-firewall ip: $FW_IP"
+echo "mgmt-jump ip:    $JUMP_IP"
 echo "mgmt-jump netvm: $(qvm-prefs "$JUMP" netvm 2>&1)"
+echo "sys-firewall netvm: $(qvm-prefs "$SYSFW" netvm 2>&1)"
 
-sec "1. sshd listen + inbound reachability on jump"
+sec "1. jump: sshd listen"
 run_in "$JUMP" 'ss -tlnp | grep ":22" || echo NO_SSHD_LISTEN'
 
-sec "2. nft DNAT / SNAT / forward chains (all hops)"
-for q in "$SYSNET" "$SYSFW" "$JUMP"; do
-    echo "--- [$q] custom-dnat-remotedebug ---"
-    run_in "$q" 'nft list chain ip qubes custom-dnat-remotedebug 2>&1 || echo NONE'
-    echo "--- [$q] custom-snat-remotedebug ---"
-    run_in "$q" 'nft list chain ip qubes custom-snat-remotedebug 2>&1 || echo NONE'
-    echo "--- [$q] custom-forward ---"
-    run_in "$q" 'nft list chain ip qubes custom-forward 2>&1 || echo NONE'
+sec "2. jump: FULL nft ruleset (does it have a qubes table? is input drop? is custom-input empty?)"
+run_in "$JUMP" 'nft list ruleset 2>&1 || echo "nft failed"'
+
+sec "3. jump: L2 + interface state (is eth0 up? what is its gateway/neigh?)"
+run_in "$JUMP" 'ip -4 addr show eth0 2>&1; echo "--- route ---"; ip route 2>&1; echo "--- neigh ---"; ip neigh 2>&1'
+
+sec "4. sys-firewall: interfaces, route to jump, neigh entry for jump"
+run_in "$SYSFW" "ip -4 -o addr show | grep -E 'vif|eth'; echo '--- route get jump ---'; ip route get ${JUMP_IP}; echo '--- neigh for jump ---'; ip neigh | grep ${JUMP_IP} || echo 'NO NEIGH ENTRY for jump (ARP not resolved!)'"
+
+sec "5. sys-firewall: ACTIVE probes to jump (can it even reach the jump itself?)"
+echo "--- arping jump on the routed vif ---"
+run_in "$SYSFW" "DEV=\$(ip route get ${JUMP_IP} | sed -n 's/.*dev \\([^ ]*\\).*/\\1/p'); echo dev=\$DEV; timeout 5 arping -c2 -I \$DEV ${JUMP_IP} 2>&1; echo arping_exit=\$?"
+echo "--- direct TCP 22 from sys-firewall to jump (bypasses forwarding) ---"
+run_in "$SYSFW" "timeout 5 bash -c 'echo > /dev/tcp/${JUMP_IP}/22' && echo TCP22_OK || echo TCP22_FAIL"
+echo "--- ping jump ---"
+run_in "$SYSFW" "timeout 5 ping -n -c2 -W2 ${JUMP_IP} 2>&1; echo ping_exit=\$?"
+
+sec "6. nft chains + counters on sys-net and sys-firewall"
+for q in "$SYSNET" "$SYSFW"; do
+    for ch in custom-dnat-remotedebug custom-snat-remotedebug custom-forward; do
+        echo "--- [$q] $ch ---"
+        run_in "$q" "nft list chain ip qubes $ch 2>&1 | grep -vE '^table|^}|^\s*chain' || echo NONE"
+    done
 done
 
-sec "3. routing sanity"
-echo "--- sys-firewall route to jump ---"
-run_in "$SYSFW" "ip route get $(qvm-prefs "$JUMP" ip 2>/dev/null)"
-echo "--- sys-net default uplink ---"
-run_in "$SYSNET" 'ip -4 route show default'
-echo "--- sys-firewall interfaces ---"
-run_in "$SYSFW" 'ip -4 -o addr show | grep -E "vif|eth"'
+sec "7. sys-firewall: antispoof / drop counters (is our forwarded pkt being dropped?)"
+run_in "$SYSFW" 'nft list ruleset 2>&1 | grep -iE "drop|antispoof|counter packets" | head -30'
 
-sec "4. LIVE packet capture on all three hops"
-echo "Starting ${CAP_SECS}s capture on all hops."
-echo ">>> NOW: from your Mac run:  ssh -p ${EXT_PORT} user@<sys-net-physical-ip> <<<"
-echo
-
-# Launch tcpdump on each hop in the background, tagging each line with the qube.
-CAPFILE_PREFIX="/tmp/qsc-cap"
-for q in "$SYSNET" "$SYSFW" "$JUMP"; do
-    ( qvm-run --pass-io -u root -- "$q" \
-        "timeout ${CAP_SECS} tcpdump -ni any 'tcp port ${EXT_PORT} or tcp port 22' 2>&1" \
-        | sed "s/^/[$q] /" > "${CAPFILE_PREFIX}-$q.txt" 2>&1 ) &
-done
-
-# Give the user a visible countdown to trigger the SSH from their Mac.
+sec "8. LIVE conntrack during an SSH attempt"
+echo ">>> NOW from your Mac run:  ssh -p ${EXT_PORT} user@<sys-net-physical-ip> <<<"
 for i in $(seq "$CAP_SECS" -1 1); do
-    printf '\r  capturing... %2ds left (SSH from your Mac now)   ' "$i" >&2
+    printf '\r  waiting %2ds for your SSH attempt...   ' "$i" >&2
     sleep 1
 done
 printf '\n' >&2
-wait
-
-echo "--- capture: $SYSNET (does the client SYN arrive + get DNAT'd?) ---"
-cat "${CAPFILE_PREFIX}-$SYSNET.txt" 2>/dev/null | head -40
-echo "--- capture: $SYSFW (does the forwarded SYN arrive + go to jump?) ---"
-cat "${CAPFILE_PREFIX}-$SYSFW.txt" 2>/dev/null | head -40
-echo "--- capture: $JUMP (does the SYN reach jump + does it SYN-ACK back?) ---"
-cat "${CAPFILE_PREFIX}-$JUMP.txt" 2>/dev/null | head -40
-
-sec "5. conntrack for the flow (all hops)"
 for q in "$SYSNET" "$SYSFW" "$JUMP"; do
-    echo "--- [$q] conntrack dport $EXT_PORT / 22 ---"
-    run_in "$q" "conntrack -L 2>/dev/null | grep -E 'dport=${EXT_PORT}|dport=22' | head -10 || echo 'no conntrack tool/entries'"
+    echo "--- [$q] conntrack (dport ${EXT_PORT} or 22) ---"
+    run_in "$q" "conntrack -L 2>/dev/null | grep -E 'dport=${EXT_PORT}|dport=22' | head -8 || echo 'no conntrack entries/tool'"
+    echo "--- [$q] SYN-RECV / ESTAB sockets to :22 ---"
+    run_in "$q" "ss -tan 2>/dev/null | grep -E ':22|:${EXT_PORT}' | grep -vE 'LISTEN' | head -8 || echo 'none'"
 done
 
-sec "6. DID THE SYN REACH mgmt-jump? (does it show a half-open connection to :22)"
-# A SYN-RECV entry means the SYN arrived at the jump but the handshake didn't
-# complete (reply path broken). No entry at all means the packet never arrived
-# (forward/route broken between sys-firewall and jump).
-echo "--- [$JUMP] sockets in SYN-RECV to :22 ---"
-run_in "$JUMP" "ss -tan 2>/dev/null | grep ':22' || echo 'no :22 sockets seen'"
-echo "--- [$JUMP] nft input chain counters (did input see the packet?) ---"
-run_in "$JUMP" 'nft list ruleset 2>/dev/null | grep -iE "dport 22|hook input|counter" | head || echo "no nft ruleset on jump"'
-echo "--- [$JUMP] all nft (empty means no firewall here) ---"
-run_in "$JUMP" 'nft list tables 2>&1'
-
-sec "7. SNAT check on sys-firewall (was source rewritten to the gateway?)"
-# If masquerade worked, mgmt-jump should see src = sys-firewall's jump-side IP
-# (10.138.30.107 via vif), NOT 10.137.0.8. That is what lets the reply route back.
-run_in "$SYSFW" 'nft list chain ip qubes custom-snat-remotedebug 2>&1'
-
-rm -f "${CAPFILE_PREFIX}"-*.txt 2>/dev/null
 echo
 echo "===== END. Upload $OUT ====="
