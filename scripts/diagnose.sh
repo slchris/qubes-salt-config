@@ -43,6 +43,20 @@ echo "-- user.sls top-level keys --"
 grep -nE '^[a-zA-Z_]+:' "$PILLAR_DIR/user.sls" 2>&1
 echo "-- user.sls: mirror enabled + remote_debug lines --"
 grep -nE 'enabled:|^remote_debug:|qube:' "$PILLAR_DIR/user.sls" 2>&1
+echo "-- PROOF the deployed file is the NEW version (remote_debug present?) --"
+grep -c 'remote_debug' "$PILLAR_DIR/user.sls" 2>&1
+echo "-- file mtime (recent = freshly setup) --"
+stat -c '%y  %n' "$PILLAR_DIR/user.sls" 2>&1 || ls -l "$PILLAR_DIR/user.sls"
+
+sec "4b. ALL pillar_roots dirs + every top.sls under them (top conflict?)"
+for d in $(salt-call --local config.get pillar_roots --out=json 2>/dev/null | grep -oE '/[^",]+'); do
+  echo "-- pillar_root: $d --"
+  ls -la "$d" 2>&1 | head
+  [ -f "$d/top.sls" ] && { echo "   top.sls:"; sed 's/^/     /' "$d/top.sls"; }
+done
+echo "-- Qubes-shipped pillar top(s) that may win over ours --"
+ls -la /srv/pillar/base/ 2>&1 | head
+cat /srv/pillar/base/top.sls 2>&1 | head
 
 sec "5. what salt actually LOADS for pillar (the decisive test)"
 echo "-- pillar.get qvm:mirror:enabled --"
