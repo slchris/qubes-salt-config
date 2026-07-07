@@ -98,6 +98,10 @@ install it in the template first:
     - contents: |
         #!/bin/sh
         # remote-debug: accept inbound SSH (Qubes AppVMs drop input by default).
+        # Ensure the table/chain exist before adding the rule (idempotent — a no-op
+        # if Qubes already created them), then accept inbound tcp/22.
+        nft add table ip qubes 2>/dev/null || true
+        nft add chain ip qubes custom-input 2>/dev/null || true
         nft add rule ip qubes custom-input tcp dport 22 ct state new,established,related counter accept 2>/dev/null || true
 
 "remote-debug-inbound-fw-now":
