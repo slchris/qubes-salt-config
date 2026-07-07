@@ -1,0 +1,15 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - templates.mcp.create
+  'tpl-mcp':
+    - templates.mcp.install
+  'dvm-mcp':
+    - templates.mcp.configure
+  'mcp':
+    - templates.mcp.configure

@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+base:
+  'dvm-mcp':
+    - templates.mcp.configure
+  'mcp':
+    - templates.mcp.configure

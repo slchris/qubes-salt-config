@@ -1,0 +1,28 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Gentoo base template configuration.
+
+Gentoo is a rolling-release source distribution, so the template is NOT
+versioned like Debian/Fedora. The template name is simply the flavor, e.g.
+gentoo-xfce, gentoo, gentoo-minimal.
+
+Flavor is configurable via pillar:
+  qvm:gentoo:flavor (default: xfce)
+
+IMPORTANT: Qubes OS does not ship a ready-to-clone Gentoo template in the
+default repositories (as of 2026 the prebuilt gentoo-minimal was removed from
+the Template Manager). The Gentoo template must be built from source with
+qubes-builder (qubes-template-configs) or installed from a community repo when
+available. See salt/gentoo/README.md. This formula only clones/derives from an
+already-installed Gentoo template; it does not build the base template itself.
+#}
+
+{% set base = 'gentoo' -%}
+{% set flavor = salt['pillar.get']('qvm:gentoo:flavor', 'xfce') -%}
+{% if flavor -%}
+  {% set flavor = '-' ~ flavor -%}
+{% endif -%}
+{% set template = base ~ flavor -%}
+{% set template_clean = base ~ flavor -%}
