@@ -45,12 +45,16 @@ Revert by restoring the .qbak files (see README).
   cmd.run:
     - name: |
         for f in /etc/qubes/repo-templates/*.repo; do
-          sed -i -E 's|^(\s*)(metalink\|mirrorlist)\s*=|\1#\2=|' "$f"
-          sed -i -E 's#^(\s*baseurl\s*=\s*)https?://[^/]+(/.*)#\1{{ tmpl_url }}\2#' "$f"
+          # Qubes ships metalink enabled and baseurl COMMENTED OUT. To use a
+          # mirror we must: comment metalink, then UNCOMMENT the https baseurl
+          # and repoint its host, keeping $releasever and the path tail. The
+          # onion baseurl line is left commented.
+          sed -i -E 's@^([[:space:]]*)(metalink|mirrorlist)[[:space:]]*=@\1#\2=@' "$f"
+          sed -i -E 's@^#baseurl[[:space:]]*=[[:space:]]*https?://yum\.qubes-os\.org(/r\$releasever/[^ ]*)@baseurl = {{ tmpl_url }}\1@' "$f"
         done
     - require:
       - cmd: mirror-templates-backup
-    - unless: grep -rq "{{ tmpl_url }}" /etc/qubes/repo-templates/*.repo
+    - unless: grep -rq "^baseurl.*{{ tmpl_url }}" /etc/qubes/repo-templates/*.repo
 {% endif %}
 
 {% if enabled and dom0_url %}
@@ -63,11 +67,15 @@ Revert by restoring the .qbak files (see README).
 "mirror-dom0-repoint":
   cmd.run:
     - name: |
-        sed -i -E 's|^(\s*)(metalink\|mirrorlist)\s*=|\1#\2=|' /etc/yum.repos.d/qubes-dom0.repo
-        sed -i -E 's#^(\s*baseurl\s*=\s*)https?://[^/]+(/.*)#\1{{ dom0_url }}\2#' /etc/yum.repos.d/qubes-dom0.repo
+        f=/etc/yum.repos.d/qubes-dom0.repo
+        sed -i -E 's@^([[:space:]]*)(metalink|mirrorlist)[[:space:]]*=@\1#\2=@' "$f"
+        # Uncomment a commented https baseurl if present (same layout as the
+        # template repo); also repoint an already-active baseurl if there is one.
+        sed -i -E 's@^#baseurl[[:space:]]*=[[:space:]]*https?://yum\.qubes-os\.org(/r\$releasever/[^ ]*)@baseurl = {{ dom0_url }}\1@' "$f"
+        sed -i -E 's@^(baseurl[[:space:]]*=[[:space:]]*)https?://yum\.qubes-os\.org@\1{{ dom0_url }}@' "$f"
     - require:
       - cmd: mirror-dom0-backup
-    - unless: grep -q "{{ dom0_url }}" /etc/yum.repos.d/qubes-dom0.repo
+    - unless: grep -q "^baseurl.*{{ dom0_url }}" /etc/yum.repos.d/qubes-dom0.repo
 {% endif %}
 
 {% endif %}
