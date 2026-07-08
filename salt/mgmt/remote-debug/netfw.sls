@@ -49,10 +49,11 @@ Requires cfg.remote_debug.network == "portforward" in config.jinja.
 {%- set sysfw_ip = salt['cmd.run']('qvm-prefs ' ~ sysfw ~ ' ip', python_shell=True).strip() -%}
 {%- set jump_ip = salt['cmd.run']('qvm-prefs ' ~ qube ~ ' ip', python_shell=True).strip() -%}
 
+{#- fw_script emits only the remote-debug rule block, wrapped in markers, so it
+    can be MERGED into /rw/config/qubes-firewall-user-script without clobbering
+    other rules the user added there (e.g. hotspot DHCP/DNS custom-input). -#}
 {%- macro fw_script(hop) -%}
-#!/bin/sh
-# remote-debug port-forward ({{ hop }}) — nftables. Managed by
-# mgmt.remote-debug.netfw (pushed from dom0). Edit config.jinja, not this file.
+# >>> remote-debug (managed by mgmt.remote-debug.netfw — do not edit) >>>
 EXT_PORT={{ ext_port }}
 LAN="{{ lan }}"
 {% if hop == 'sys-net' -%}
@@ -102,6 +103,7 @@ SELF="$(ip -4 route get {{ jump_ip }} 2>/dev/null | sed -n 's/.*src \([0-9.]*\).
 nft add rule ip qubes custom-dnat-remotedebug ip daddr "$SELF" tcp dport "$EXT_PORT" ct state new,established,related counter dnat to "${DEST}:${FWD_DPORT}"
 nft add rule ip qubes custom-forward ip daddr "$DEST" tcp dport "$FWD_DPORT" ct state new,established,related counter accept
 {% endif -%}
+# <<< remote-debug <<<
 {%- endmacro %}
 
 {#- For each hop: stage the firewall script as a dom0 temp file (Salt-native
@@ -121,9 +123,14 @@ nft add rule ip qubes custom-forward ip daddr "$DEST" tcp dport "$FWD_DPORT" ct 
 
 "remote-debug-netfw-write-{{ hop }}":
   cmd.run:
+    # MERGE our block into /rw/config/qubes-firewall-user-script instead of
+    # overwriting it — the user may have their own rules there (e.g. a Wi-Fi
+    # hotspot's DHCP/DNS custom-input rules on sys-net). The remote helper:
+    #  1. ensures the file exists with a #!/bin/sh shebang,
+    #  2. strips any previous remote-debug marker block,
+    #  3. appends our new block (piped in on stdin), and makes it executable.
     - name: |
-        cat {{ staged }} | qvm-run --pass-io -u root -- {{ hop }} \
-          'cat > /rw/config/qubes-firewall-user-script && chmod 0755 /rw/config/qubes-firewall-user-script'
+        cat {{ staged }} | qvm-run --pass-io -u root -- {{ hop }} 'F=/rw/config/qubes-firewall-user-script; NEW=$(cat); [ -f "$F" ] || printf "#!/bin/sh\n" > "$F"; grep -q "^#!" "$F" || sed -i "1i #!/bin/sh" "$F"; sed -i "/# >>> remote-debug/,/# <<< remote-debug <<</d" "$F"; printf "%s\n" "$NEW" >> "$F"; chmod 0755 "$F"'
     - onlyif: qvm-check --running {{ hop }}
     - require:
       - file: "remote-debug-netfw-stage-{{ hop }}"
