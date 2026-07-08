@@ -40,10 +40,19 @@ if [[ "$cmdline" =~ ^deploy\ ([a-zA-Z0-9_-]+)$ ]]; then
     [ -n "$SETUP" ] || { echo "deploy: FAILED — scripts/setup.sh not in package"; exit 1; }
     ROOT="$(dirname "$(dirname "$SETUP")")"
     echo "deploy: running setup.sh in $ROOT ..."
-    if ! ( cd "$ROOT" && sudo ./scripts/setup.sh ); then
-        echo "deploy: FAILED — setup.sh returned non-zero"; exit 1; fi
-    echo "deploy: DONE — /srv/salt/slchris updated from $JQ"
-    exit 0
+    # Capture setup.sh's own stdout+stderr and relay it (indented) — qrexec only
+    # relays this service's stdout, so setup.sh output must be piped through here
+    # or a non-zero exit is invisible.
+    if ( cd "$ROOT" && sudo ./scripts/setup.sh ) > "$TMP/setup.log" 2>&1; then
+        sed 's/^/  setup| /' "$TMP/setup.log"
+        echo "deploy: DONE — /srv/salt/slchris updated from $JQ"
+        exit 0
+    else
+        rc=$?
+        sed 's/^/  setup| /' "$TMP/setup.log"
+        echo "deploy: FAILED — setup.sh exited $rc"
+        exit 1
+    fi
 fi
 
 # Allow-list: extended regexes matched against the WHOLE command line.
