@@ -75,6 +75,8 @@ After installation, dvm-mgmt becomes the default `management_dispvm`. It is used
 
 *   [mirror](mirror/) — point Qubes at a download mirror (template downloads,
     in-template apt/dnf, dom0 updates) via `state.apply`, driven by cfg.mirror in config.jinja.
+*   [hotspot](hotspot/) — set up a Wi-Fi hotspot on sys-net from config
+    (NetworkManager connection + DHCP/DNS firewall rules), idempotently.
 *   [remote-debug](remote-debug/) — deploy an SSH jump qube to drive this
     machine (Salt in dom0, file transfer, qube builds) from a dev laptop.
 
