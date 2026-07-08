@@ -27,6 +27,10 @@ info() {
     echo "==> $1"
 }
 
+warn() {
+    echo "warning: $1" >&2
+}
+
 # Default values
 DRY_RUN=0
 
@@ -110,6 +114,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
 else
     info "Ensuring directories exist..."
     mkdir -p "$SALT_DST"
+    mkdir -p "$MINION_DST"
 fi
 
 # Copy minion config
@@ -117,6 +122,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
     echo "  cp $MINION_SRC/*.conf $MINION_DST/"
 else
     info "Installing minion configuration..."
+    mkdir -p "$MINION_DST"
     cp "$MINION_SRC"/*.conf "$MINION_DST"/
 fi
 
@@ -133,7 +139,10 @@ if [ "$DRY_RUN" -eq 1 ]; then
     echo "  qubesctl saltutil.sync_all"
 else
     info "Syncing salt modules..."
-    qubesctl saltutil.sync_all
+    # Non-fatal: the file deployment above is what matters. sync_all reaches out
+    # to DomU minions and can return non-zero in non-interactive/remote (deploy)
+    # runs; that must not fail the whole setup after /srv/salt is already updated.
+    qubesctl saltutil.sync_all || warn "saltutil.sync_all returned non-zero (non-fatal — files are deployed)"
 fi
 
 echo ""
