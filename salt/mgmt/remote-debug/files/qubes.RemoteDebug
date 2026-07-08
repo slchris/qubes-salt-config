@@ -72,6 +72,7 @@ ALLOW=(
   '^qvm-run (--no-gui )?(--pass-io )?(-u [a-z]+ )?-- [a-zA-Z0-9._-]+ .+$'
   '^qvm-copy-to-vm [a-zA-Z0-9._-]+ [a-zA-Z0-9._/-]+$'
   '^qvm-volume (list|info)( [a-zA-Z0-9:._-]+)?$'
+  '^qvm-volume resize [a-zA-Z0-9._-]+:private [0-9]+[GM]?$'
   '^qvm-shutdown( --wait)? [a-zA-Z0-9._-]+$'
   '^qvm-start [a-zA-Z0-9._-]+$'
 )
