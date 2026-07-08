@@ -73,8 +73,15 @@ include:
 "tpl-dev-vscode-key":
   cmd.run:
     - name: |
-        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/packages.microsoft.gpg
-    - unless: test -f /usr/share/keyrings/packages.microsoft.gpg
+        set -e
+        tmp="$(mktemp)"
+        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > "$tmp"
+        test -s "$tmp"
+        install -m 0644 "$tmp" /usr/share/keyrings/packages.microsoft.gpg
+        rm -f "$tmp"
+    # test -s (non-empty), not -f: a prior failed wget leaves an empty file via
+    # the `>` redirect, and -f would then skip forever with an unusable keyring.
+    - unless: test -s /usr/share/keyrings/packages.microsoft.gpg
 
 "tpl-dev-vscode-repo":
   file.managed:
