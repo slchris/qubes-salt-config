@@ -40,7 +40,11 @@ version. Backs up the repo files to *.qbak on first change.
         # Fedora N pre-release lives under development/, not releases/ — try both.
         DEV_REL="{{ url }}/development/${REL}/Everything/${ARCH}/os"
 
-        reachable() { curl -sf -o /dev/null --max-time 20 "$1/repodata/repomd.xml"; }
+        # A template has netvm=none: curl must go through the Qubes update-proxy
+        # (same tunnel dnf/apt use), or it can't resolve anything and every probe
+        # falsely reports "not reachable". dnf itself will fetch the baseurl via
+        # this same proxy once we set it.
+        reachable() { curl -sf -o /dev/null --max-time 20 -x http://127.0.0.1:8082 "$1/repodata/repomd.xml"; }
 
         set_repo() {  # $1=repo-file  $2=section  $3=baseurl
           local f="$1" sec="$2" url="$3"
