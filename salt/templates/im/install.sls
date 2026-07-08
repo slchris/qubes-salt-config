@@ -4,13 +4,25 @@
 # IM (Instant Messaging) template packages installation (Debian)
 # Includes: weechat, telegram-desktop, and messaging tools
 
+{% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
+
+{% if cfg.mirror.get('enabled', False) %}
+include:
+  - mgmt.mirror.debian
+{% endif %}
 
 "tpl-im-update":
   pkg.uptodate:
     - refresh: True
+{% if cfg.mirror.get('enabled', False) %}
+    - require:
+      - cmd: mirror-debian-repoint
+{% endif %}
 
-# IM packages from Debian repos
+# IM packages from Debian repos. telegram-desktop is in Debian trixie's contrib
+# component (the mirrored apt sources include contrib), so it installs from the
+# mirror — no telegram.org download (which has no China mirror) needed.
 "tpl-im-install-base":
   pkg.installed:
     - require:
@@ -27,29 +39,7 @@
       - profanity
       # Email client (optional)
       - neomutt
-
-# Telegram - download from official site (flatpak or manual)
-# Debian doesn't have telegram in official repos
-"tpl-im-telegram-deps":
-  pkg.installed:
-    - require:
-      - pkg: tpl-im-update
-    - pkgs:
-      - libxcb-xkb1
-      - libxkbcommon-x11-0
-
-# Install Telegram via download
-"tpl-im-telegram-download":
-  cmd.run:
-    - name: |
-        cd /tmp && \
-        wget -q https://telegram.org/dl/desktop/linux -O telegram.tar.xz && \
-        tar -xf telegram.tar.xz && \
-        mv Telegram /opt/ && \
-        ln -sf /opt/Telegram/Telegram /usr/local/bin/telegram-desktop && \
-        rm telegram.tar.xz
-    - unless: test -f /opt/Telegram/Telegram
-    - require:
-      - pkg: tpl-im-telegram-deps
+      # Telegram (Debian contrib)
+      - telegram-desktop
 
 {% endif %}

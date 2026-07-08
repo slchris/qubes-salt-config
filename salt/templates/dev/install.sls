@@ -4,11 +4,21 @@
 # Development template packages installation (Debian)
 # Includes: VS Code, Go, Python, Node.js, Wireshark, and common dev tools
 
+{% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
+
+{% if cfg.mirror.get('enabled', False) %}
+include:
+  - mgmt.mirror.debian
+{% endif %}
 
 "tpl-dev-update":
   pkg.uptodate:
     - refresh: True
+{% if cfg.mirror.get('enabled', False) %}
+    - require:
+      - cmd: mirror-debian-repoint
+{% endif %}
 
 # Common development tools
 "tpl-dev-install-common":
@@ -57,7 +67,9 @@
       - podman
       - buildah
 
-# VS Code repository (Debian/apt)
+# VS Code repository (Debian/apt). Kept on the official packages.microsoft.com:
+# there is no reliable China apt mirror for it (Azure CN CDN is binary-only).
+# It ships its own CDN; only this one repo isn't mirror-accelerated.
 "tpl-dev-vscode-key":
   cmd.run:
     - name: |

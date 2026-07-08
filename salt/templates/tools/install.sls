@@ -4,11 +4,21 @@
 # Tools/Office template packages installation (Debian)
 # Includes: GIMP, LibreOffice, and productivity tools
 
+{% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
+
+{% if cfg.mirror.get('enabled', False) %}
+include:
+  - mgmt.mirror.debian
+{% endif %}
 
 "tpl-tools-update":
   pkg.uptodate:
     - refresh: True
+{% if cfg.mirror.get('enabled', False) %}
+    - require:
+      - cmd: mirror-debian-repoint
+{% endif %}
 
 # Office and productivity tools
 "tpl-tools-install":

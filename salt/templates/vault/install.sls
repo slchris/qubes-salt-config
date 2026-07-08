@@ -3,11 +3,21 @@
 #
 # Install password management packages in tpl-vault (Debian)
 
+{% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
+
+{% if cfg.mirror.get('enabled', False) %}
+include:
+  - mgmt.mirror.debian
+{% endif %}
 
 "vault-update":
   pkg.uptodate:
     - refresh: True
+{% if cfg.mirror.get('enabled', False) %}
+    - require:
+      - cmd: mirror-debian-repoint
+{% endif %}
 
 "vault-packages":
   pkg.installed:

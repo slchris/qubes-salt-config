@@ -3,11 +3,21 @@
 #
 # Install VPN packages in tpl-vpn (Fedora)
 
+{% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
+
+{% if cfg.mirror.get('enabled', False) %}
+include:
+  - mgmt.mirror.fedora
+{% endif %}
 
 "vpn-update":
   pkg.uptodate:
     - refresh: True
+{% if cfg.mirror.get('enabled', False) %}
+    - require:
+      - cmd: mirror-fedora-repoint
+{% endif %}
 
 "vpn-packages":
   pkg.installed:

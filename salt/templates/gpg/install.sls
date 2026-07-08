@@ -3,11 +3,21 @@
 #
 # Install GPG packages in tpl-gpg (Debian)
 
+{% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
+
+{% if cfg.mirror.get('enabled', False) %}
+include:
+  - mgmt.mirror.debian
+{% endif %}
 
 "gpg-update":
   pkg.uptodate:
     - refresh: True
+{% if cfg.mirror.get('enabled', False) %}
+    - require:
+      - cmd: mirror-debian-repoint
+{% endif %}
 
 "gpg-packages":
   pkg.installed:

@@ -11,11 +11,21 @@ dependencies installed with npm/uv inside each project, not system packages,
 so they are intentionally not installed globally here.
 #}
 
+{% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
+
+{% if cfg.mirror.get('enabled', False) %}
+include:
+  - mgmt.mirror.debian
+{% endif %}
 
 "tpl-mcp-update":
   pkg.uptodate:
     - refresh: True
+{% if cfg.mirror.get('enabled', False) %}
+    - require:
+      - cmd: mirror-debian-repoint
+{% endif %}
 
 # Base tooling + Python. Node.js comes from NodeSource below for a current LTS.
 "tpl-mcp-install-base":
@@ -40,46 +50,28 @@ so they are intentionally not installed globally here.
       - pipx
 
 # uv: fast Python package/venv manager, the ergonomic way to scaffold MCP
-# Python servers (`uv init`, `uv add mcp`). Installed system-wide to /usr/local.
+# Python servers (`uv init`, `uv add mcp`). Installed via pip (pipx-style) so it
+# comes from the pip index — with mirror.enabled that's the TUNA PyPI mirror,
+# not astral.sh's installer script (which has no China mirror).
+{% set pip_index = cfg.mirror.get('pip_index', '') if cfg.mirror.get('enabled', False) else '' %}
+{% set pip_index_arg = ('-i ' ~ pip_index) if pip_index else '' %}
 "tpl-mcp-install-uv":
   cmd.run:
     - name: |
-        curl -LsSf https://astral.sh/uv/install.sh \
-          | env UV_INSTALL_DIR=/usr/local/bin sh
+        pip3 install --break-system-packages --prefix=/usr/local {{ pip_index_arg }} uv
     - require:
       - pkg: tpl-mcp-install-base
     - unless: test -x /usr/local/bin/uv
 
-# Node.js LTS from NodeSource (Debian's nodejs is often too old for MCP SDK).
-"tpl-mcp-nodesource-key":
-  cmd.run:
-    - name: |
-        curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-          | gpg --dearmor > /usr/share/keyrings/nodesource.gpg
-    - require:
-      - pkg: tpl-mcp-install-base
-    - unless: test -f /usr/share/keyrings/nodesource.gpg
-
-"tpl-mcp-nodesource-repo":
-  file.managed:
-    - name: /etc/apt/sources.list.d/nodesource.list
-    - mode: '0644'
-    - contents: |
-        deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main
-    - require:
-      - cmd: tpl-mcp-nodesource-key
-
-"tpl-mcp-apt-update":
-  cmd.run:
-    - name: apt-get update
-    - require:
-      - file: tpl-mcp-nodesource-repo
-
+# Node.js from Debian's own repo (via the mirror). NodeSource's external repo has
+# no reliable China mirror; Debian 13 (trixie) ships a recent-enough Node for the
+# MCP SDK, and it comes through the already-mirrored apt sources.
 "tpl-mcp-install-nodejs":
   pkg.installed:
     - require:
-      - cmd: tpl-mcp-apt-update
+      - pkg: tpl-mcp-install-base
     - pkgs:
       - nodejs
+      - npm
 
 {% endif %}

@@ -4,11 +4,21 @@
 # Multimedia template packages installation (Debian)
 # Includes: mpv, vlc, ffmpeg, and multimedia tools
 
+{% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
+
+{% if cfg.mirror.get('enabled', False) %}
+include:
+  - mgmt.mirror.debian
+{% endif %}
 
 "tpl-media-update":
   pkg.uptodate:
     - refresh: True
+{% if cfg.mirror.get('enabled', False) %}
+    - require:
+      - cmd: mirror-debian-repoint
+{% endif %}
 
 # Multimedia packages
 "tpl-media-install":
