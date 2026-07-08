@@ -26,11 +26,12 @@ jobs:
       - name: Install yamllint
         run: pip install yamllint
       - name: Run yamllint (pure YAML only)
-        # Jinja-templated Salt states are linted by salt-lint, not yamllint, so
-        # only pure-YAML files are passed explicitly here.
+        # Jinja-templated Salt states (and salt/config.jinja) are linted by
+        # salt-lint, not yamllint, so only pure-YAML files are passed here.
+        # (This project uses no pillar — config lives in salt/config.jinja.)
         run: |
           yamllint -c .yamllint \
-            pillar/top.sls pillar/user.sls salt/top.sls \
+            salt/top.sls \
             .yamllint .salt-lint .github/workflows/lint.yml
 
   salt-lint:

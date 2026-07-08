@@ -25,10 +25,11 @@ run_yamllint() {
         return 0
     fi
     echo "==> yamllint (pure YAML only)"
-    # Only pure-YAML files. The Jinja-templated Salt states under salt/** are
-    # not valid standalone YAML and are handled by salt-lint below.
+    # Only pure-YAML files. The Jinja-templated Salt states under salt/** (and
+    # salt/config.jinja) are not valid standalone YAML and are handled by
+    # salt-lint below. This project uses no pillar.
     if ! yamllint -c .yamllint \
-        pillar/top.sls pillar/user.sls salt/top.sls \
+        salt/top.sls \
         .yamllint .salt-lint .github/workflows/lint.yml; then
         rc=1
     fi
