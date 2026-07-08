@@ -2,7 +2,8 @@
 # Copyright 2026 Chris Su
 #
 # Development template packages installation (Debian)
-# Includes: VS Code, Go, Python, Node.js, Wireshark, and common dev tools
+# Includes: Go, Python, Node.js, Wireshark, and common dev tools
+# (VS Code intentionally excluded — see note at the bottom)
 
 {% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
@@ -67,41 +68,10 @@ include:
       - podman
       - buildah
 
-# VS Code repository (Debian/apt). Kept on the official packages.microsoft.com:
-# there is no reliable China apt mirror for it (Azure CN CDN is binary-only).
-# It ships its own CDN; only this one repo isn't mirror-accelerated.
-"tpl-dev-vscode-key":
-  cmd.run:
-    - name: |
-        set -e
-        tmp="$(mktemp)"
-        wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > "$tmp"
-        test -s "$tmp"
-        install -m 0644 "$tmp" /usr/share/keyrings/packages.microsoft.gpg
-        rm -f "$tmp"
-    # test -s (non-empty), not -f: a prior failed wget leaves an empty file via
-    # the `>` redirect, and -f would then skip forever with an unusable keyring.
-    - unless: test -s /usr/share/keyrings/packages.microsoft.gpg
-
-"tpl-dev-vscode-repo":
-  file.managed:
-    - name: /etc/apt/sources.list.d/vscode.list
-    - contents: |
-        deb [arch=amd64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main
-    - require:
-      - cmd: tpl-dev-vscode-key
-
-"tpl-dev-apt-update":
-  cmd.run:
-    - name: apt-get update
-    - require:
-      - file: tpl-dev-vscode-repo
-
-"tpl-dev-install-vscode":
-  pkg.installed:
-    - require:
-      - cmd: tpl-dev-apt-update
-    - pkgs:
-      - code
+# NOTE: VS Code is intentionally NOT installed here. Its apt repo lives on
+# packages.microsoft.com (no reliable China mirror), which is unreachable often
+# enough from a China-network template that it kept failing the whole install.
+# neovim (above) is the default editor; install VS Code / VSCodium manually if
+# needed, e.g.:  wget -qO- https://packages.microsoft.com/keys/microsoft.asc ...
 
 {% endif %}
