@@ -29,15 +29,53 @@ version. Backs up the repo files to *.qbak on first change.
 "mirror-fedora-repoint":
   cmd.run:
     - name: |
-        # Disable metalink/mirrorlist and set explicit baseurls on the mirror.
-        sed -i -E 's|^(metalink\|mirrorlist)=|#&|' \
-          /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora-updates.repo 2>/dev/null || true
-        # fedora (releases) and updates paths on the mirror (TUNA-style layout).
-        dnf config-manager --setopt=fedora.baseurl='{{ url }}/releases/$releasever/Everything/$basearch/os/' --save fedora 2>/dev/null || true
-        dnf config-manager --setopt=updates.baseurl='{{ url }}/updates/$releasever/Everything/$basearch/' --save updates 2>/dev/null || true
+        # CONSERVATIVE: only switch a repo to the mirror if the mirror path is
+        # actually reachable; otherwise leave the official metalink untouched.
+        # Never disable metalink without a working baseurl — that leaves a repo
+        # with no source at all (the exact breakage this replaces).
+        REL="$(rpm -E %fedora)"
+        ARCH="$(rpm -E %_arch)"
+        BASE_REL="{{ url }}/releases/${REL}/Everything/${ARCH}/os"
+        BASE_UPD="{{ url }}/updates/${REL}/Everything/${ARCH}"
+        # Fedora N pre-release lives under development/, not releases/ — try both.
+        DEV_REL="{{ url }}/development/${REL}/Everything/${ARCH}/os"
+
+        reachable() { curl -sf -o /dev/null --max-time 20 "$1/repodata/repomd.xml"; }
+
+        set_repo() {  # $1=repo-file  $2=section  $3=baseurl
+          local f="$1" sec="$2" url="$3"
+          # comment metalink/mirrorlist ONLY inside this section, then add baseurl
+          awk -v sec="[$sec]" -v burl="$url" '
+            $0==sec {print; insec=1; print "baseurl=" burl; next}
+            /^\[/ && $0!=sec {insec=0}
+            insec && /^(metalink|mirrorlist)=/ {print "#" $0; next}
+            insec && /^baseurl=/ {next}
+            {print}
+          ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+        }
+
+        # releases repo: try releases/ then development/
+        if reachable "$BASE_REL"; then
+          set_repo /etc/yum.repos.d/fedora.repo fedora "$BASE_REL"
+          echo "fedora repo -> $BASE_REL"
+        elif reachable "$DEV_REL"; then
+          set_repo /etc/yum.repos.d/fedora.repo fedora "$DEV_REL"
+          echo "fedora repo -> $DEV_REL (development)"
+        else
+          echo "fedora: mirror path not reachable, keeping official metalink"
+        fi
+
+        # updates repo
+        if reachable "$BASE_UPD"; then
+          set_repo /etc/yum.repos.d/fedora-updates.repo updates "$BASE_UPD"
+          echo "updates repo -> $BASE_UPD"
+        else
+          echo "updates: mirror path not reachable, keeping official metalink"
+        fi
+
         dnf clean all && dnf makecache || true
     - require:
       - cmd: mirror-fedora-backup
-    - unless: grep -rqs "{{ url }}" /etc/yum.repos.d/fedora.repo
+    - unless: grep -rqs "^baseurl={{ url }}" /etc/yum.repos.d/fedora.repo /etc/yum.repos.d/fedora-updates.repo
 
 {% endif %}
