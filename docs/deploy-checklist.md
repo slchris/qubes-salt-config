@@ -103,8 +103,9 @@ qubes (it uses a management DisposableVM). Without this, every template
 
 ## 6. Optional: download mirror
 
-If ITL downloads are slow (e.g. in China). Off unless `cfg.mirror.enabled` is
-True in config.jinja. See [mirror.md](mirror.md).
+Helpful if ITL downloads are slow (e.g. in China). The shipped `config.jinja`
+has `cfg.mirror.enabled: True` (Tsinghua TUNA) — set it to `False` to skip.
+See [mirror.md](mirror.md).
 
 - [ ] **[dom0]** `sudo qubesctl state.apply mgmt.mirror.dom0`
 - [ ] **[dom0]** `sudo qubesctl --skip-dom0 --targets=debian-13-minimal state.apply mgmt.mirror.debian`

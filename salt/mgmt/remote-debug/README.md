@@ -33,16 +33,21 @@ without ever putting sshd or network on dom0.
 
 Everything is driven by the `cfg.remote_debug` block in `salt/config.jinja`:
 
-```yaml
-remote_debug:
-  qube: "mgmt-jump"
-  template: "debian-13-minimal"
-  authorized_keys:
-    - "ssh-rsa AAAA... you@dev"     # your dev machine's public key
-  dom0_access: "whitelist"          # "whitelist" (safer) or "shell" (any command)
-  network: "portforward"            # "portforward" or "none"
-  ssh_port: 2333                    # external port on sys-net's physical IP
-  lan_subnet: "10.42.0.0/24"        # narrow to your real LAN
+```jinja
+"remote_debug": {
+  "qube": "mgmt-jump",
+  "template": "debian-13-minimal",
+  "label": "red",
+  "authorized_keys": [
+    "ssh-rsa AAAA... you@dev",       # your dev machine's public key
+  ],
+  "dom0_access": "whitelist",        # "whitelist" (safer) or "shell" (any command)
+  "network": "portforward",          # "portforward" or "none"
+  "ssh_port": 2333,                  # external port on sys-net's physical IP
+  "netvm": "sys-firewall",
+  "lan_subnet": "10.42.0.0/24",      # narrow to your real LAN
+  # optional: "keep_qube": True,     # teardown revokes access but keeps the qube
+},
 ```
 
 - **`dom0_access: whitelist`** installs a `qubes.RemoteDebug` qrexec service that

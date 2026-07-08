@@ -167,9 +167,7 @@ salt/
       sync-appmenus.sls   # Appmenu sync macro
       policy.sls          # RPC policy macros
   dotfiles/             # User dotfiles
-pillar/
-  top.sls               # Pillar top file
-  user.sls              # User configuration
+  config.jinja          # All user configuration (no pillar)
 scripts/
   setup.sh              # Setup script for dom0
   package.sh            # Package for deployment
