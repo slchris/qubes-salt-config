@@ -21,17 +21,28 @@ read -r cmdline || exit 1
 # do (write dom0). This is a single fixed pipeline, so it does not grant
 # arbitrary dom0 writes; the only input is which qube to pull the tarball from.
 if [[ "$cmdline" =~ ^deploy\ ([a-zA-Z0-9_-]+)$ ]]; then
+    # All progress/errors go to STDOUT (qrexec only relays stdout, not stderr),
+    # so the caller can see what happened.
     JQ="${BASH_REMATCH[1]}"
-    set -e
     TMP="$(mktemp -d)"
     trap 'rm -rf "$TMP"' EXIT
-    qvm-run --pass-io -- "$JQ" 'cat /tmp/qsc-deploy.tar.gz' > "$TMP/pkg.tar.gz"
-    [ -s "$TMP/pkg.tar.gz" ] || { echo "deploy: empty package from $JQ" >&2; exit 1; }
-    tar -xzf "$TMP/pkg.tar.gz" -C "$TMP"
-    D="$(find "$TMP" -maxdepth 2 -name setup.sh -path '*/scripts/setup.sh' -printf '%h\n' | head -1)"
-    [ -n "$D" ] || { echo "deploy: scripts/setup.sh not found in package" >&2; exit 1; }
-    cd "$D/.." && sudo ./scripts/setup.sh
-    echo "deploy: done — /srv/salt/slchris updated from $JQ"
+    echo "deploy: pulling package from $JQ ..."
+    if ! qvm-run --pass-io -- "$JQ" 'cat /tmp/qsc-deploy.tar.gz' > "$TMP/pkg.tar.gz"; then
+        echo "deploy: FAILED to read /tmp/qsc-deploy.tar.gz from $JQ"; exit 1; fi
+    SZ="$(wc -c < "$TMP/pkg.tar.gz")"
+    echo "deploy: got $SZ bytes"
+    [ "$SZ" -gt 0 ] || { echo "deploy: FAILED — empty package"; exit 1; }
+    if ! tar -xzf "$TMP/pkg.tar.gz" -C "$TMP"; then
+        echo "deploy: FAILED to extract package"; exit 1; fi
+    # setup.sh lives at <root>/scripts/setup.sh; %h of setup.sh is <root>/scripts,
+    # so the project root is one level up from that.
+    SETUP="$(find "$TMP" -maxdepth 3 -path '*/scripts/setup.sh' | head -1)"
+    [ -n "$SETUP" ] || { echo "deploy: FAILED — scripts/setup.sh not in package"; exit 1; }
+    ROOT="$(dirname "$(dirname "$SETUP")")"
+    echo "deploy: running setup.sh in $ROOT ..."
+    if ! ( cd "$ROOT" && sudo ./scripts/setup.sh ); then
+        echo "deploy: FAILED — setup.sh returned non-zero"; exit 1; fi
+    echo "deploy: DONE — /srv/salt/slchris updated from $JQ"
     exit 0
 fi
 
