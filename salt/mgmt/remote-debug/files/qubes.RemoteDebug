@@ -15,6 +15,26 @@ set -u
 
 read -r cmdline || exit 1
 
+# Dedicated deploy action (not a wildcard): `deploy <jump-qube>` pulls the
+# staged package from that qube's /tmp/qsc-deploy.tar.gz into dom0, extracts it,
+# and runs setup.sh — the one thing the wildcard whitelist deliberately cannot
+# do (write dom0). This is a single fixed pipeline, so it does not grant
+# arbitrary dom0 writes; the only input is which qube to pull the tarball from.
+if [[ "$cmdline" =~ ^deploy\ ([a-zA-Z0-9_-]+)$ ]]; then
+    JQ="${BASH_REMATCH[1]}"
+    set -e
+    TMP="$(mktemp -d)"
+    trap 'rm -rf "$TMP"' EXIT
+    qvm-run --pass-io -- "$JQ" 'cat /tmp/qsc-deploy.tar.gz' > "$TMP/pkg.tar.gz"
+    [ -s "$TMP/pkg.tar.gz" ] || { echo "deploy: empty package from $JQ" >&2; exit 1; }
+    tar -xzf "$TMP/pkg.tar.gz" -C "$TMP"
+    D="$(find "$TMP" -maxdepth 2 -name setup.sh -path '*/scripts/setup.sh' -printf '%h\n' | head -1)"
+    [ -n "$D" ] || { echo "deploy: scripts/setup.sh not found in package" >&2; exit 1; }
+    cd "$D/.." && sudo ./scripts/setup.sh
+    echo "deploy: done — /srv/salt/slchris updated from $JQ"
+    exit 0
+fi
+
 # Allow-list: extended regexes matched against the WHOLE command line.
 # Covers: Salt (state.apply / saltutil / pillar), template downloads, and the
 # qube-management verbs needed to build Gentoo templates (create/run/copy/prefs).
