@@ -58,7 +58,7 @@ It is recommended to use a separate qube from your normal operations as this ins
 
     You should see:
     ```
-    docs/  readme.md  scripts/  salt/  pillar/  minion.d/
+    docs/  readme.md  scripts/  salt/  minion.d/
     ```
 
 ### Dom0 Installation
@@ -89,10 +89,10 @@ Before copying anything to Dom0, read the [Qubes OS warning about copying to dom
 
     This script will:
     *   Install minion configuration to `/etc/salt/minion.d/`
-    *   Create `/srv/salt/slchris` and `/srv/pillar/slchris` directories
-    *   Copy all salt and pillar files
-    *   Sync salt modules
-    *   Refresh pillar data
+    *   Create `/srv/salt/slchris` and copy all salt files (config lives in
+        `salt/config.jinja` — this project uses no pillar)
+    *   Remove any old `/srv/pillar/slchris` from earlier versions
+    *   Sync salt modules (`saltutil.sync_all`)
 
 ## First Run: Setup Management
 
@@ -142,29 +142,25 @@ After this, you can run salt states on any DomU qube.
 
 ## Configuration
 
-Edit the pillar configuration with your personal settings:
+All user configuration lives in `salt/config.jinja` (this project uses **no**
+Salt pillar). On the machine it is at `/srv/salt/slchris/config.jinja`:
 
 ```sh
-sudo vim /srv/pillar/slchris/user.sls
+sudo vim /srv/salt/slchris/config.jinja
 ```
 
-Set your personal information:
+It is a Jinja dict keyed under `cfg`. Set your personal information, e.g.:
 
-```yaml
-user:
-  git:
-    name: "Your Name"
-    email: "your.email@example.com"
-  shell:
-    timezone: "Asia/Shanghai"
-    locale: "en_US.UTF-8"
+```jinja
+"user": {
+  "shell": {"default": "bash", "timezone": "Asia/Shanghai", "locale": "en_US.UTF-8"},
+},
+"qubes": {
+  "dev": {"git": {"name": "Your Name", "email": "you@example.com"}},
+},
 ```
 
-Refresh pillar data after changes:
-
-```sh
-sudo qubesctl saltutil.refresh_pillar
-```
+Changes take effect on the next `state.apply` — there is no pillar to refresh.
 
 ## Using Templates
 
@@ -289,32 +285,30 @@ This creates:
 
 ## Template Upgrade
 
-Template upgrade refers to major version upgrades (e.g., debian-13 → debian-14, fedora-43 → fedora-43).
+Template upgrade refers to major version upgrades (e.g., debian-13 → debian-14, fedora-43 → fedora-44).
 
-The template version is controlled via pillar configuration. To upgrade templates:
+The template version is controlled in `config.jinja`. To upgrade templates:
 
-1.  Edit the pillar file in dom0:
-
-    ```sh
-    sudo vim /srv/pillar/slchris/user.sls
-    ```
-
-2.  Update the version numbers:
-
-    ```yaml
-    qvm:
-      debian:
-        version: "13"    # Change to new version
-        repo: "qubes-templates-itl"
-      fedora:
-        version: "43"    # Change to new version
-        repo: "qubes-templates-itl"
-    ```
-
-3.  Refresh pillar:
+1.  Edit `config.jinja` in dom0:
 
     ```sh
-    sudo qubesctl saltutil.refresh_pillar
+    sudo vim /srv/salt/slchris/config.jinja
+    ```
+
+2.  Update the version numbers under `cfg.qvm`:
+
+    ```jinja
+    "qvm": {
+      "debian": {"version": "14", "repo": "qubes-templates-itl"},
+      "fedora": {"version": "44", "repo": "qubes-templates-itl"},
+      ...
+    },
+    ```
+
+3.  Re-apply the affected states (no pillar refresh needed):
+
+    ```sh
+    sudo qubesctl state.apply debian-minimal.create
     ```
 
 ### Clean Install (Recommended)
@@ -387,15 +381,22 @@ qubes-prefs management_dispvm
 # Should show: dvm-mgmt
 ```
 
-### Pillar Not Found
+### Config Not Applied
+
+This project uses no pillar; config is in `salt/config.jinja`, read directly by
+states. If a config change had no effect:
 
 ```sh
-# Refresh pillar
-sudo qubesctl saltutil.refresh_pillar
+# Confirm the deployed config exists and has your value
+ls /srv/salt/slchris/config.jinja
+grep -n 'enabled\|version' /srv/salt/slchris/config.jinja
 
-# Check pillar data
-sudo qubesctl pillar.items
+# Re-sync modules and re-apply the state (config.jinja is read at apply time)
+sudo qubesctl saltutil.sync_all
 ```
+
+If the value on disk is stale, re-deploy the repo (`setup.sh`) — editing the
+source does not update `/srv/salt/slchris` until you run setup again.
 
 ### Package Installation Fails
 

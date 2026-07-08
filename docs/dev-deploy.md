@@ -130,10 +130,10 @@ cd ~/QubesIncoming/"${qube}"/qubes-salt-config
 sudo ./scripts/setup.sh
 ```
 
-`setup.sh` copies the files into `/srv/salt/slchris` and `/srv/pillar/slchris`,
-installs the minion config, and runs `saltutil.sync_all` +
-`saltutil.refresh_pillar` for you. After that, apply whatever state you are
-working on — the per-template commands live in
+`setup.sh` copies the files into `/srv/salt/slchris`, installs the minion
+config, runs `saltutil.sync_all`, and removes any old pillar (this project uses
+none — config is in `salt/config.jinja`). After that, apply whatever state you
+are working on — the per-template commands live in
 [install.md](install.md#using-templates), for example:
 
 ```sh
@@ -141,14 +141,12 @@ sudo qubesctl state.apply templates.dev.create
 sudo qubesctl --skip-dom0 --targets=tpl-dev state.apply templates.dev.install
 ```
 
-If you only changed `.sls`/`.top`/pillar content and files are already in place,
-you can skip `setup.sh` and just re-copy + re-sync:
+If you only changed `.sls`/`.top`/`config.jinja` content and files are already
+in place, you can skip `setup.sh` and just re-copy + re-sync:
 
 ```sh
-sudo cp -r ~/QubesIncoming/"${qube}"/qubes-salt-config/salt/*   /srv/salt/slchris/
-sudo cp -r ~/QubesIncoming/"${qube}"/qubes-salt-config/pillar/* /srv/pillar/slchris/
+sudo cp -r ~/QubesIncoming/"${qube}"/qubes-salt-config/salt/* /srv/salt/slchris/
 sudo qubesctl saltutil.sync_all
-sudo qubesctl saltutil.refresh_pillar
 ```
 
 ## One-liners

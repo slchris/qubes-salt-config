@@ -2,14 +2,14 @@
 
 If template downloads or updates are slow or stall (common far from the ITL CDN,
 or when the UpdateVM routes over Tor), you can point Qubes at a faster mirror.
-This is **opt-in** and **off by default** — the official sources stay in use
-unless you deliberately switch.
+The shipped `config.jinja` has this **enabled by default** (Tsinghua TUNA); set
+`cfg.mirror.enabled` to `False` to stay on the official sources.
 
 > **Two ways to apply it:** the Salt formula
 > [mgmt.mirror](../salt/mgmt/mirror/README.md) (`state.apply mgmt.mirror.*`,
-> driven by the `qvm:mirror` pillar block — recommended, re-applies on redeploy)
+> driven by the `cfg.mirror` block in config.jinja — recommended, re-applies on redeploy)
 > or the one-off script `scripts/qubes-mirror.sh` documented below. Both edit
-> the same files; the pillar `enabled: true` flag gates the formula.
+> the same files; the `cfg.mirror.enabled` flag gates the formula.
 
 > **Symptom this solves:** `sudo qubesctl state.apply debian-minimal.clone`
 > hangs for a long time. That state runs `qvm.template_installed`, i.e. it
@@ -21,7 +21,7 @@ unless you deliberately switch.
 *   [Important: signatures still apply](#important-signatures-still-apply)
 *   [The three layers](#the-three-layers)
 *   [Quick unblock (do this now)](#quick-unblock-do-this-now)
-*   [Repeatable setup (pillar + script)](#repeatable-setup-pillar--script)
+*   [Repeatable setup (config.jinja + formula)](#repeatable-setup-configjinja--formula)
 *   [Reverting](#reverting)
 *   [Picking a mirror](#picking-a-mirror)
 
@@ -80,25 +80,27 @@ sudo sed -i.qbak -E \
 sudo sed -i -E 's/^(\s*)(metalink|mirrorlist)\s*=/\1#\2=/' /etc/qubes/repo-templates/*.repo
 ```
 
-## Repeatable setup (pillar + script)
+## Repeatable setup (config.jinja + formula)
 
-To make the choice explicit and repeatable, record it in pillar and apply it
-with the script.
+To make the choice explicit and repeatable, record it in `config.jinja`. The
+**formula** (`mgmt.mirror.*`) is the primary way to apply it; the script below
+is an alternative.
 
-1. Edit `pillar/user.sls` → `qvm:mirror:` (see the block there):
+1. Edit `cfg.mirror` in `salt/config.jinja` (a Jinja dict):
 
-    ```yaml
-    qvm:
-      mirror:
-        enabled: true
-        templates_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum"
-        debian_baseurl:    "https://mirrors.tuna.tsinghua.edu.cn/debian"
-        fedora_baseurl:    "https://mirrors.tuna.tsinghua.edu.cn/fedora/linux"
-        dom0_baseurl:      "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum"
+    ```jinja
+    "mirror": {
+      "enabled": True,
+      "templates_baseurl": "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum",
+      "debian_baseurl":    "https://mirrors.tuna.tsinghua.edu.cn/debian",
+      "fedora_baseurl":    "https://mirrors.tuna.tsinghua.edu.cn/fedora/linux",
+      "dom0_baseurl":      "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum",
+    },
     ```
 
-    (Pillar keeps the record; the script below is what actually writes the repo
-    files. Blank URLs are left untouched.)
+    Then apply with the formula (`sudo qubesctl state.apply mgmt.mirror.dom0`,
+    etc. — see [mgmt.mirror](../salt/mgmt/mirror/README.md)), or with the
+    standalone script below. Blank URLs are left untouched.
 
 2. Apply in **dom0** with the script. It changes only the layers you pass a URL
    for, backs up originals to `*.qbak`, and supports `--dry-run`:
@@ -141,14 +143,14 @@ template (e.g. `sudo mv /etc/apt/sources.list.qbak /etc/apt/sources.list`).
 
 ## Picking a mirror
 
-The default in `pillar/user.sls` is **Tsinghua TUNA**
+The default in `salt/config.jinja` is **Tsinghua TUNA**
 (`mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum`), verified to carry the Qubes
 **r4.3** repos and fast from mainland China. Note the mirror's path segment is
 `qubesos` (no hyphen), not `qubes`.
 
 > **Outside China?** `mirrors.kernel.org/qubes/repo/yum` (kernel.org global edge
 > CDN, also verified for r4.3) is usually a better default — swap the URLs in
-> pillar. Other verified mirrors: `ftp.icm.edu.pl/pub/Linux/dist/qubes/repo/yum`,
+> config.jinja. Other verified mirrors: `ftp.icm.edu.pl/pub/Linux/dist/qubes/repo/yum`,
 > `mirrors.dotsrc.org/qubes/repo/yum`.
 
 For **layer 2** (in-template packages), any domestic Debian/Fedora mirror works

@@ -11,7 +11,7 @@ Common utility macros and states that can be included by other modules.
 ### clone-template.sls
 
 Macro for cloning templates from base templates. The base template version
-is read from pillar configuration.
+is read from config.jinja (cfg.qvm.debian.version).
 
 **Usage:**
 
@@ -33,32 +33,28 @@ is read from pillar configuration.
 
 ```jinja
 # Creates tpl-dev by cloning from debian-13-minimal
-# (where '13' comes from pillar qvm:debian:version)
+# (where '13' comes from cfg.qvm.debian.version in config.jinja)
 {{ clone_template('debian-minimal', 'dev') }}
 ```
 
 ## Version Configuration
 
-Template versions are configured in `/srv/user_pillar/user.sls`:
+Template versions are configured in `salt/config.jinja` under `cfg.qvm`:
 
-```yaml
-qvm:
-  debian:
-    version: "13"    # Will use debian-13 and debian-13-minimal
-    repo: "qubes-templates-itl"
-  fedora:
-    version: "43"    # Will use fedora-43 and fedora-43-minimal
-    repo: "qubes-templates-itl"
+```jinja
+"qvm": {
+  "debian": {"version": "13", "repo": "qubes-templates-itl"},  # debian-13 / debian-13-minimal
+  "fedora": {"version": "43", "repo": "qubes-templates-itl"},  # fedora-43 / fedora-43-minimal
+},
 ```
 
 ## Template Upgrade Workflow
 
 To upgrade templates to a new version:
 
-1. Edit pillar to update version
+1. Edit `config.jinja` to update the version under `cfg.qvm`
 2. Rename existing templates with `-old` suffix in Qube Manager
-3. Refresh pillar: `sudo qubesctl saltutil.refresh_pillar`
-4. Rerun formulas
+3. Rerun formulas (config.jinja is read at apply time — no pillar refresh)
 
 See [Template Upgrade Guide](../../docs/install.md#template-upgrade) for details.
 

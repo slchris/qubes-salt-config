@@ -38,46 +38,34 @@ sudo qubesctl --skip-dom0 --targets=tpl-dev state.apply dotfiles.shell
 
 ## Configuration
 
-Edit `/srv/user_pillar/user.sls`:
+Edit `salt/config.jinja` (on the machine: `/srv/salt/slchris/config.jinja`). It
+is a Jinja dict keyed under `cfg`.
 
 ### Per-Qube Git Configuration
 
-```yaml
-qubes:
-  # Git config for slchris-project AppVM
-  slchris-project:
-    git:
-      name: "Chris Su"
-      email: "chris@lesscrowds.org"
-      # signingkey: "ABCD1234"  # Optional GPG key
-
-  # Different identity for work AppVM
-  work:
-    git:
-      name: "Chris Su"
-      email: "chris@company.com"
+```jinja
+"qubes": {
+  # Git config per AppVM
+  "dev": {"git": {"name": "Chris Su", "email": "chris@lesscrowds.org"}},
+  "work": {"git": {"name": "Chris Su", "email": "chris@company.com"}},
+},
 ```
 
 ### Shell Configuration (for templates)
 
-```yaml
-user:
-  shell:
-    default: bash
-    timezone: "Asia/Shanghai"
-    locale: "en_US.UTF-8"
+```jinja
+"user": {
+  "shell": {"default": "bash", "timezone": "Asia/Shanghai", "locale": "en_US.UTF-8"},
+},
 ```
 
-After editing, refresh pillar data:
-
-```sh
-sudo qubesctl saltutil.refresh_pillar
-```
+Changes take effect on the next `state.apply` — this project uses no pillar, so
+there is nothing to refresh.
 
 ## Usage
 
-1.  Edit `/srv/user_pillar/user.sls` with your configuration
-2.  Add entries under `qubes:` for each AppVM that needs git
+1.  Edit `salt/config.jinja` with your configuration (`cfg.qubes.<qube>.git`)
+2.  Add an entry under `cfg.qubes` for each AppVM that needs git
 3.  Apply the state to your AppVMs
 
 ### Files Created

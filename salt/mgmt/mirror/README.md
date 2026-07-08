@@ -1,12 +1,13 @@
 # mgmt.mirror
 
 Point Qubes at a download mirror via Salt — the deployable counterpart to
-`scripts/qubes-mirror.sh`. Configured by the `qvm:mirror` pillar block, off by
-default. See also [docs/mirror.md](../../../docs/mirror.md).
+`scripts/qubes-mirror.sh`. Configured by the `cfg.mirror` block in
+`salt/config.jinja` (enabled by default, Tsinghua TUNA). See also
+[docs/mirror.md](../../../docs/mirror.md).
 
 ## Why this exists
 
-`scripts/qubes-mirror.sh` must be run by hand; the mirror URLs in pillar do
+`scripts/qubes-mirror.sh` must be run by hand; the mirror URLs in config.jinja do
 nothing on their own. This formula applies them with `state.apply`, like every
 other part of the project, so a redeploy re-applies the mirror automatically.
 
@@ -24,19 +25,19 @@ dom0 updates. Each change backs the original up to `*.qbak`.
 
 ## Configure
 
-Edit `qvm:mirror` in `pillar/user.sls`:
+Edit `cfg.mirror` in `salt/config.jinja` (a Jinja dict):
 
-```yaml
-qvm:
-  mirror:
-    enabled: true      # <-- must be true or every state is a no-op
-    templates_baseurl: "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum"
-    debian_baseurl:    "https://mirrors.tuna.tsinghua.edu.cn/debian"
-    fedora_baseurl:    "https://mirrors.tuna.tsinghua.edu.cn/fedora/linux"
-    dom0_baseurl:      "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum"
+```jinja
+"mirror": {
+  "enabled": True,   # must be True or every state is a no-op
+  "templates_baseurl": "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum",
+  "debian_baseurl":    "https://mirrors.tuna.tsinghua.edu.cn/debian",
+  "fedora_baseurl":    "https://mirrors.tuna.tsinghua.edu.cn/fedora/linux",
+  "dom0_baseurl":      "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum",
+},
 ```
 
-Blank a URL to skip that layer. `enabled: false` makes every state a no-op.
+Blank a URL to skip that layer. `enabled: False` makes every state a no-op.
 
 ## Apply
 

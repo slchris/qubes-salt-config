@@ -31,7 +31,7 @@ without ever putting sshd or network on dom0.
 
 ## Configure
 
-Everything is driven by the `remote_debug` block in `pillar/user.sls`:
+Everything is driven by the `cfg.remote_debug` block in `salt/config.jinja`:
 
 ```yaml
 remote_debug:
@@ -181,6 +181,6 @@ sudo qubesctl state.apply mgmt.remote-debug.teardown
 ```
 
 Removes the dom0 policy + service (instantly revoking access) and the jump qube.
-Set `remote_debug:keep_qube: true` in pillar to revoke access but keep the qube.
+Set `cfg.remote_debug.keep_qube: True` in config.jinja to revoke access but keep the qube.
 The port-forward scripts in sys-net/sys-firewall are removed by deleting
 `/rw/config/qubes-firewall-user-script` in those qubes (or reset them there).

@@ -21,7 +21,7 @@ Features:
 
 *   **Qusal-style patterns**: Uses `slsdotpath`, `clone_template` macro, and `load_yaml` for clean state definitions
 *   **Pre-configured templates**: Development, Multimedia, IM, Tools, GPG, Vault, VPN
-*   **Pillar-based configuration**: All user settings in one place
+*   **Single config file**: all user settings in `salt/config.jinja` (no pillar)
 *   **Modular design**: Apply only what you need
 *   **Reusable macros**: Clone templates, sync appmenus, manage policies
 
@@ -121,14 +121,11 @@ sudo qubesctl --skip-dom0 --targets=sys-vpn state.apply templates.vpn.configure
 # Sync all salt modules
 sudo qubesctl saltutil.sync_all
 
-# Refresh pillar data
-sudo qubesctl saltutil.refresh_pillar
-
 # Test mode (dry run)
 sudo qubesctl state.apply templates.dev.create test=True
 
-# Show pillar data
-sudo qubesctl pillar.items
+# Edit configuration (no pillar — config is in config.jinja)
+sudo vim /srv/salt/slchris/config.jinja
 
 # Package for deployment
 ./scripts/package.sh v1.0.0
@@ -139,17 +136,17 @@ sudo qubesctl pillar.items
 ```
 salt/
   debian/               # Debian base template
-    template.jinja      # Version from pillar
+    template.jinja      # Version from config.jinja
     clone.sls           # Install from repo
   debian-minimal/       # Debian minimal base
-    template.jinja      # Version from pillar
+    template.jinja      # Version from config.jinja
     clone.sls           # Install from repo
     create.sls          # Create base DVM
   fedora/               # Fedora base template
-    template.jinja      # Version from pillar
+    template.jinja      # Version from config.jinja
     clone.sls           # Install from repo
   fedora-minimal/       # Fedora minimal base
-    template.jinja      # Version from pillar
+    template.jinja      # Version from config.jinja
     clone.sls           # Install from repo
     create.sls          # Create base DVM
   templates/            # Pre-configured templates
@@ -232,21 +229,20 @@ prefs:
 
 ## Template Upgrade
 
-Template versions are configured via pillar (`pillar/user.sls`):
+Template versions are configured in `salt/config.jinja` under `cfg.qvm`:
 
-```yaml
-qvm:
-  debian:
-    version: "13"         # Change to upgrade (e.g., "14")
-  fedora:
-    version: "43"         # Change to upgrade (e.g., "44")
+```jinja
+"qvm": {
+  "debian": {"version": "13"},   # Change to upgrade (e.g., "14")
+  "fedora": {"version": "43"},   # Change to upgrade (e.g., "44")
+},
 ```
 
 After changing versions:
 
 1.  Rename existing templates in Qube Manager (add `-old` suffix)
-2.  Refresh pillar: `sudo qubesctl saltutil.refresh_pillar`
-3.  Rerun formulas: `sudo qubesctl state.apply templates.dev.create`
+2.  Rerun formulas: `sudo qubesctl state.apply templates.dev.create`
+    (config.jinja is read at apply time — no pillar refresh needed)
 
 See [Template Upgrade Guide](docs/install.md#template-upgrade) for details.
 

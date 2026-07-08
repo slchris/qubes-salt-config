@@ -22,8 +22,8 @@ prebuilt `gentoo-minimal` was removed from the Template Manager.
 
 Because of this, `gentoo.clone`:
 
-*   installs the template from a repo **only if** you set `qvm:gentoo:repo` in
-    pillar, and
+*   installs the template from a repo **only if** you set `cfg.qvm.gentoo.repo`
+    in config.jinja, and
 *   otherwise **verifies the template already exists** and fails with build
     instructions if it does not.
 
@@ -87,15 +87,15 @@ cross-check the current
 
 ### Option B — Community repository
 
-If a community repo provides a prebuilt Gentoo template, set it in pillar and
+If a community repo provides a prebuilt Gentoo template, set it in config.jinja and
 let `gentoo.clone` install it:
 
-```yaml
-# pillar/user.sls
-qvm:
-  gentoo:
-    flavor: "xfce"          # gentoo-xfce  (or "" for gentoo, "minimal" for gentoo-minimal)
-    repo: "qubes-templates-community"
+```jinja
+# salt/config.jinja — under cfg.qvm
+"gentoo": {
+  "flavor": "xfce",          # gentoo-xfce (or "" for gentoo, "minimal" for gentoo-minimal)
+  "repo": "qubes-templates-community",
+},
 ```
 
 ## Usage
@@ -113,7 +113,7 @@ Then build a usable environment on top with the
 
 ## Configuration
 
-| Pillar key           | Default | Description                                             |
-|----------------------|---------|---------------------------------------------------------|
-| `qvm:gentoo:flavor`  | `xfce`  | Template flavor: `xfce`, `` (gnome), or `minimal`.      |
-| `qvm:gentoo:repo`    | (unset) | If set, install the template from this dom0 repo.       |
+| Config key (config.jinja)  | Default | Description                                        |
+|----------------------------|---------|----------------------------------------------------|
+| `cfg.qvm.gentoo.flavor`    | `xfce`  | Template flavor: `xfce`, `` (gnome), or `minimal`. |
+| `cfg.qvm.gentoo.repo`      | (unset) | If set, install the template from this dom0 repo.  |

@@ -11,7 +11,7 @@ by hand at the physical console.
 
 > **There is now a Salt formula that does all of this for you** — deploy with
 > `sudo qubesctl state.apply mgmt.remote-debug.*` and configure it via the
-> `remote_debug` block in `pillar/user.sls`. See
+> `remote_debug` block in `salt/config.jinja`. See
 > [salt/mgmt/remote-debug](../salt/mgmt/remote-debug/README.md). The manual
 > steps below explain the same mechanism and are useful for understanding or
 > one-off setups.
