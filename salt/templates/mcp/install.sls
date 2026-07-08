@@ -50,17 +50,22 @@ include:
       - pipx
 
 # uv: fast Python package/venv manager, the ergonomic way to scaffold MCP
-# Python servers (`uv init`, `uv add mcp`). Installed via pip (pipx-style) so it
-# comes from the pip index — with mirror.enabled that's the TUNA PyPI mirror,
-# not astral.sh's installer script (which has no China mirror).
+# Python servers (`uv init`, `uv add mcp`). Installed via pip so it comes from the
+# pip index — with mirror.enabled that's the TUNA PyPI mirror.
+#
+# A Qubes template has netvm=none: only apt/dnf reach the network, via the Qubes
+# update-proxy at 127.0.0.1:8082 (qrexec tunnel). pip must be pointed at that same
+# proxy explicitly, or it fails with "Temporary failure in name resolution".
 {% set pip_index = cfg.mirror.get('pip_index', '') if cfg.mirror.get('enabled', False) else '' %}
 {% set pip_index_arg = ('-i ' ~ pip_index) if pip_index else '' %}
 "tpl-mcp-install-uv":
   cmd.run:
     - name: |
-        pip3 install --break-system-packages --prefix=/usr/local {{ pip_index_arg }} uv
+        pip3 install --proxy http://127.0.0.1:8082 \
+          --break-system-packages --prefix=/usr/local {{ pip_index_arg }} uv
     - require:
       - pkg: tpl-mcp-install-base
+    - unless: test -x /usr/local/bin/uv
     - unless: test -x /usr/local/bin/uv
 
 # Node.js from Debian's own repo (via the mirror). NodeSource's external repo has

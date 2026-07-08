@@ -2,7 +2,8 @@
 # Copyright 2026 Chris Su
 #
 # IM (Instant Messaging) template packages installation (Debian)
-# Includes: weechat, telegram-desktop, and messaging tools
+# Includes: weechat (IRC), nheko (Matrix), profanity (XMPP), neomutt (email)
+# (Telegram desktop is not in Debian trixie — install manually; see note below)
 
 {% from 'config.jinja' import cfg with context %}
 {% if grains['nodename'] != 'dom0' %}
@@ -39,7 +40,9 @@ include:
       - profanity
       # Email client (optional)
       - neomutt
-      # Telegram (Debian contrib)
-      - telegram-desktop
+
+# NOTE: Debian trixie dropped telegram-desktop from its repos, so there is no apt
+# package to install here. Install it manually if needed (flatpak from Flathub, or
+# the official tarball) — both require the qube to have a netvm, unlike apt.
 
 {% endif %}
