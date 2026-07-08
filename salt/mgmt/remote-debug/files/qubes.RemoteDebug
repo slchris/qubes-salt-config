@@ -57,6 +57,26 @@ if [[ "$cmdline" =~ ^deploy\ ([a-zA-Z0-9_-]+)$ ]]; then
     fi
 fi
 
+# Dedicated push-file action: `push-file <jump-qube> <target-qube> <name>` pulls
+# /tmp/<name> from the jump qube and drops it into <target-qube>'s /home/user/<name>.
+# dom0 is only a relay (jump -> dom0 stdin -> target). Scoped: source is always
+# the jump's /tmp, destination is always the target's /home/user — no arbitrary
+# paths. Used to deliver build inputs (e.g. builderv2.tar.gz) to a build qube that
+# can't reach GitHub, without granting a general file-write primitive.
+if [[ "$cmdline" =~ ^push-file\ ([a-zA-Z0-9_-]+)\ ([a-zA-Z0-9_-]+)\ ([a-zA-Z0-9._-]+)$ ]]; then
+    JQ="${BASH_REMATCH[1]}"; TVM="${BASH_REMATCH[2]}"; NAME="${BASH_REMATCH[3]}"
+    TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+    echo "push-file: pulling /tmp/$NAME from $JQ ..."
+    if ! qvm-run --pass-io -- "$JQ" "cat /tmp/$NAME" > "$TMP/f"; then
+        echo "push-file: FAILED to read /tmp/$NAME from $JQ"; exit 1; fi
+    SZ="$(wc -c < "$TMP/f")"; echo "push-file: got $SZ bytes"
+    [ "$SZ" -gt 0 ] || { echo "push-file: FAILED — empty file"; exit 1; }
+    echo "push-file: writing to $TVM:/home/user/$NAME ..."
+    if ! qvm-run --pass-io -u user -- "$TVM" "cat > /home/user/$NAME" < "$TMP/f"; then
+        echo "push-file: FAILED to write to $TVM"; exit 1; fi
+    echo "push-file: DONE — $TVM:/home/user/$NAME ($SZ bytes)"; exit 0
+fi
+
 # Allow-list: extended regexes matched against the WHOLE command line.
 # Covers: Salt (state.apply / saltutil / pillar), template downloads, and the
 # qube-management verbs needed to build Gentoo templates (create/run/copy/prefs).
