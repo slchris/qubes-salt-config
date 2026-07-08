@@ -42,8 +42,10 @@ if [[ "$cmdline" =~ ^deploy\ ([a-zA-Z0-9_-]+)$ ]]; then
     echo "deploy: running setup.sh in $ROOT ..."
     # Capture setup.sh's own stdout+stderr and relay it (indented) — qrexec only
     # relays this service's stdout, so setup.sh output must be piped through here
-    # or a non-zero exit is invisible.
-    if ( cd "$ROOT" && sudo ./scripts/setup.sh ) > "$TMP/setup.log" 2>&1; then
+    # or a non-zero exit is invisible. Use an ABSOLUTE path with `sudo bash`:
+    # `sudo ./scripts/setup.sh` fails ("command not found") because sudo's
+    # secure_path drops `.` and treats the relative path as a PATH lookup.
+    if ( cd "$ROOT" && sudo bash "$ROOT/scripts/setup.sh" ) > "$TMP/setup.log" 2>&1; then
         sed 's/^/  setup| /' "$TMP/setup.log"
         echo "deploy: DONE — /srv/salt/slchris updated from $JQ"
         exit 0
