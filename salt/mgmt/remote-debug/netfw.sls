@@ -73,7 +73,13 @@ nft add chain ip qubes custom-dnat-remotedebug '{ type nat hook prerouting prior
 nft add chain ip qubes custom-snat-remotedebug '{ type nat hook postrouting priority 99 ; policy accept ; }'
 nft add rule ip qubes custom-snat-remotedebug ip daddr "$DEST" tcp dport "$FWD_DPORT" counter masquerade
 {% if hop == 'sys-net' -%}
-UPLINK="$(ip -4 route show default | awk '{print $5; exit}')"
+# Pick the interface that reaches the client LAN, NOT the default-route iface.
+# With multiple uplinks (e.g. cellular for internet + a hotspot NIC the client
+# connects through), the default route points at the wrong NIC, so the DNAT
+# matched on iifname never fired (counter stayed 0). `ip route show <LAN>` gives
+# the NIC that owns the hotspot subnet.
+UPLINK="$(ip -4 route show {{ lan }} 2>/dev/null | sed -n 's/.*dev \([^ ]*\).*/\1/p' | head -1)"
+[ -n "$UPLINK" ] || UPLINK="$(ip -4 route show default | awk '{print $5; exit}')"
 [ -n "$UPLINK" ] || exit 0
 nft add rule ip qubes custom-dnat-remotedebug iifname "$UPLINK" ip saddr "$LAN" tcp dport "$EXT_PORT" ct state new,established,related counter dnat to "${DEST}:${FWD_DPORT}"
 nft add rule ip qubes custom-forward iifname "$UPLINK" ip saddr "$LAN" ip daddr "$DEST" tcp dport "$FWD_DPORT" ct state new,established,related counter accept
