@@ -44,5 +44,8 @@ if [ "$allowed" -ne 1 ]; then
     exit 126
 fi
 
-# Execute. Remaining stdin (after the command line) is forwarded to the command.
-exec bash -c "$cmdline"
+# Execute as root. The qrexec service runs as dom0's regular user, but the
+# allow-listed commands (qubesctl, qvm-create, qubes-dom0-update, ...) need
+# root — running them unprivileged returns 1 with no output. dom0's user has
+# passwordless sudo. Remaining stdin (after the command line) is forwarded.
+exec sudo bash -c "$cmdline"
