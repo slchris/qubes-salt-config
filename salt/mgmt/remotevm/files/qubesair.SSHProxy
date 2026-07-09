@@ -1,0 +1,58 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# qrexec transport service: qubesair.SSHProxy
+#
+# Runs IN THE RELAY qube (a LocalVM), invoked by the local dom0 when a local
+# qube calls a service on a RemoteVM whose transport_rpc is qubesair.SSHProxy.
+#
+# The service argument (qrexec service argument) has the form:
+#     <target>+<service>[+<arg>]
+# where <target> is the RemoteVM's local name. We translate it to the remote
+# name via QubesDB (/remote/<target>, written by the core Relay extension) and
+# forward the call over SSH to qrexec-client-vm on the remote host, preserving
+# the original source qube via --source-qube so the remote dom0 can apply its
+# own policy.
+#
+# Based on the official RemoteVM SSH transport example:
+#   https://dev.qubes-os.org/projects/qubes-core-qrexec/en/stable/qrexec-remotevm.html
+
+set -euo pipefail
+
+arg="${1:-}"
+if [[ -z "$arg" ]]; then
+    echo "qubesair.SSHProxy: missing '<target>+<service>' argument" >&2
+    exit 1
+fi
+
+# Split into target and the rest (service[+arg]) on the first '+' only.
+target="${arg%%+*}"
+service="${arg#*+}"
+
+if [[ -z "$target" || "$service" == "$arg" || -z "$service" ]]; then
+    echo "qubesair.SSHProxy: invalid argument '$arg' (expected <target>+<service>)" >&2
+    exit 1
+fi
+
+# Guard the target against injection before using it in a path / SSH command.
+if [[ ! "$target" =~ ^[a-zA-Z0-9_.-]+$ ]]; then
+    echo "qubesair.SSHProxy: invalid target name '$target'" >&2
+    exit 1
+fi
+
+# Translate the local RemoteVM name to the name on the remote host.
+remote_qube="$(qubesdb-read "/remote/$target" 2>/dev/null || true)"
+if [[ -z "$remote_qube" ]]; then
+    echo "qubesair.SSHProxy: no /remote/$target mapping in QubesDB" >&2
+    echo "  (is '$target' a RemoteVM with relayvm set to this qube?)" >&2
+    exit 1
+fi
+
+# Forward over SSH to qrexec-client-vm on the remote relay. The SSH host is
+# resolved from ~/.ssh/config (see relay.sls, which writes a Host entry per
+# target). QREXEC_REMOTE_DOMAIN is the original local source qube; it must be
+# registered as a RemoteVM on the remote side for its policy to resolve it.
+exec ssh "$remote_qube" \
+    qrexec-client-vm --source-qube="${QREXEC_REMOTE_DOMAIN:-dom0}" \
+    -- "$remote_qube" "$service"

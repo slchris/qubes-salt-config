@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Target the relay qube. Default is mgmt-jump; if you change
+# cfg.remotevm.relay, update this target to match.
+
+base:
+  'mgmt-jump':
+    - mgmt.remotevm.relay

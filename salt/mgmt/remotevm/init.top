@@ -1,0 +1,26 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Full RemoteVM deployment across all targets. Enable and apply with:
+  sudo qubesctl top.enable mgmt.remotevm
+  sudo qubesctl --all state.highstate    # or apply the targets below in order
+  sudo qubesctl top.disable mgmt.remotevm
+
+Order matters: create the RemoteVMs (dom0), configure the relay's transport
+service + ssh config (relay qube), then install the local policy (dom0).
+Because a RemoteVM's QubesDB /remote mapping is written when the relay STARTS,
+restart the relay after create if it was already running. See README.md for the
+recommended step-by-step apply.
+
+The relay target below is the default (mgmt-jump). If cfg.remotevm.relay is
+changed, update the relay target here to match.
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.remotevm.create
+    - mgmt.remotevm.policy
+  'mgmt-jump':
+    - mgmt.remotevm.relay

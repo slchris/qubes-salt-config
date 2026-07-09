@@ -48,6 +48,16 @@ Edit the values below to customise your environment. This file is deployed to
     "lan_subnet": "10.42.0.0/24",
   },
 
+  "remotevm": {
+    "relay": "mgmt-jump",
+    "transport_rpc": "qubesair.SSHProxy",
+    "targets": [
+    ],
+    "allowed_sources": ["@anyvm"],
+    "services": [
+    ],
+  },
+
   "hotspot": {
     "qube": "sys-net",
     "accept": ["udp/67", "udp/68", "udp/53", "tcp/53"],
