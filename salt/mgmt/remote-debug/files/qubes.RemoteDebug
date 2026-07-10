@@ -77,6 +77,30 @@ if [[ "$cmdline" =~ ^push-file\ ([a-zA-Z0-9_-]+)\ ([a-zA-Z0-9_-]+)\ ([a-zA-Z0-9.
     echo "push-file: DONE — $TVM:/home/user/$NAME ($SZ bytes)"; exit 0
 fi
 
+# Dedicated install-template action: `install-template <build-qube> <rpm-name>`
+# pulls a built template RPM from the build qube's builderv2 artifacts and
+# `dnf install`s it into dom0. Scoped like push-file: the source path is fixed
+# (~/qubes-builderv2/artifacts/templates/rpm/<name>), the name must match
+# qubes-template-*.noarch.rpm (can't install an arbitrary RPM), and dnf is run
+# with --setopt to only process the local file. This is the one dom0-write that
+# the wildcard whitelist can't do (install a package), as a single fixed pipeline.
+if [[ "$cmdline" =~ ^install-template\ ([a-zA-Z0-9_-]+)\ (qubes-template-[a-zA-Z0-9._+-]+\.noarch\.rpm)$ ]]; then
+    BQ="${BASH_REMATCH[1]}"; RPM="${BASH_REMATCH[2]}"
+    TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+    SRC="qubes-builderv2/artifacts/templates/rpm/$RPM"
+    echo "install-template: pulling $RPM from $BQ ..."
+    if ! qvm-run --pass-io -u user -- "$BQ" "cat $SRC" > "$TMP/$RPM"; then
+        echo "install-template: FAILED to read $SRC from $BQ"; exit 1; fi
+    SZ="$(wc -c < "$TMP/$RPM")"; echo "install-template: got $SZ bytes"
+    [ "$SZ" -gt 0 ] || { echo "install-template: FAILED — empty RPM"; exit 1; }
+    echo "install-template: dnf install $RPM in dom0 ..."
+    if sudo dnf install -y "$TMP/$RPM" 2>&1 | sed 's/^/  dnf| /'; then
+        echo "install-template: DONE — $RPM installed"; exit 0
+    else
+        echo "install-template: FAILED — dnf install returned nonzero"; exit 1
+    fi
+fi
+
 # Allow-list: extended regexes matched against the WHOLE command line.
 # Covers: Salt (state.apply / saltutil / pillar), template downloads, and the
 # qube-management verbs needed to build Gentoo templates (create/run/copy/prefs).
