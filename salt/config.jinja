@@ -22,7 +22,12 @@ Edit the values below to customise your environment. This file is deployed to
     "debian": {"version": "13", "repo": "qubes-templates-itl"},
     "fedora": {"version": "43", "repo": "qubes-templates-itl"},
     "whonix": {"version": "18", "repo": "qubes-templates-community"},
-    "gentoo": {"flavor": "xfce", "repo": ""},
+    "gentoo": {
+      "flavor": "xfce",
+      "dev_flavor": "minimal",
+      "repo": "",
+      "dev": {"vcpus": 12, "memory": 16000, "maxmem": 0, "private_size": "80G"},
+    },
   },
 
   "mirror": {
