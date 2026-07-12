@@ -103,6 +103,25 @@ if [[ "$cmdline" =~ ^install-template\ ([a-zA-Z0-9_-]+)\ (qubes-template-[a-zA-Z
     PKG="${RPM%.rpm}"
     TPL="${PKG#qubes-template-}"; TPL="${TPL%%-4.3.0*}"
     TPLDIR="/var/lib/qubes/vm-templates/$TPL"
+    # If a same-named template is ALREADY registered (e.g. a previous build we're
+    # replacing), qvm-template-postprocess post-install would fail. Tear it down
+    # first — but it carries the installed_by_rpm flag so plain qvm-remove refuses
+    # it; the symmetric teardown is `--really pre-remove <name> <dir>`. SCOPED to
+    # gentoo-*/tpl-gentoo-*/slchris-gentoo- (same boundary as the qvm-remove verb)
+    # so a rebuild reinstall is one step instead of needing untrust-template first.
+    if qvm-check "$TPL" >/dev/null 2>&1; then
+        if [[ "$TPL" =~ ^(gentoo-|tpl-gentoo-|slchris-gentoo-) ]]; then
+            echo "install-template: '$TPL' already registered — pre-removing old copy ..."
+            sudo qvm-features --unset "$TPL" installed-by-rpm 2>&1 | sed 's/^/  untrust| /' || true
+            sudo qvm-template-postprocess --really pre-remove "$TPL" "$TPLDIR" 2>&1 | sed 's/^/  untrust| /'
+            sudo qvm-remove -f "$TPL" >/dev/null 2>&1 || true
+            if qvm-check "$TPL" >/dev/null 2>&1; then
+                echo "install-template: FAILED — could not remove existing '$TPL'"; exit 1; fi
+            echo "install-template: old '$TPL' removed"
+        else
+            echo "install-template: REFUSED — '$TPL' exists and is not a gentoo-* template"; exit 1
+        fi
+    fi
     # Clear any partial extract left by an earlier failed attempt (tar would
     # otherwise fail on pre-existing files). Only touch this template's own dir.
     if [ -d "$TPLDIR" ] && ! qvm-check "$TPL" >/dev/null 2>&1; then
