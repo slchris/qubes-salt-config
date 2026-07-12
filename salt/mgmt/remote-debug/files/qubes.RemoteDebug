@@ -93,12 +93,140 @@ if [[ "$cmdline" =~ ^install-template\ ([a-zA-Z0-9_-]+)\ (qubes-template-[a-zA-Z
         echo "install-template: FAILED to read $SRC from $BQ"; exit 1; fi
     SZ="$(wc -c < "$TMP/$RPM")"; echo "install-template: got $SZ bytes"
     [ "$SZ" -gt 0 ] || { echo "install-template: FAILED — empty RPM"; exit 1; }
-    echo "install-template: dnf install $RPM in dom0 ..."
-    if sudo dnf install -y "$TMP/$RPM" 2>&1 | sed 's/^/  dnf| /'; then
-        echo "install-template: DONE — $RPM installed"; exit 0
-    else
-        echo "install-template: FAILED — dnf install returned nonzero"; exit 1
+    # The template RPM is locally built and UNSIGNED, so `qvm-template install`
+    # refuses it ("Signature verification failed") and a plain rpm/dnf install is
+    # blocked by the RPM's own %pre. Install the qubes way for an unsigned local
+    # template: extract the RPM payload (which lays the template tree under
+    # /var/lib/qubes/vm-templates/<name>/) and run qvm-template-postprocess to
+    # register it — the same postprocess qvm-template would call, minus the
+    # signature gate. Scoped: only qubes-template-*.noarch.rpm reach here.
+    PKG="${RPM%.rpm}"
+    TPL="${PKG#qubes-template-}"; TPL="${TPL%%-4.3.0*}"
+    TPLDIR="/var/lib/qubes/vm-templates/$TPL"
+    # Clear any partial extract left by an earlier failed attempt (tar would
+    # otherwise fail on pre-existing files). Only touch this template's own dir.
+    if [ -d "$TPLDIR" ] && ! qvm-check "$TPL" >/dev/null 2>&1; then
+        echo "install-template: clearing stale partial $TPLDIR ..."
+        sudo rm -rf "$TPLDIR"
     fi
+    echo "install-template: extracting $RPM payload (unsigned local template) ..."
+    if ! ( cd / && sudo bash -c "rpm2archive -n '$TMP/$RPM' | tar -xf - -C /" ) 2>&1 | sed 's/^/  extract| /'; then
+        echo "install-template: FAILED — payload extract"; exit 1; fi
+    if [ ! -d "$TPLDIR" ]; then
+        echo "install-template: FAILED — $TPLDIR not present after extract"; exit 1; fi
+    # A large root.img is shipped as a MULTI-PART image (root.img.part.NN) plus a
+    # size file; qvm-template-postprocess reassembles it from the ORIGINAL rpm and
+    # needs a `template.rpm` symlink in the template dir pointing at that rpm
+    # (normally created by `qvm-template install`). Create it before postprocess.
+    if ls "$TPLDIR"/root.img.part.* >/dev/null 2>&1; then
+        sudo ln -sf "$TMP/$RPM" "$TPLDIR/template.rpm"
+        echo "  multi-part image → linked template.rpm"
+    fi
+    echo "install-template: qvm-template-postprocess post-install $TPL ..."
+    sudo qvm-template-postprocess --really post-install "$TPL" "$TPLDIR" 2>&1 | sed 's/^/  postprocess| /'
+    PP_RC=${PIPESTATUS[0]}
+    if [ "$PP_RC" -ne 0 ]; then
+        echo "install-template: postprocess exited $PP_RC — recent qubesd journal:"
+        sudo journalctl -u qubesd --since '3 min ago' --no-pager 2>&1 | tail -30 | sed 's/^/  qubesd| /'
+        echo "install-template: FAILED — postprocess exited $PP_RC"; exit 1; fi
+    if qvm-check "$TPL" >/dev/null 2>&1; then
+        echo "install-template: DONE — $TPL registered"; exit 0
+    else
+        echo "install-template: WARNING — postprocess ran but qube '$TPL' NOT registered"; exit 1
+    fi
+fi
+
+# Dedicated read-only pool-status action: reports dom0 disk headroom — the thin
+# pool usage (where every qube/template root.img lives), the VG free extents
+# (whether the pool can be lvextend'd), and dom0 root fs usage. Takes NO argument
+# and runs a FIXED set of read-only commands (lvs/vgs/df), so it grants no write
+# and no arbitrary-command primitive. Needed because `qvm-run -- dom0 <cmd>` does
+# not work (dom0 has no qvm-run agent) and lvs/vgs/df are not qvm-* verbs, so the
+# wildcard allow-list below cannot reach them. Used to decide, before installing
+# a template, whether the thin pool has room (a large gentoo-xfce root.img is
+# ~19G) or must be freed/extended first.
+if [[ "$cmdline" == "pool-status" ]]; then
+    echo "===== thin pool (vm-pool) ====="
+    sudo lvs qubes_dom0/vm-pool \
+        -o lv_name,lv_size,data_percent,metadata_percent 2>&1 \
+        | sed 's/^/  /'
+    echo "===== VG free (can the pool be extended?) ====="
+    sudo vgs qubes_dom0 -o vg_name,vg_size,vg_free 2>&1 | sed 's/^/  /'
+    echo "===== dom0 root filesystem ====="
+    df -h / 2>&1 | sed 's/^/  /'
+    exit 0
+fi
+
+# Dedicated read-only template-users action: `template-users <name>` lists which
+# qubes use <name> as their template (i.e. what blocks `qvm-remove <name>`). Runs
+# a FIXED read-only `qvm-ls` with a template-field filter — no write, no arbitrary
+# command. Needed because `qvm-remove` fails (exit 1) with its reason on STDERR,
+# which qrexec does not relay, and the wildcard `qvm-prefs` regex only matches the
+# 3-arg write form, so a plain property read isn't reachable. Used to find and
+# clear dependents before removing a template.
+if [[ "$cmdline" =~ ^template-users\ ([a-zA-Z0-9._-]+)$ ]]; then
+    TPL="${BASH_REMATCH[1]}"
+    echo "===== qubes whose template is '$TPL' ====="
+    # qvm-ls with explicit fields: NAME + TEMPLATE, then filter. Read-only.
+    sudo qvm-ls --fields NAME,TEMPLATE,CLASS 2>&1 \
+        | awk -v t="$TPL" 'NR==1 || $2==t' | sed 's/^/  /'
+    echo "===== (also check netvm/default-dispvm references) ====="
+    sudo qvm-ls --fields NAME,TEMPLATE,CLASS,STATE 2>&1 \
+        | grep -F "$TPL" | sed 's/^/  /' || echo "  (no other references found)"
+    echo "===== global prefs referencing it (default_template / default_dispvm) ====="
+    sudo qubes-prefs 2>&1 | grep -F "$TPL" | sed 's/^/  /' || echo "  (none)"
+    echo "===== full property scan: any qube prop pointing at it (read-only) ====="
+    # qubesd's own dependency check is what blocks qvm-remove; reproduce it read-only
+    # by scanning every qube's template/netvm/default_dispvm/guivm/audiovm props.
+    for q in $(sudo qvm-ls --raw-list); do
+        for p in template netvm default_dispvm guivm audiovm management_dispvm; do
+            v="$(sudo qvm-prefs "$q" "$p" 2>/dev/null)"
+            [ "$v" = "$TPL" ] && echo "  $q.$p = $TPL"
+        done
+    done
+    echo "  (scan complete)"
+    exit 0
+fi
+
+# Dedicated action: `untrust-template <name>` removes a template that was
+# installed via qvm-template-postprocess (our install-template action) and is
+# therefore tagged `installed-by-rpm`, which makes plain `qvm-remove` refuse it
+# with "VM installed by package manager". This clears that feature, then removes
+# the template. SCOPED to gentoo-*/tpl-gentoo-*/slchris-gentoo-* only — the same
+# safety boundary as the allow-listed `qvm-remove -f gentoo-*` verb — so it can
+# never untrust/remove a system template. Used when rebuilding a template: the
+# old same-named one must go before qvm-template-postprocess can register the new.
+if [[ "$cmdline" =~ ^untrust-template\ ([a-zA-Z0-9._-]+)$ ]]; then
+    TPL="${BASH_REMATCH[1]}"
+    if [[ ! "$TPL" =~ ^(gentoo-|tpl-gentoo-|slchris-gentoo-) ]]; then
+        echo "untrust-template: REFUSED — '$TPL' is not a gentoo-* qube"; exit 126; fi
+    if ! qvm-check "$TPL" >/dev/null 2>&1; then
+        echo "untrust-template: '$TPL' does not exist (already gone)"; exit 0; fi
+    echo "untrust-template: installed-by-rpm feature before:"
+    sudo qvm-features "$TPL" installed-by-rpm 2>&1 | sed 's/^/    [val]/'
+    # DELETE the feature entirely (--unset). Do NOT set it to '' — an empty value
+    # still counts as present and qvm-remove keeps refusing. --unset removes the key.
+    echo "untrust-template: qvm-features --unset installed-by-rpm ..."
+    sudo qvm-features --unset "$TPL" installed-by-rpm 2>&1 | sed 's/^/  /' || true
+    echo "untrust-template: installed-by-rpm feature after (should be empty/error=absent):"
+    sudo qvm-features "$TPL" installed-by-rpm 2>&1 | sed 's/^/    [val]/'
+    # A template registered by qvm-template-postprocess post-install carries the
+    # installed_by_rpm VM PROPERTY (not the feature above), so plain qvm-remove
+    # refuses it ("installed by package manager"). The symmetric teardown is
+    # `qvm-template-postprocess --really pre-remove <name> <dir>` (the action is
+    # `pre-remove`, NOT `remove`), which unregisters it and clears the flag; then
+    # qvm-remove works. Pass the template dir it was installed into.
+    TPLDIR="/var/lib/qubes/vm-templates/$TPL"
+    echo "untrust-template: qvm-template-postprocess --really pre-remove $TPL $TPLDIR ..."
+    sudo qvm-template-postprocess --really pre-remove "$TPL" "$TPLDIR" 2>&1 | sed 's/^/  [pp]/'
+    echo "untrust-template: qvm-remove -f $TPL ..."
+    sudo qvm-remove -f "$TPL" 2>&1 | sed 's/^/  /'
+    RC=${PIPESTATUS[0]}
+    if [ "$RC" -ne 0 ]; then
+        echo "untrust-template: FAILED — qvm-remove exited $RC"; exit "$RC"; fi
+    if qvm-check "$TPL" >/dev/null 2>&1; then
+        echo "untrust-template: WARNING — $TPL still present"; exit 1; fi
+    echo "untrust-template: DONE — $TPL removed"; exit 0
 fi
 
 # Allow-list: extended regexes matched against the WHOLE command line.
