@@ -15,6 +15,39 @@ pillar. All user configuration lives here and is imported by states:
 
 Edit the values below to customise your environment. This file is deployed to
 /srv/salt/slchris/config.jinja and read directly (no pillar, no top.sls).
+
+NOTE: no "#" comments are allowed INSIDE the {% set %} block below — Jinja has
+no line comments inside expressions and dies with "unexpected char '#'".
+Document keys here instead.
+
+tailscale — remote access over a Tailscale mesh whose control plane is a
+SELF-HOSTED Headscale (not Tailscale SaaS). One dedicated sys-tailscale
+ProxyVM acts as the tailnet gateway: sys-net -> sys-firewall -> sys-tailscale
+-> AppVMs. See mgmt/tailscale/README.md. Deploy requires rerunning
+scripts/setup.sh. Keys:
+  template        tailscaled is installed IN this template
+  netvm           upstream NetVM for the gateway
+  login_server    public HTTPS URL of your Headscale; the client only needs
+                  --login-server, everything else is identical to SaaS
+  auth_key        pre-auth key from `headscale preauthkeys create --user <id>
+                  --reusable --expiration 720h`. Prefer NOT committing a real
+                  key: leave "" and paste it once via the qube (see README
+                  "Joining"), or fill it for full automation.
+  accept_dns      use MagicDNS (100.100.100.100)
+  hostname        tailnet node name; "" => qube name
+  advertise_exit_node  let remote tailnet devices route all traffic out here
+  advertise_routes     expose these CIDRs to the tailnet (must be approved on
+                       the Headscale side: headscale nodes approve-routes),
+                       e.g. ["10.137.0.0/16"]
+  accept_routes   accept routes/exit-nodes advertised by other tailnet nodes
+  forward_downstream_dns  DNS set inside sys-tailscale does NOT propagate to
+                  AppVMs using it as NetVM; when True, downstream :53 is
+                  DNAT'd to the tailnet resolver so they resolve MagicDNS
+  ssh             "sshd" = plain key-only sshd in the gateway, reach it at its
+                  100.x address (robust default with Headscale today);
+                  "tailscale" = Tailscale SSH (verify your Headscale supports
+                  it first); "none" = no SSH from the gateway
+  authorized_keys [] => inherit cfg.remote_debug.authorized_keys
 -#}
 
 {%- set cfg = {
@@ -91,53 +124,23 @@ Edit the values below to customise your environment. This file is deployed to
   },
 
   "tailscale": {
-    # Remote access over a Tailscale mesh whose control plane is a SELF-HOSTED
-    # Headscale (not Tailscale SaaS). One dedicated sys-tailscale ProxyVM acts as
-    # the tailnet gateway: sys-net -> sys-firewall -> sys-tailscale -> AppVMs.
-    # See mgmt/tailscale/README.md. Deploy requires rerunning scripts/setup.sh.
     "enabled": False,
     "qube": "sys-tailscale",
-    "template": "debian-13-minimal",   # tailscaled is installed IN this template
+    "template": "debian-13-minimal",
     "label": "green",
-    "netvm": "sys-firewall",           # upstream NetVM for the gateway
+    "netvm": "sys-firewall",
     "memory": 400,
     "maxmem": 800,
-
-    # --- Headscale control server (yours) --------------------------------------
-    # Public HTTPS URL of your Headscale. The client only needs --login-server;
-    # everything else (routes, exit-node, ssh) is identical to SaaS.
     "login_server": "https://headscale.example.com",
-    # Pre-auth key from `headscale preauthkeys create --user <id> --reusable
-    # --expiration 720h`. Prefer NOT committing a real key: leave "" and paste it
-    # once via the qube (see README "Joining"), or fill it for full automation.
     "auth_key": "",
-    "accept_dns": True,                # use MagicDNS (100.100.100.100)
-    "hostname": "",                    # tailnet node name; "" => qube name
-
-    # --- Roles this gateway advertises -----------------------------------------
-    # Exit node: let remote tailnet devices route all traffic out through here.
+    "accept_dns": True,
+    "hostname": "",
     "advertise_exit_node": False,
-    # Subnet router: expose these CIDRs (e.g. a Qubes internal net) to the tailnet.
-    # Must be approved on the Headscale side (headscale nodes approve-routes).
-    "advertise_routes": [],            # e.g. ["10.137.0.0/16"]
-    # Accept routes/exit-nodes advertised by other tailnet nodes.
+    "advertise_routes": [],
     "accept_routes": False,
-
-    # --- Downstream DNS forwarding ---------------------------------------------
-    # DNS set inside sys-tailscale does NOT propagate to AppVMs that use it as
-    # their NetVM. When True, downstream :53 is DNAT'd to the tailnet resolver so
-    # AppVMs behind sys-tailscale can resolve MagicDNS names.
     "forward_downstream_dns": True,
-
-    # --- SSH into Qubes over the tailnet ---------------------------------------
-    # "sshd"      : run plain sshd in this gateway (key-only), reach it at its
-    #               100.x address — the robust default with Headscale today.
-    # "tailscale" : use Tailscale SSH (tailscale up --ssh); auth via tailnet
-    #               policy. Verify it works on your Headscale version first.
-    # "none"      : don't expose SSH from the gateway itself.
     "ssh": "sshd",
-    # Reuse the same authorized keys as remote-debug (your YubiKey) by default.
-    "authorized_keys": [],             # [] => inherit cfg.remote_debug.authorized_keys
+    "authorized_keys": [],
   },
 
   "hotspot": {
