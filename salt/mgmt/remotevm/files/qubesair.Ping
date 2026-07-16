@@ -1,0 +1,21 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# qrexec service: qubesair.Ping
+#
+# A trivial reachability probe. Runs on the REMOTE host (invoked via
+# qrexec-client-vm by the gRPC Remote-Relay after the remote dom0/policy has
+# authorized the call). Returns "pong" plus the qube name so the caller can
+# confirm the cross-machine qrexec path (gRPC tunnel → remote qrexec) works.
+#
+# Consumed by the console's QubeService.CheckReachable (GET /qubes/:id/reachable)
+# via transport.Call(target=<qube>, service="qubesair.Ping").
+#
+# It takes no input, performs no privileged action, and makes no authorization
+# decision — authorization is the remote dom0 policy's job.
+
+set -euo pipefail
+
+name="$(qubesdb-read /name 2>/dev/null || hostname 2>/dev/null || echo unknown)"
+printf 'pong from %s\n' "$name"

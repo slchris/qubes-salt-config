@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Configure the gateway qube. If you change cfg.tailscale.qube, update the target.
+
+base:
+  'sys-tailscale':
+    - mgmt.tailscale.configure

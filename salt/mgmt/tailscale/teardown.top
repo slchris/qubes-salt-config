@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Tear down the sys-tailscale gateway. Runs in dom0.
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.tailscale.teardown

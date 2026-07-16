@@ -16,8 +16,24 @@ relay qube over SSH — aligning with the official RemoteVM primitive
 |-------|---------|---------|
 | `create` | dom0 | create a `RemoteVM` per target; set `relayvm` / `transport_rpc` / `remote_name` |
 | `relay` | relay qube | install the `qubesair.SSHProxy` transport service + `~/.ssh/config` |
+| `grpc-relay` | relay qube | **alternative transport**: install the gRPC bidi-stream relay client (systemd unit + config); use *instead of* `relay` |
 | `policy` | dom0 | local qrexec policy: which local qubes may call which services on the RemoteVMs |
 | `teardown` | dom0 | remove the local policy and the RemoteVM definitions |
+
+> **Two transports, pick one.** `relay` deploys the SSHProxy transport (autossh
+> + `ssh -R`). `grpc-relay` deploys the gRPC bidi-stream transport (one outbound
+> long-lived Tunnel, zero-inbound) — see
+> [qubes-air/docs/grpc-transport-design.md](https://github.com/slchris/qubes-air/blob/main/docs/grpc-transport-design.md).
+> Enable it in `config.jinja` (`remotevm.grpc.enabled` + `remote_endpoint`) and
+> deploy with:
+>
+> ```
+> sudo qubesctl --skip-dom0 --targets=<relay> state.apply mgmt.remotevm.grpc-relay
+> ```
+>
+> The gRPC client binary (`remotevm.grpc.client_bin`) is built separately
+> (cross-compiled `linux/amd64` from the qubes-air Go backend) and placed on the
+> relay; the state wires the systemd service around it.
 
 How a call flows (see [qubes-air/docs/remotevm-alignment.md](https://github.com/slchris/qubes-air/blob/main/docs/remotevm-alignment.md)):
 

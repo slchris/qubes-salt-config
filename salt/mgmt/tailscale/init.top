@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Aggregate reference for the whole tailscale module. Enabling this applies every
+# stage to its proper target in one pass. Order matters — apply install to the
+# template BEFORE create/configure so the gateway is built from a template that
+# already has tailscaled. In practice run the per-stage tops in sequence (see
+# README) rather than this aggregate, so you control ordering across qubes.
+
+base:
+  'debian-13-minimal':
+    - mgmt.tailscale.install
+  'dom0':
+    - match: nodegroup
+    - mgmt.tailscale.create
+  'sys-tailscale':
+    - mgmt.tailscale.configure

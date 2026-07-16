@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Install tailscaled in the template. If you change cfg.tailscale.template,
+# update this target to match.
+
+base:
+  'debian-13-minimal':
+    - mgmt.tailscale.install

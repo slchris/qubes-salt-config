@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Create the sys-tailscale gateway qube. Runs in dom0.
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.tailscale.create

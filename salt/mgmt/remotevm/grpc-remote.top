@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Runs on the relay qube: renders the Remote-Relay (gRPC server) deployment
+# bundle into cfg.remotevm.grpc.remote.bundle_dir, for you to copy to the remote
+# host. Default relay target is mgmt-jump.
+
+base:
+  'mgmt-jump':
+    - mgmt.remotevm.grpc-remote

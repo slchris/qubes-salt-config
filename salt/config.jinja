@@ -63,6 +63,81 @@ Edit the values below to customise your environment. This file is deployed to
     "allowed_sources": ["@anyvm"],
     "services": [
     ],
+    "grpc": {
+      "enabled": False,
+      "remote_endpoint": "",
+      "client_bin": "/usr/local/bin/qubesair-relay-client",
+      "cert_file": "/rw/config/qubesair/relay.crt",
+      "key_file": "/rw/config/qubesair/relay.key",
+      "ca_file": "/rw/config/qubesair/ca.crt",
+      "vault_certs": False,
+      "vault_qube": "vault-cloud",
+      "vault_cert_name": "relay-cert",
+      "vault_key_name": "relay-key",
+      "vault_ca_name": "relay-ca",
+      "reverse_local_target": "vault-cloud",
+      "keepalive_seconds": 20,
+      "reconnect_min_seconds": 1,
+      "reconnect_max_seconds": 30,
+      "remote": {
+        "listen": "0.0.0.0:8443",
+        "server_bin": "/usr/local/bin/qubesair-relay-server",
+        "cert_file": "/etc/qubesair/server.crt",
+        "key_file": "/etc/qubesair/server.key",
+        "ca_file": "/etc/qubesair/ca.crt",
+        "bundle_dir": "/home/user/qubesair-remote-bundle",
+      },
+    },
+  },
+
+  "tailscale": {
+    # Remote access over a Tailscale mesh whose control plane is a SELF-HOSTED
+    # Headscale (not Tailscale SaaS). One dedicated sys-tailscale ProxyVM acts as
+    # the tailnet gateway: sys-net -> sys-firewall -> sys-tailscale -> AppVMs.
+    # See mgmt/tailscale/README.md. Deploy requires rerunning scripts/setup.sh.
+    "enabled": False,
+    "qube": "sys-tailscale",
+    "template": "debian-13-minimal",   # tailscaled is installed IN this template
+    "label": "green",
+    "netvm": "sys-firewall",           # upstream NetVM for the gateway
+    "memory": 400,
+    "maxmem": 800,
+
+    # --- Headscale control server (yours) --------------------------------------
+    # Public HTTPS URL of your Headscale. The client only needs --login-server;
+    # everything else (routes, exit-node, ssh) is identical to SaaS.
+    "login_server": "https://headscale.example.com",
+    # Pre-auth key from `headscale preauthkeys create --user <id> --reusable
+    # --expiration 720h`. Prefer NOT committing a real key: leave "" and paste it
+    # once via the qube (see README "Joining"), or fill it for full automation.
+    "auth_key": "",
+    "accept_dns": True,                # use MagicDNS (100.100.100.100)
+    "hostname": "",                    # tailnet node name; "" => qube name
+
+    # --- Roles this gateway advertises -----------------------------------------
+    # Exit node: let remote tailnet devices route all traffic out through here.
+    "advertise_exit_node": False,
+    # Subnet router: expose these CIDRs (e.g. a Qubes internal net) to the tailnet.
+    # Must be approved on the Headscale side (headscale nodes approve-routes).
+    "advertise_routes": [],            # e.g. ["10.137.0.0/16"]
+    # Accept routes/exit-nodes advertised by other tailnet nodes.
+    "accept_routes": False,
+
+    # --- Downstream DNS forwarding ---------------------------------------------
+    # DNS set inside sys-tailscale does NOT propagate to AppVMs that use it as
+    # their NetVM. When True, downstream :53 is DNAT'd to the tailnet resolver so
+    # AppVMs behind sys-tailscale can resolve MagicDNS names.
+    "forward_downstream_dns": True,
+
+    # --- SSH into Qubes over the tailnet ---------------------------------------
+    # "sshd"      : run plain sshd in this gateway (key-only), reach it at its
+    #               100.x address — the robust default with Headscale today.
+    # "tailscale" : use Tailscale SSH (tailscale up --ssh); auth via tailnet
+    #               policy. Verify it works on your Headscale version first.
+    # "none"      : don't expose SSH from the gateway itself.
+    "ssh": "sshd",
+    # Reuse the same authorized keys as remote-debug (your YubiKey) by default.
+    "authorized_keys": [],             # [] => inherit cfg.remote_debug.authorized_keys
   },
 
   "hotspot": {
