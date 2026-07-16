@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+base:
+  'dvm-ai':
+    - templates.ai.configure
+  'ai':
+    - templates.ai.configure

@@ -12,6 +12,10 @@ VPN gateway template for Qubes OS.
 
 Creates a VPN gateway qube (sys-vpn) that can be used as a NetVM for other qubes. Supports WireGuard and OpenVPN.
 
+> **Note**: this gateway is fail-OPEN — if the tunnel drops, downstream
+> traffic falls back to the clearnet path. For a fail-closed, WireGuard-only,
+> per-project gateway see [templates/project-net](../project-net/).
+
 Packages installed:
 
 *   wireguard-tools - WireGuard VPN
@@ -26,6 +30,7 @@ Packages installed:
 ```sh
 sudo qubesctl top.enable templates.vpn
 sudo qubesctl --targets=tpl-vpn state.apply
+sudo qubesctl --skip-dom0 --targets=sys-vpn state.apply templates.vpn.configure
 sudo qubesctl top.disable templates.vpn
 ```
 
@@ -38,7 +43,8 @@ sudo qubesctl state.apply templates.vpn.create
 # Install packages
 sudo qubesctl --skip-dom0 --targets=tpl-vpn state.apply templates.vpn.install
 
-# Configure (optional)
+# Configure (required for the WireGuard workflow below: it creates
+# /rw/config/wireguard and the rc.local auto-start/NAT script)
 sudo qubesctl --skip-dom0 --targets=sys-vpn state.apply templates.vpn.configure
 ```
 
@@ -46,23 +52,29 @@ sudo qubesctl --skip-dom0 --targets=sys-vpn state.apply templates.vpn.configure
 
 ### WireGuard Setup
 
+> Prerequisite: `templates.vpn.configure` must have been applied to sys-vpn
+> (see Installation above) — it creates `/rw/config/wireguard` and installs
+> the rc.local auto-start/NAT script these steps rely on.
+
 1.  Copy your WireGuard config to sys-vpn:
 
     ```sh
     qvm-copy-to-vm sys-vpn /path/to/wg0.conf
     ```
 
-2.  In sys-vpn, move the config:
+2.  In sys-vpn, move the config to the **persistent** path that the boot
+    script (`/rw/config/rc.local`) reads. Do NOT use `/etc/wireguard` — in an
+    AppVM `/etc` is reset from the template on every reboot:
 
     ```sh
-    sudo mv /home/user/QubesIncoming/*/wg0.conf /etc/wireguard/
-    sudo chmod 600 /etc/wireguard/wg0.conf
+    sudo mv /home/user/QubesIncoming/*/wg0.conf /rw/config/wireguard/wg0.conf
+    sudo chmod 600 /rw/config/wireguard/wg0.conf
     ```
 
-3.  Start WireGuard:
+3.  Start WireGuard (subsequent boots auto-start it via rc.local):
 
     ```sh
-    sudo wg-quick up wg0
+    sudo wg-quick up /rw/config/wireguard/wg0.conf
     ```
 
 ### OpenVPN Setup

@@ -1,0 +1,15 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - templates.ai.create
+  'tpl-ai':
+    - templates.ai.install
+  'dvm-ai':
+    - templates.ai.configure
+  'ai':
+    - templates.ai.configure

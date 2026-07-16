@@ -1,0 +1,13 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - templates.project-net.create
+  'tpl-project-net':
+    - templates.project-net.install
+  'sys-project-net':
+    - templates.project-net.configure

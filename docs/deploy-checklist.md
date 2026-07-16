@@ -141,8 +141,14 @@ Apply the ones you use. Each is `create` (dom0) → `install` (template) →
 `configure` (the app/dvm qube). **[remote-ok]** once remote-debug works.
 
 Debian-based: `dev`, `mcp`, `media`, `im`, `tools`, `gpg` (offline),
-`vault` (offline). Fedora-based: `vpn`. Gentoo-based: `gentoo-dev`
-(needs a Gentoo base template — you already have `gentoo-minimal`).
+`vault` (offline), `project-net`, `ai`. Fedora-based: `vpn`.
+Gentoo-based: `gentoo-dev` (needs a Gentoo base template — you already
+have `gentoo-minimal`).
+
+> `project-net` + `ai`: **order matters** — deploy `project-net` completely
+> (install + configure + wg0.conf in place, see
+> `salt/templates/project-net/README.md`) before first starting `ai`, whose
+> netvm is pinned to `sys-project-net`.
 
 Example — `dev`:
 

@@ -1,0 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+base:
+  'sys-project-net':
+    - templates.project-net.configure
