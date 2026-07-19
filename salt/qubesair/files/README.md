@@ -7,39 +7,52 @@ SPDX-License-Identifier: MIT
 
 Payloads delivered into the console qube by `qubesair.console`.
 
-## `qubes-air-console` (not committed)
+## `qubes-air-console` — served from the LAN artifact store
 
-The console binary. There is no CI publishing it, so it is cross-compiled by
-hand and dropped here; `.gitignore` excludes it because it is a ~30MB build
-artifact rather than source.
+**It no longer belongs in this directory.** The binary is published to the
+artifact store alongside the agent `.deb`, terraform and the proxmox provider,
+and `cfg.qubesair.console_binary_source` points at that URL. `file.managed`
+fetches `http(s)://` sources natively and verifies `source_hash` before
+installing, so no state changed. Staging it here still works — point
+`console_binary_source` back at the `salt://` URL — but it puts a ~30MB build
+artifact in the salt tree that `scripts/setup.sh` copies to dom0 on every
+deploy.
 
-Build it from the `qubes-air` repo:
-
-```sh
-cd console/backend
-CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
-    -trimpath -ldflags='-s -w' \
-    -o /path/to/qubes-salt-config/salt/qubesair/files/qubes-air-console \
-    ./cmd/server
-sha256sum /path/to/qubes-salt-config/salt/qubesair/files/qubes-air-console
-```
-
-`CGO_ENABLED=1` is not optional. The console uses `mattn/go-sqlite3`, which is a
-cgo package: building with `CGO_ENABLED=0` succeeds and produces a binary that
-fails at runtime with `unknown driver "sqlite3"`. That is a clean compile and a
-console that cannot open its own database, so the mistake surfaces only on the
-target machine. Cross-compiling from macOS therefore needs a linux/amd64
-toolchain — the least painful route is a container:
+Build it from the `qubes-air` repo, then publish:
 
 ```sh
-docker run --rm -v "$PWD":/src -w /src/console/backend golang:1.23 \
-    sh -c 'CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /src/qubes-air-console ./cmd/server'
+# 1. Build. Runs on macOS, produces linux/amd64.
+docker run --rm --platform linux/amd64 -v "$PWD":/src -w /src/console/backend \
+    golang:1.25 sh -c 'CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
+        -trimpath -ldflags="-s -w" -o /src/dist/qubes-air-console ./cmd/server'
+shasum -a 256 dist/qubes-air-console
+
+# 2. Publish. Same login + read-back pattern as scripts/publish-agent-deb.sh,
+#    same MIRROR_USERNAME / MIRROR_PASSWORD.
 ```
 
-Put the resulting digest in `cfg.qubesair.console_binary_sha256`. The state
-refuses to deploy without it: an unpinned hand-built binary has nothing
-distinguishing the reviewed build from whatever is at that path, and salt
-verifies `source_hash` before installing.
+Then set both keys in the `qubesair` block of `salt/config.jinja`:
+
+```jinja
+"console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console",
+"console_binary_sha256": "<the digest printed above>",
+```
+
+Three parts of that build command are load-bearing:
+
+- **`CGO_ENABLED=1`** — the console uses `mattn/go-sqlite3`, a cgo package.
+  `CGO_ENABLED=0` compiles cleanly and produces a binary that fails at runtime
+  with `unknown driver "sqlite3"`: a clean build and a console that cannot open
+  its own database, so the mistake surfaces only on the target machine.
+- **`--platform linux/amd64`** — on an Apple Silicon Mac the `golang` image is
+  arm64, and a cgo build targeting `GOARCH=amd64` there needs an x86-64 cross
+  toolchain the image does not ship. Running the amd64 image under emulation
+  makes the build native inside the container: slower, and correct.
+- **`golang:1.25`** — `console/backend/go.mod` requires go >= 1.25.0. This file
+  said 1.23, which fails immediately on the toolchain check.
+
+The digest is required either way: `console_binary_sha256` has no default and
+the state refuses to render a service around an unpinned binary.
 
 Verify what actually landed in the qube:
 

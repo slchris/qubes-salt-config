@@ -381,7 +381,13 @@ in a unit file, a ps listing or this repository.
     "template": "tpl-qubesair",
     "qube": "qubesair-console",
     "label": "orange",
-    "netvm": "sys-tailscale",
+    # sys-firewall, not sys-tailscale: no sys-tailscale exists on this machine
+    # (mgmt.tailscale is not deployed), and create.sls would set a netvm that is
+    # not there. Everything the console needs — the PVE API through the ingress,
+    # the artifact store, the remote qubes it provisions — is on 10.31.0.0/24 and
+    # reachable through sys-firewall. Switch back after deploying mgmt.tailscale
+    # if the console should reach the fleet from off-LAN.
+    "netvm": "sys-firewall",
     "dns": "10.31.0.252",
     "vcpus": 2,
     "memory": 1000,

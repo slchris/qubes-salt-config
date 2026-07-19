@@ -118,25 +118,33 @@ Deploy (from dom0), after the console qube exists and is running:
 
         On your workstation, in the qubes-air repo:
 
-          cd console/backend
-          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
-              -trimpath -ldflags='-s -w' \
-              -o /path/to/qubes-salt-config/salt/qubesair/files/qubes-air-console \
-              ./cmd/server
-          sha256sum /path/to/qubes-salt-config/salt/qubesair/files/qubes-air-console
+          docker run --rm --platform linux/amd64 -v "$PWD":/src \
+              -w /src/console/backend golang:1.25 \
+              sh -c 'CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
+                  -trimpath -ldflags="-s -w" -o /src/dist/qubes-air-console ./cmd/server'
+          shasum -a 256 dist/qubes-air-console
 
-        CGO_ENABLED=1 is not optional: the console uses mattn/go-sqlite3, a cgo
-        package. CGO_ENABLED=0 compiles cleanly and produces a binary that fails
-        at runtime with 'unknown driver "sqlite3"' — a clean build and a console
-        that cannot open its own database. Cross-compiling from macOS therefore
-        needs a linux/amd64 toolchain; see salt/qubesair/files/README.md for a
-        container one-liner.
+        Three parts of that are load-bearing:
+          - CGO_ENABLED=1: the console uses mattn/go-sqlite3, a cgo package.
+            CGO_ENABLED=0 compiles cleanly and produces a binary that fails at
+            runtime with 'unknown driver "sqlite3"' — a clean build and a
+            console that cannot open its own database.
+          - --platform linux/amd64: on an Apple Silicon Mac the golang image is
+            arm64 and a cgo build for GOARCH=amd64 needs an x86-64 cross
+            toolchain it does not ship. Emulating amd64 makes it native inside
+            the container.
+          - golang:1.25: console/backend/go.mod requires go >= 1.25.0.
 
-        Then add to the qubesair block in salt/config.jinja:
+        Publish it to the artifact store (same login + read-back pattern as
+        scripts/publish-agent-deb.sh), then add BOTH keys to the qubesair block
+        in salt/config.jinja:
 
+          "console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console",
           "console_binary_sha256": "<the digest printed above>",
 
         and re-run scripts/setup.sh before applying this state again.
+        Staging the binary at salt://qubesair/files/qubes-air-console still
+        works if you prefer — see salt/qubesair/files/README.md.
     - failhard: True
 
 {% else %}
