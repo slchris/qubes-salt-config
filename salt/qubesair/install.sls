@@ -202,12 +202,25 @@ include:
         tmp="$(mktemp -d)"
         trap 'rm -rf "$tmp"' EXIT
         # A TemplateVM has NO netvm. Its only route out is the Qubes update
-        # proxy, which qubes-core-agent-networking exports via /etc/profile.d —
-        # and salt does not source profile scripts, so an unqualified curl here
-        # just hangs until it times out. Sourced rather than hardcoded so this
-        # keeps working if Qubes moves the proxy address.
-        if [ -z "${https_proxy:-}${HTTPS_PROXY:-}" ] && [ -r /etc/profile.d/qubes-proxy.sh ]; then
-          . /etc/profile.d/qubes-proxy.sh
+        # proxy, and salt does not source profile scripts, so a curl with no
+        # proxy set here does not reach anything.
+        #
+        # The proxy address is read from apt's own config, which is where
+        # qubes-core-agent-networking actually writes it
+        # (/etc/apt/apt.conf.d/01qubes-proxy, `Acquire::http::Proxy "http://..."`).
+        # This used to source /etc/profile.d/qubes-proxy.sh, which does not exist
+        # on debian-13-minimal (qubes-core-agent 4.3.45) — the `-r` test simply
+        # failed, no proxy was set, and curl reported connection failure for a
+        # host that is in fact reachable. Falls back to the documented default.
+        #
+        # Both http_proxy and https_proxy are set: sourcing only https_proxy was
+        # enough while the URLs were https://, and silently was not once they
+        # pointed at a plain-HTTP mirror on the LAN.
+        if [ -z "${http_proxy:-}${HTTP_PROXY:-}${https_proxy:-}${HTTPS_PROXY:-}" ]; then
+          qproxy="$(sed -n 's/^Acquire::http::Proxy *"\(.*\)".*/\1/p' \
+                        /etc/apt/apt.conf.d/01qubes-proxy 2>/dev/null | head -n1)"
+          : "${qproxy:=http://127.0.0.1:8082/}"
+          export http_proxy="$qproxy" https_proxy="$qproxy"
         fi
         curl -fsSL {% if tf_https %}--proto '=https' --tlsv1.2 {% endif %}-o "$tmp/terraform.zip" '{{ tf_url }}'
         echo '{{ tf_sha }}  '"$tmp/terraform.zip" | sha256sum -c -
