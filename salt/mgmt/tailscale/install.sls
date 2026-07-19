@@ -88,8 +88,20 @@ include:
     - require:
       - cmd: "tailscale-apt-update"
 
-# Pre-create the state dir in the template so the AppVM's bind-dirs mount lands
-# on an existing path (bind-dirs won't mount over a missing target cleanly).
+# Pre-create the state dir in the template, so the bind has a real directory to
+# seed from and inherits its ownership/mode.
+#
+# Not, as this comment used to say, because "bind-dirs won't mount over a missing
+# target" -- reading the shipped script (qubes-core-agent 4.3.45-1+deb13u1) shows
+# it creates a missing target itself whenever the /rw copy exists. The case it
+# actually skips is when NEITHER side exists:
+#
+#   "$fso_ro is neither a directory nor a file and the path does not exist
+#    below /rw, skipping."
+#
+# mgmt.tailscale.configure creates /rw/bind-dirs/var/lib/tailscale before the
+# bind is ever processed, so that skip cannot be reached here and this state is
+# defence in depth rather than a requirement.
 "tailscale-state-dir":
   file.directory:
     - name: /var/lib/tailscale
