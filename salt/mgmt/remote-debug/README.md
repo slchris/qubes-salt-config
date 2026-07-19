@@ -157,6 +157,29 @@ rejected (empty output); use `dom0 'qvm-ls --raw-list'` and pipe on your side.
 | jump `nft` input chain shows `policy drop; jump custom-input` and the custom-input accept **counter is 0** | inbound dropped by the jump, or the packet never arrived | If counter 0, the packet isn't arriving — it's the ARP/network issue above, not input. If packets hit the drop, the `custom-input tcp dport 22 accept` rule (added by `configure`) is missing. |
 | conntrack on sys-firewall shows the flow **UNREPLIED with dst still `<sys-firewall-ip>:2333`** (not DNAT'd) | DNAT rule not matching | netfw matches `ip daddr <sys-firewall-ip>` (not `iifgroup`), which is reliable; re-run `state.apply mgmt.remote-debug.netfw`. |
 | everything above passes but the handshake still hangs | missing SNAT | netfw adds a postrouting masquerade so replies route back; confirm `custom-snat-remotedebug` exists on both hops. |
+| **works until you reboot, then re-applying the states "fixes" it every time** | something the states install is not actually running at boot | Check `/rw/config/remote-debug-boot.log` on each hop and on the jump: every boot appends one line. A line whose timestamp matches `uptime -s` means that qube self-configured; **no line means the script never ran at boot** and the manual re-apply is what installed the rules. See below for the two causes already found and fixed. |
+
+**Two independent "lost after every reboot" bugs, both now fixed — check these
+first if it happens again:**
+
+1. **On the jump qube, `/rw/config/qubes-firewall-user-script` never runs.** It
+   is executed by `qubes-firewall.service`, which carries
+   `ConditionPathExists=/var/run/qubes-service/qubes-firewall` — that service is
+   only enabled on qubes which PROVIDE network. A plain AppVM shows
+   `Condition: start condition unmet` and the unit stays dead, so the
+   `custom-input tcp dport 22 accept` rule was never installed at boot and
+   inbound SSH was dropped. `configure` now installs that rule from
+   **`/rw/config/rc.local`**, which `qubes-misc-post.service` runs on every
+   AppVM boot, after `qubes-iptables.service` has created `table ip qubes`.
+
+2. **On sys-net, the firewall script runs before the network exists.**
+   `qubes-firewall.service` executes it seconds before NetworkManager has a DHCP
+   lease, so `ip route` is empty and any rule installed conditionally on a
+   resolved uplink is skipped. netfw now matches on `ip saddr`/`ip daddr` only,
+   treats `iifname` as an optional tightening, and never `exit`s mid-script.
+   Note the NetworkManager dispatcher hook it installs only self-heals where NM
+   actually runs — on a ProxyVM like sys-firewall NM is **inactive**, so there
+   the boot-time run is the only run.
 
 **`qubesctl --targets=sys-net ... netfw` fails with "denied admin.vm.List".**
 Expected — sys-net can't run qubesctl. netfw runs in **dom0** (no `--targets`)

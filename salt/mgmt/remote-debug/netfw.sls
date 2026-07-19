@@ -153,6 +153,17 @@ else
     printf '%s\n' '#!/bin/sh' 'case "$2" in' '  up|dhcp4-change|dhcp6-change)' '    [ -x /rw/config/qubes-firewall-user-script ] && /rw/config/qubes-firewall-user-script ;;' 'esac' > "$D"
     chmod 0755 "$D"
   fi
+  # Per-boot breadcrumb in /rw (survives reboot). Diagnose a failed reboot from
+  # this instead of recollection: compare the timestamps against `uptime -s` —
+  # a line at boot time means the script ran automatically and how many rules it
+  # ended up with, no line at all means it never ran. NOTE this hop's dispatcher
+  # hook above only fires where NetworkManager is actually running: on a ProxyVM
+  # like sys-firewall NM is inactive (the vif is configured by
+  # qubes-core-agent-networking), so there the boot-time run is the only run.
+  printf '%s netfw: dnat=%s forward=%s\n' "$(date -Is)" \
+    "$(nft list chain ip qubes custom-dnat-remotedebug 2>/dev/null | grep -c 'dnat to')" \
+    "$(nft list chain ip qubes custom-forward 2>/dev/null | grep -c 'accept')" \
+    >> /rw/config/remote-debug-boot.log 2>/dev/null || true
 fi
 # <<< remote-debug <<<
 {%- endmacro %}
