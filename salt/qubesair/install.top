@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Install prerequisites into the console template. If you change
+# cfg.qubesair.template, update the target.
+
+base:
+  'tpl-qubesair':
+    - qubesair.install

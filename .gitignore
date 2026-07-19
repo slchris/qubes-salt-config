@@ -6,6 +6,12 @@
 *.tar.gz
 *.tar.gz.sha256
 
+# The Qubes Air console binary is cross-compiled by hand into the salt tree
+# (see salt/qubesair/files/README.md). It is a ~30MB build artifact, not
+# source, and it is pinned by cfg.qubesair.console.binary_sha256 — so the
+# digest in config.jinja is what gets reviewed, not the blob.
+/salt/qubesair/files/qubes-air-console
+
 # Python
 __pycache__/
 *.py[cod]

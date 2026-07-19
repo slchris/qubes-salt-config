@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Configure the console AppVM. If you change cfg.qubesair.qube, update the target.
+
+base:
+  'qubesair-console':
+    - qubesair.configure

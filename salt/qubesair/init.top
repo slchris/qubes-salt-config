@@ -1,0 +1,30 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Aggregate reference for the whole qubesair module. Ordering across qubes is
+real, not cosmetic: install must reach the TEMPLATE before create builds the
+AppVM from it, and configure needs a qube that already exists and is running.
+In practice run the per-stage tops in sequence (see README) rather than this
+aggregate, so you control that ordering yourself.
+
+qubesair.console is listed LAST and deliberately: it installs the binary and the
+service. Leaving it out of this aggregate — which is what happened first — gives
+a run where the template is cloned, packages installed, the qube created and DNS
+wired, every step reporting success, and no console at any point. A module whose
+deliverable is absent while the run is green is the failure this project keeps
+producing; the aggregate has to name every stage or it is not an aggregate.
+
+Targets are literal because top files are matched, not rendered per-qube. If you
+change cfg.qubesair.template or cfg.qubesair.qube, update them here too.
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - qubesair.create
+  'tpl-qubesair':
+    - qubesair.install
+  'qubesair-console':
+    - qubesair.configure
+    - qubesair.console

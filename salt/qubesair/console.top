@@ -1,0 +1,23 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Target the console qube.
+
+The target is rendered from cfg.qubesair.qube rather than hardcoded, so renaming
+the qube in config.jinja cannot leave this top pointing at a qube that no longer
+exists — a mismatch that fails as "no targets matched", which reads like a Salt
+problem rather than a configuration one.
+
+This state is normally applied directly rather than through a highstate, because
+the qube must exist and be running first:
+
+  sudo qubesctl --skip-dom0 --targets=<cfg.qubesair.qube> state.apply qubesair.console
+#}
+
+{%- from 'config.jinja' import cfg with context -%}
+{%- set console_qube = cfg.get('qubesair', {}).get('qube', 'qubesair-console') -%}
+
+base:
+  '{{ console_qube }}':
+    - qubesair.console
