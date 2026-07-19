@@ -234,11 +234,22 @@ Deploy (from dom0):
       - cmd: "tailscale-daemon-up"
 {% endif %}
 
+{#- Where the pre-auth key is staged. Under /run so it is tmpfs-backed and
+    cannot survive a reboot even if a failed run skips the removal below. -#}
+{%- set authkey_path = '/run/tailscale-authkey' -%}
+
 {#- Build the `tailscale up` args as an inline string. Plain {% set %} + string
     concat (no {% do %}/list mutation) to match the rest of the repo's Jinja
     style and avoid depending on the jinja `do` extension. -#}
 {%- set up_args = '--login-server=' ~ login_server -%}
-{%- if auth_key %}{% set up_args = up_args ~ ' --authkey=' ~ auth_key %}{% endif -%}
+{#- The auth key is passed by FILE, never on the command line.
+
+    salt's cmd.run puts the rendered command into its return `comment`, so an
+    inline --authkey= lands in dom0's /var/log/qubes/mgmt-<vm>.log and on the
+    terminal, and is visible in `ps` for as long as the command runs. A
+    pre-auth key is a credential that joins a machine to the tailnet.
+    --auth-key-file keeps it in a 0600 file that this state writes and removes. -#}
+{%- if auth_key %}{% set up_args = up_args ~ ' --auth-key-file=' ~ authkey_path %}{% endif -%}
 {%- set up_args = up_args ~ ' --accept-dns=' ~ ('true' if accept_dns else 'false') -%}
 {%- if hostname %}{% set up_args = up_args ~ ' --hostname=' ~ hostname %}{% endif -%}
 {%- if exit_node %}{% set up_args = up_args ~ ' --advertise-exit-node' %}{% endif -%}
@@ -252,13 +263,41 @@ Deploy (from dom0):
 # the backend is Running. On first run / after key expiry it joins (with a key)
 # or prints a registration URL you complete on Headscale (without a key). Role
 # flags (routes/exit-node/dns/ssh) are NOT enforced here — see reconcile below.
+{% if auth_key %}
+# Written immediately before the join and removed immediately after, so the key
+# is on disk for the shortest window that still lets tailscale read it.
+"tailscale-authkey-file":
+  file.managed:
+    - name: {{ authkey_path }}
+    - contents: {{ auth_key | yaml_encode }}
+    - mode: '0600'
+    - user: root
+    - group: root
+    - show_changes: False
+    - require:
+      - cmd: "tailscale-daemon-up"
+{% endif %}
+
 "tailscale-join":
   cmd.run:
     - name: tailscale up {{ up_args }}
     - runas: root
     - require:
       - cmd: "tailscale-daemon-up"
+{%- if auth_key %}
+      - file: "tailscale-authkey-file"
+{%- endif %}
     - unless: tailscale status --json 2>/dev/null | grep -q '"BackendState":[[:space:]]*"Running"'
+
+{% if auth_key %}
+# Always removed, whether the join ran or was skipped by `unless`: a key left
+# behind is a credential sitting in the qube long after it was needed.
+"tailscale-authkey-file-remove":
+  file.absent:
+    - name: {{ authkey_path }}
+    - require:
+      - cmd: "tailscale-join"
+{% endif %}
 
 # Reconcile role flags on an already-joined node without re-running `up` (which
 # would re-trigger login). `tailscale set` is a no-op when already at the desired
