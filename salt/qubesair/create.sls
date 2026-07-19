@@ -128,8 +128,16 @@ features:
         would read as "not satisfied", and the resize would be attempted on
         every single apply — failing each time once the volume is already at
         size, because qvm-volume refuses to shrink. #}
+    {#- --from=si, NOT --from=iec. qvm-volume parses a bare "G" as 1000^3:
+        asked for 10G against a 10003415040-byte volume it reports
+        "shrinking of private is disabled (10000000000 < 10003415040)", so its
+        10G is 10^10 bytes. Computing want with --from=iec gives 10737418240,
+        which no 10G volume ever reaches, so the guard never held, the resize
+        ran on every apply, and qvm-volume refused it every time as a shrink.
+        That is precisely the loop the comment above set out to avoid — the
+        logic was right and the unit base was not. #}
     - unless: |
-        want=$(numfmt --from=iec {{ private_size }})
+        want=$(numfmt --from=si {{ private_size }})
         have=$(qvm-volume info {{ qube }}:private size 2>/dev/null | tr -d '[:space:]')
         case "$have" in ''|*[!0-9]*)
           have=$(qvm-volume info {{ qube }}:private 2>/dev/null | awk '$1 == "size" { print $2 }') ;;
