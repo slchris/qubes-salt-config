@@ -66,7 +66,7 @@ Requires cfg.remote_debug.network == "portforward" in config.jinja.
 {#- fw_script emits only the remote-debug rule block, wrapped in markers, so it
     can be MERGED into /rw/config/qubes-firewall-user-script without clobbering
     other rules the user added there (e.g. hotspot DHCP/DNS custom-input). -#}
-{%- macro fw_script(hop) -%}
+{%- macro fw_script(hop, qname) -%}
 # >>> remote-debug (managed by mgmt.remote-debug.netfw — do not edit) >>>
 EXT_PORT={{ ext_port }}
 {% if hop == 'sys-net' -%}
@@ -85,7 +85,18 @@ DEST="{{ jump_ip }}"
 # The script runs ~6.5s before there is any route, so an older marker-less
 # version of this block hit its `[ -n "$UPLINK" ] || exit 0` and quit before
 # installing a single rule. Nothing below may depend on routing being up.
-if [ -z "$DEST" ]; then
+#
+# Self-identify before touching anything. When the hop is a DisposableVM its /rw
+# is volatile, so this file's persistent home is the DVM TEMPLATE — and every
+# other disposable started from that same template inherits this file too. Those
+# siblings are not all inert: sys-usb is a DispVM off default-dvm and DOES have
+# the qubes-firewall service active, so without this guard it would execute the
+# block and grow a bogus DNAT chain pointing at the jump qube. Match on the
+# qube's own name from qubesdb so the block is a genuine no-op anywhere else.
+RD_SELF="$(qubesdb-read /name 2>/dev/null)"
+if [ "$RD_SELF" != "{{ qname }}" ]; then
+  : # inherited by a sibling disposable from the shared DVM template — not ours
+elif [ -z "$DEST" ]; then
   echo "remote-debug: next-hop IP empty (re-run netfw from dom0)" >&2
 else
   # DNAT (prerouting) rewrites the destination to the next hop. We ALSO need SNAT
@@ -172,9 +183,29 @@ fi
     file.managed, no jinja filters), then stream it into the hop's /rw/config
     via `qvm-run --pass-io`, chmod, and run it now. Using file.managed +
     --pass-io avoids both b64encode (absent in this Salt) and shell quoting. -#}
+{#- Where does this hop's /rw actually SURVIVE a reboot?
+    A DisposableVM's private volume is `snap_on_start=True, save_on_stop=False`:
+    it is re-snapshotted from the DVM template on every start and DISCARDED on
+    every stop. Writing to /rw/config there takes effect immediately and then
+    silently evaporates at shutdown — which is exactly why sys-firewall lost its
+    rules on every reboot while sys-net (a normal AppVM) kept them. Qubes 4.3
+    ships sys-firewall as a DispVM by default, so this is the common case, not an
+    exotic one. Detect it and write to the DVM TEMPLATE instead, which is the
+    only persistent home; the live qube is still written and run directly so the
+    change takes effect now without restarting the network. -#}
 {% for hop in [sysnet, sysfw] %}
-{%   set script = fw_script('sys-net' if hop == sysnet else 'sys-firewall') %}
+{%   set persist = salt['cmd.run']("qvm-volume info " ~ hop ~ ":private 2>/dev/null | awk '/^save_on_stop/{print $2}'", python_shell=True).strip() %}
+{%   set dvmtpl = salt['cmd.run']('qvm-prefs ' ~ hop ~ ' template 2>/dev/null', python_shell=True).strip() %}
+{#-  store = the qube whose /rw actually persists. Falls back to the hop itself
+     if anything is unexpected, so a detection failure can never silently skip
+     writing the live qube. -#}
+{%   set store = hop if (persist == 'True' or not dvmtpl) else dvmtpl %}
+{%   set script = fw_script('sys-net' if hop == sysnet else 'sys-firewall', hop) %}
 {%   set staged = '/tmp/remote-debug-fw-' ~ hop ~ '.sh' %}
+{#-  The in-qube merge helper, shared by the live write and the DVM-template
+     write below. Kept free of single quotes so it can be wrapped in them when
+     handed to qvm-run. -#}
+{%   set merge = 'F=/rw/config/qubes-firewall-user-script; NEW=$(cat); [ -f "$F" ] || printf "#!/bin/sh\\n" > "$F"; grep -q "^#!" "$F" || sed -i "1i #!/bin/sh" "$F"; grep -q "^# >>> remote-debug" "$F" && sed -i "/^# remote-debug port-forward/,/^# >>> remote-debug/{/^# >>> remote-debug/!d}" "$F"; sed -i "/# >>> remote-debug/,/# <<< remote-debug <<</d" "$F"; printf "%s\\n" "$NEW" >> "$F"; chmod 0755 "$F"' %}
 
 "remote-debug-netfw-stage-{{ hop }}":
   file.managed:
@@ -201,7 +232,7 @@ fi
     # up to the marker — never to EOF — and only when that marker is present, so
     # a following hotspot/tailscale block can never be swallowed by the range.
     - name: |
-        cat {{ staged }} | qvm-run --pass-io -u root -- {{ hop }} 'F=/rw/config/qubes-firewall-user-script; NEW=$(cat); [ -f "$F" ] || printf "#!/bin/sh\n" > "$F"; grep -q "^#!" "$F" || sed -i "1i #!/bin/sh" "$F"; grep -q "^# >>> remote-debug" "$F" && sed -i "/^# remote-debug port-forward/,/^# >>> remote-debug/{/^# >>> remote-debug/!d}" "$F"; sed -i "/# >>> remote-debug/,/# <<< remote-debug <<</d" "$F"; printf "%s\n" "$NEW" >> "$F"; chmod 0755 "$F"'
+        cat {{ staged }} | qvm-run --pass-io -u root -- {{ hop }} '{{ merge }}'
     - onlyif: qvm-check --running {{ hop }}
     - require:
       - file: "remote-debug-netfw-stage-{{ hop }}"
@@ -212,6 +243,29 @@ fi
     - onlyif: qvm-check --running {{ hop }}
     - require:
       - cmd: "remote-debug-netfw-write-{{ hop }}"
+
+{% if store != hop %}
+{# The hop is disposable, so everything written above dies at its next
+   shutdown. Write the same block into its DVM template, which is the only
+   thing that survives, and which every future instance of the hop snapshots
+   at start. Ordered AFTER the live write+apply so remote access is already
+   restored before we touch the template. #}
+"remote-debug-netfw-persist-{{ hop }}":
+  cmd.run:
+    - name: |
+        cat {{ staged }} | qvm-run --pass-io -u root -- {{ store }} '{{ merge }}'
+    - require:
+      - cmd: "remote-debug-netfw-apply-{{ hop }}"
+
+{# A DVM template's private volume is committed on shutdown, and a disposable
+   snapshots it at start, so the template must be stopped for the next boot of
+   {{ hop }} to actually inherit this. qvm-run above started it; put it back. #}
+"remote-debug-netfw-persist-commit-{{ hop }}":
+  cmd.run:
+    - name: qvm-shutdown --wait {{ store }}
+    - require:
+      - cmd: "remote-debug-netfw-persist-{{ hop }}"
+{% endif %}
 
 {% endfor %}
 
