@@ -48,6 +48,14 @@ scripts/setup.sh. Keys:
                   "tailscale" = Tailscale SSH (verify your Headscale supports
                   it first); "none" = no SSH from the gateway
   authorized_keys [] => inherit cfg.remote_debug.authorized_keys
+
+remote_debug.lan_subnet — which client subnets may reach the forwarded SSH
+port on sys-net. Accepts a single CIDR string OR a list of them; one DNAT rule
+is emitted per entry. Use a list when this machine moves between networks
+(e.g. a wired LAN and a phone hotspot): a value that does not match the network
+you are actually on means the DNAT never fires and you lose remote access, and
+because scripts/setup.sh replaces /srv/salt/slchris wholesale, a deploy will
+overwrite whatever was hand-edited on dom0. Keep every subnet you use here.
 -#}
 
 {%- set cfg = {
@@ -85,7 +93,7 @@ scripts/setup.sh. Keys:
     "network": "portforward",
     "ssh_port": 2333,
     "netvm": "sys-firewall",
-    "lan_subnet": "10.42.0.0/24",
+    "lan_subnet": ["10.31.0.0/24", "10.42.0.0/24"],
   },
 
   "remotevm": {
