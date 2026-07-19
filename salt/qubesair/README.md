@@ -78,6 +78,60 @@ sudo qubesctl --skip-dom0 --targets=qubesair-console state.apply qubesair.config
 sudo qubesctl --skip-dom0 --targets=qubesair-console state.apply qubesair.console
 ```
 
+## Opening the console
+
+The console serves its UI and its API on **loopback inside its own qube**, and
+there is **no browser in that qube** — the package list in `install.sls` is short
+on purpose, because this is the qube holding the PVE token and the fleet CA.
+Installing a browser here to "just look at the page" would undo the reason the
+qube exists.
+
+A browser in another qube reaches it over **qrexec**, not over the network:
+
+```sh
+# In slchris_homelab (or any qube listed in cfg.qubesair.ui_clients):
+qvm-connect-tcp 8080:qubesair-console:8080
+```
+
+Leave that running and open <http://127.0.0.1:8080/> in that qube's browser.
+Nothing is exposed on the network, no port is opened on the console qube, and
+dom0 authorises the channel per source qube via
+`/etc/qubes/policy.d/30-qubesair-console.policy` (written by `qubesair.create`
+from `cfg.qubesair.ui_clients`).
+
+To allow another qube, add it to `ui_clients` and re-apply `qubesair.create` —
+not `@anyvm`. Every qube that can reach this port can drive the whole fleet once
+a token is pasted in on the other end.
+
+### First load: paste the API token
+
+The page loads without a token, and every `/api/v1` call returns **401** until
+one is set. That is not a fault: `qubesair.console` generates a token on first
+apply and it is never transmitted anywhere.
+
+```sh
+# In dom0 — the file is mode 0600 inside the qube:
+qvm-run --pass-io -u root qubesair-console \
+    'grep QUBES_AIR_API_TOKEN /rw/config/qubesair/secrets.env'
+```
+
+Paste the value into the console's **Settings** view. It is stored in that
+browser's `localStorage` under `qubesair.apiToken` and sent as
+`Authorization: Bearer …` on every request, so it is entered once per browser.
+
+The token is deliberately not injected into the page at build or deploy time:
+anything that put it where the frontend could read it automatically would also
+hand it to anyone who can open the page.
+
+### If the page does not load
+
+| Symptom | Cause |
+|---|---|
+| `qvm-connect-tcp` exits with "Request refused" | the calling qube is not in `ui_clients`, or `qubesair.create` has not been re-applied since it was added |
+| Connection refused on 127.0.0.1:8080 | the console is not running in its qube — check `systemctl status qubes-air-console` there |
+| Page loads, everything shows an error | no API token set yet, or the wrong one — see above |
+| Blank page, 404 on `/` | the frontend was not delivered: `console_web_source` / `console_web_sha256` are unset, so the console is serving its API only |
+
 ## How terraform gets in, and why that way
 
 terraform is **not packaged in Debian** and is absent from

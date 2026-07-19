@@ -96,6 +96,14 @@ Deploy (from dom0), after the console qube exists and is running:
 {%- set bin_source = qa.get('console_binary_source', 'salt://qubesair/files/qubes-air-console') -%}
 {%- set bin_sha = qa.get('console_binary_sha256', '') -%}
 
+{#- The built frontend, shipped as a tarball of the vite dist/. Both keys must
+    be set for the UI to be delivered; leaving them empty leaves the console
+    serving its API and nothing else, which is a working console without a page
+    rather than a broken one. -#}
+{%- set web_source = qa.get('console_web_source', '') -%}
+{%- set web_sha = qa.get('console_web_sha256', '') -%}
+{%- set web_root = data_dir ~ '/web' -%}
+
 {% if grains['nodename'] != 'dom0' %}
 {% if qa.get('enabled', False) %}
 
@@ -249,6 +257,68 @@ Deploy (from dom0), after the console qube exists and is running:
     - require:
       - file: "qubesair-console-bin-dir"
 
+{% if web_source and not web_sha %}
+# Refuse rather than deliver an unverified UI. The page holds the operator's API
+# token in localStorage and issues every fleet-mutating call, so "some HTML from
+# somewhere" is not a lesser problem here than an unpinned binary.
+"qubesair-console-web-sha-required":
+  test.fail_without_changes:
+    - name: |
+        cfg.qubesair.console_web_source is set but console_web_sha256 is empty.
+
+        Build and publish the frontend, then record its digest:
+
+          cd console/frontend && npm run build
+          tar -czf qubes-air-console-web.tar.gz -C dist .
+          shasum -a 256 qubes-air-console-web.tar.gz
+
+        Then set console_web_sha256 in the qubesair block of salt/config.jinja
+        and re-run scripts/setup.sh.
+    - failhard: True
+
+{% elif web_source %}
+# The built frontend, served by the console itself at the same origin as the
+# API. Same-origin is what makes it work with no configuration: the frontend
+# calls the relative path /api/v1, so there is no base URL to set and no CORS
+# origin to allow.
+#
+# Delivered as ONE archive rather than a recursed directory. Vite emits
+# content-hashed asset names, so every rebuild changes the file names; a
+# file.recurse would leave every previous build's assets behind, and the qube
+# would accumulate stale bundles that nothing ever serves and nothing removes.
+# Unpacking into an emptied directory keeps what is on disk equal to what was
+# built.
+"qubesair-console-web-archive":
+  file.managed:
+    - name: {{ data_dir }}/web.tar.gz
+    - source: {{ web_source }}
+    - source_hash: sha256={{ web_sha }}
+    - user: root
+    - group: root
+    - mode: '0644'
+    - require:
+      - file: "qubesair-console-data-dir"
+
+"qubesair-console-web-unpack":
+  cmd.run:
+    - name: |
+        set -eu
+        rm -rf '{{ web_root }}'
+        mkdir -p '{{ web_root }}'
+        tar -xzf '{{ data_dir }}/web.tar.gz' -C '{{ web_root }}'
+        test -f '{{ web_root }}/index.html'
+        chown -R root:root '{{ web_root }}'
+        chmod -R a+rX '{{ web_root }}'
+    - runas: root
+    - require:
+      - file: "qubesair-console-web-archive"
+    {#- Re-unpack only when the archive changed. Without this the directory is
+        deleted and rebuilt on every apply, which serves 404s to anyone loading
+        the page during the window. #}
+    - onchanges:
+      - file: "qubesair-console-web-archive"
+{% endif %}
+
 {% if var_file %}
 # Operator-owned base var-file (endpoint, node, zone toggles). replace: False so
 # it is created once as a skeleton and never overwritten — the operator's edits
@@ -309,6 +379,9 @@ Deploy (from dom0), after the console qube exists and is running:
         QUBES_AIR_TERRAFORM_GENERATED_VAR_FILE={{ gen_var_file }}
         QUBES_AIR_AGENT_IDENTITY_DIR={{ identity_dir }}
         QUBES_AIR_AGENT_LISTEN={{ qa.get('agent_listen', '0.0.0.0:8443') }}
+{%- if web_source %}
+        QUBES_AIR_WEB_ROOT={{ web_root }}
+{%- endif %}
         QUBES_AIR_APT_MIRROR={{ qa.get('apt_mirror', '') }}
         QUBES_AIR_APT_SECURITY_MIRROR={{ qa.get('apt_security_mirror', '') }}
         QUBES_AIR_AGENT_PACKAGE_URL={{ qa.get('agent_package_url', '') }}

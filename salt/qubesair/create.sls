@@ -33,6 +33,15 @@ Deploy (from dom0):
 {%- set maxmem = qa.get('maxmem', 2400) -%}
 {%- set private_size = qa.get('private_size', '10G') -%}
 
+{#- Qubes allowed to reach the console UI over qrexec. Empty (the default)
+    writes no policy at all, so a deployment that never asks for browser access
+    never grows a path to the console. -#}
+{%- set ui_clients = qa.get('ui_clients', []) -%}
+{#- Derived from cfg.qubesair.listen, the same string qubesair.console binds, so
+    the policy cannot authorise a port the console is not on. -#}
+{%- set listen_parts = qa.get('listen', '127.0.0.1:8080').split(':') -%}
+{%- set ui_port = listen_parts[1] if listen_parts | length > 1 else '8080' -%}
+
 {% if qa.get('enabled', False) %}
 
 include:
@@ -129,6 +138,44 @@ features:
         [ "$have" -ge "$want" ]
     - require:
       - qvm: {{ qube }}
+
+{% if ui_clients %}
+# How a browser reaches the console.
+#
+# The console listens on loopback inside its own qube and that does not change
+# here: this policy lets specific qubes open a qrexec channel to that port with
+# `qvm-connect-tcp`, so the traffic never touches the network plane and no port
+# is opened on the console. Authorisation becomes a dom0 policy decision, the
+# same shape as every other cross-qube path in this project.
+#
+# There is no browser in the console qube itself, deliberately — the package
+# list in qubesair.install is short because this qube holds the PVE token and
+# the fleet CA. Installing one here to "just look at the page" would undo the
+# reason the qube exists.
+#
+# The source qubes are listed explicitly. `@anyvm` would mean every qube on the
+# machine can reach the console API — with the operator's token pasted into a
+# browser at the other end, that is the whole fleet.
+#
+# In a listed qube:
+#     qvm-connect-tcp {{ ui_port }}:{{ qube }}:{{ ui_port }}
+#     then open http://127.0.0.1:{{ ui_port }}/
+# See salt/qubesair/README.md, "Opening the console".
+"qubesair-connect-tcp-policy":
+  file.managed:
+    - name: /etc/qubes/policy.d/30-qubesair-console.policy
+    - user: root
+    - group: root
+    - mode: '0644'
+    - contents: |
+        # SPDX-License-Identifier: MIT — managed by qubesair.create
+        # Browser access to the console over qrexec (qvm-connect-tcp).
+        {%- for client in ui_clients %}
+        qubes.ConnectTCP +{{ ui_port }} {{ client }} @default allow target={{ qube }}
+        {%- endfor %}
+        # Everything else is refused, including other ports on this qube.
+        qubes.ConnectTCP * @anyvm {{ qube }} deny
+{% endif %}
 
 {% else %}
 
