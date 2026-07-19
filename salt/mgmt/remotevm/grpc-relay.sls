@@ -31,11 +31,30 @@ Deploy (from dom0):
 {% if grains['nodename'] != 'dom0' %}
 {% if g.get('enabled', False) %}
 
+# Refuse to proceed if this qube uses custom-persist: bind-dirs.sh then drops
+# /rw/config/qubes-bind-dirs.d from its sources entirely and the unit would be
+# lost at the next boot with nothing reporting a problem. (bind-dirs.sh,
+# qubes-core-agent 4.3.45-1+deb13u1.) With the service enabled the binds come
+# from QubesDB instead, set from dom0 with:
+#   qvm-features <relay> custom-persist.qubesair-grpc \
+#       file:root:root:0644:/etc/systemd/system/qubesair-relay-client.service
+"grpc-relay-persist-mechanism":
+  cmd.run:
+    - name: |
+        if [ -f /var/run/qubes-service/custom-persist ]; then
+          echo "custom-persist is enabled on this qube: /rw/config/qubes-bind-dirs.d is ignored." >&2
+          echo "Set the bind via qvm-features from dom0 instead — see the comment in mgmt/remotevm/grpc-relay.sls." >&2
+          exit 1
+        fi
+    - runas: root
+
 # Persist the unit across root-volume reset (AppVM /etc, /usr are reset).
 # The config itself is already on /rw and needs no bind.
 "grpc-relay-bind-dirs":
   file.managed:
     - name: /rw/config/qubes-bind-dirs.d/50_qubesair_grpc.conf
+    - require:
+      - cmd: "grpc-relay-persist-mechanism"
     - makedirs: True
     - mode: '0644'
     - contents: |
@@ -112,6 +131,11 @@ Deploy (from dom0):
 # template ships none, so it is created empty first; `mountpoint -q ||` makes
 # re-runs a no-op.
 #
+# No fallback is needed for the next boot: bind-dirs.sh creates a missing target
+# itself when the /rw copy exists ("Create empty file or directory if path exists
+# in /rw to allow to bind mount none existing files/dirs"). Verified by reading
+# the shipped script on Qubes R4.3, qubes-core-agent 4.3.45-1+deb13u1.
+#
 # (Enable/start is left manual until the client binary is present — see the
 # [TODO] in the header. When that happens, note that `systemctl enable` will NOT
 # stick: it writes a symlink under /etc/systemd/system/multi-user.target.wants/,
@@ -133,38 +157,6 @@ Deploy (from dom0):
     - require:
       - file: "grpc-relay-unit"
       - file: "grpc-relay-bind-dirs"
-
-# Fallback for the first boot after install: bind-dirs.sh can only bind over a
-# path that exists, and the template has no such unit, so the bind may not
-# happen. Install from the SAME /rw source, and only when absent, so there is
-# still one source of truth.
-"grpc-relay-rc-local-exists":
-  file.managed:
-    - name: /rw/config/rc.local
-    - user: root
-    - group: root
-    - mode: '0755'
-    - replace: False
-    - contents: |
-        #!/bin/sh
-
-"grpc-relay-rc-local":
-  file.blockreplace:
-    - name: /rw/config/rc.local
-    - marker_start: "# >>> mgmt.remotevm.grpc-relay >>>"
-    - marker_end: "# <<< mgmt.remotevm.grpc-relay <<<"
-    - append_if_not_found: True
-    - show_changes: True
-    - content: |
-        # Managed by mgmt.remotevm.grpc-relay — do not edit between markers.
-        if [ ! -e /etc/systemd/system/qubesair-relay-client.service ]; then
-            install -D -m 0644 \
-                /rw/bind-dirs/etc/systemd/system/qubesair-relay-client.service \
-                /etc/systemd/system/qubesair-relay-client.service 2>/dev/null || true
-        fi
-        systemctl daemon-reload 2>/dev/null || true
-    - require:
-      - file: "grpc-relay-rc-local-exists"
 
 {% else %}
 

@@ -72,10 +72,36 @@ Deploy (from dom0):
     - user: root
     - group: root
 
+# Refuse to proceed if this qube uses custom-persist, because then the .conf
+# below is never read and the transport would be lost at the next boot with
+# nothing reporting a problem:
+#
+#   sources=( "/usr/lib/qubes-bind-dirs.d" "/etc/qubes-bind-dirs.d" )
+#   if [ ! -f "/var/run/qubes-service/custom-persist" ]; then
+#       sources+=( "/rw/config/qubes-bind-dirs.d" )
+#   fi
+#
+# (bind-dirs.sh, qubes-core-agent 4.3.45-1+deb13u1.) With the service enabled the
+# binds come from QubesDB instead, set from dom0 with
+#   qvm-features <relay> custom-persist.qubesair file:root:root:0755:/etc/qubes-rpc/qubesair.SSHProxy
+# Failing here is deliberate: a silently dropped transport is the failure mode
+# this state exists to prevent.
+"remotevm-transport-persist-mechanism":
+  cmd.run:
+    - name: |
+        if [ -f /var/run/qubes-service/custom-persist ]; then
+          echo "custom-persist is enabled on this qube: /rw/config/qubes-bind-dirs.d is ignored." >&2
+          echo "Set the bind via qvm-features from dom0 instead — see the comment in mgmt/remotevm/relay.sls." >&2
+          exit 1
+        fi
+    - runas: root
+
 # bind-dirs: project the transport back into /etc/qubes-rpc on every boot.
 "remotevm-transport-bind-dirs":
   file.managed:
     - name: /rw/config/qubes-bind-dirs.d/50_qubesair.conf
+    - require:
+      - cmd: "remotevm-transport-persist-mechanism"
     - makedirs: True
     - user: root
     - group: root
@@ -89,6 +115,13 @@ Deploy (from dom0):
 # without this the relay has no transport until it is restarted. mount --bind
 # needs an existing target and the template ships none, so it is created empty
 # first. `mountpoint -q ||` makes re-runs a no-op.
+#
+# No fallback is needed for the next boot: bind-dirs.sh creates a missing target
+# itself when the /rw copy exists ("Create empty file or directory if path exists
+# in /rw to allow to bind mount none existing files/dirs" — it touches the path
+# and then binds). Verified by reading the shipped script on Qubes R4.3,
+# qubes-core-agent 4.3.45-1+deb13u1. Anything installing the file a second time
+# from rc.local would only be a second source for the same file.
 "remotevm-transport-activate":
   cmd.run:
     - name: |
@@ -103,39 +136,6 @@ Deploy (from dom0):
     - require:
       - file: "remotevm-transport-service"
       - file: "remotevm-transport-bind-dirs"
-
-# Fallback for the first boot after install: bind-dirs.sh can only bind over a
-# path that exists, and the template has no such file, so the bind may not
-# happen. Install from the SAME /rw source, and only when absent, so there is
-# still one source of truth. rc.local runs from qubes-misc-post.service on every
-# AppVM boot. blockreplace rather than file.managed so this coexists with the
-# other blocks this repo keeps in rc.local instead of overwriting them.
-"remotevm-transport-rc-local-exists":
-  file.managed:
-    - name: /rw/config/rc.local
-    - user: root
-    - group: root
-    - mode: '0755'
-    - replace: False
-    - contents: |
-        #!/bin/sh
-
-"remotevm-transport-rc-local":
-  file.blockreplace:
-    - name: /rw/config/rc.local
-    - marker_start: "# >>> mgmt.remotevm.relay >>>"
-    - marker_end: "# <<< mgmt.remotevm.relay <<<"
-    - append_if_not_found: True
-    - show_changes: True
-    - content: |
-        # Managed by mgmt.remotevm.relay — do not edit between markers.
-        if [ ! -e /etc/qubes-rpc/qubesair.SSHProxy ]; then
-            install -D -m 0755 \
-                /rw/bind-dirs/etc/qubes-rpc/qubesair.SSHProxy \
-                /etc/qubes-rpc/qubesair.SSHProxy 2>/dev/null || true
-        fi
-    - require:
-      - file: "remotevm-transport-rc-local-exists"
 
 # One ~/.ssh/config Host entry per target so the transport resolves each remote
 # qube name to its SSH host. Managed as a single block so re-runs stay clean.
