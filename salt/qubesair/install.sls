@@ -6,10 +6,22 @@ Install the console's runtime prerequisites (runs IN tpl-qubesair, NOT dom0 and
 NOT the AppVM).
 
 Installing in the TEMPLATE is mandatory in Qubes, not a style choice: an AppVM's
-root volume is reset on every boot, so a terraform installed into the AppVM's
-/usr/local/bin is gone after the first restart. Only /rw and /home survive
-there, which is where the console's DATA lives (see qubesair.configure) — the
-BINARIES live here.
+root volume is reset on every boot, so a binary installed into the AppVM's /usr
+is gone after the first restart. Only /rw and /home survive there, which is
+where the console's DATA lives (see qubesair.configure) — the BINARIES live
+here.
+
+NOT in /usr/local, though. An AppVM mounts its private volume's usrlocal
+subdirectory over /usr/local (`findmnt /usr/local` in a running AppVM shows
+/dev/xvdb[/usrlocal]), which completely masks whatever the template has there.
+A terraform installed to the template's /usr/local/bin is therefore invisible in
+every AppVM built from it, while the state that installed it reports success —
+measured here, where the file was present in tpl-qubesair and absent in
+qubesair-console. Template-wide binaries belong on the root volume: /usr/bin.
+
+The inverse is also true and worth stating, since it is what makes the trap
+convincing: /usr/local in an AppVM IS persistent, because it is on the private
+volume. It is the per-qube place, not the template place.
 
 debian-13-minimal ships none of this: terraform, sqlite3, curl and git are all
 absent (measured on the target machine). The console does not embed terraform,
@@ -25,7 +37,7 @@ Deploy (from dom0):
 {%- set qa = cfg.get('qubesair', {}) -%}
 {%- set m = cfg.get('mirror', {}) -%}
 
-{%- set tf_bin = qa.get('terraform_binary', '/usr/local/bin/terraform') -%}
+{%- set tf_bin = qa.get('terraform_binary', '/usr/bin/terraform') -%}
 {%- set tf_version = qa.get('terraform_version', '1.9.8') -%}
 {%- set tf_url = qa.get('terraform_url',
       'https://releases.hashicorp.com/terraform/' ~ tf_version ~

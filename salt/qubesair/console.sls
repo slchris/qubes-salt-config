@@ -25,11 +25,17 @@ next reboot. So the binary, the database, the agent identity directory and the
 terraform root all live under cfg.qubesair.data_dir, which is on /rw.
 
 Worth stating because the obvious placement is wrong in a way that tests clean:
-install to /usr/local/bin and the console runs perfectly until the first reboot,
-after which the unit fails with "No such file or directory" and nothing explains
-why it used to work. (cfg.qubesair.terraform_binary IS under /usr/local/bin, and
-that is correct — the qubesair install state puts terraform in the TEMPLATE, so
-it is re-derived on every boot rather than lost.)
+install to /usr/bin and the console runs perfectly until the first reboot, after
+which the unit fails with "No such file or directory" and nothing explains why
+it used to work.
+
+/usr/local is a separate trap in the other direction, and the two are easy to
+mix up. In an AppVM /usr/local is mounted from the PRIVATE volume
+(/dev/xvdb[/usrlocal]), so it persists per-qube — but it also masks whatever the
+template has at that path. A binary installed to the TEMPLATE's /usr/local/bin
+is therefore invisible in every AppVM built from it. terraform was installed
+there and could not be executed by the console; cfg.qubesair.terraform_binary is
+now /usr/bin/terraform, on the root volume, which the AppVM does inherit.
 
 Keeping the console binary out of the template is also what makes upgrading it a
 file copy plus a service restart, instead of a template rebuild and a reboot of
