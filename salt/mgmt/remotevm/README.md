@@ -105,8 +105,22 @@ sudo qubesctl state.apply mgmt.remotevm.policy
 
 ## Verify
 
-On real Qubes OS R4.3 hardware (this formula was authored + linted only; it has
-not been run end-to-end — no remote host was available):
+**Verified on real R4.3 hardware:** `relay` applies cleanly (6/6 states) and its
+transport survives a restart — checked on a throwaway AppVM off
+`debian-13-minimal`: applied, rebooted, and confirmed
+`/etc/qubes-rpc/qubesair.SSHProxy` still present and still a bind mount, with no
+rc.local fallback involved (bind-dirs.sh restores it on its own). The
+counterfactual was run in the same session: with the file written straight to
+`/etc/qubes-rpc` and no bind-dirs entry — the layout before `fix(remotevm):
+persist the relay's transport instead of losing it at reboot` — it is gone after
+one reboot, and nothing reports an error.
+
+**Still unverified:** the cross-machine hop (no remote host was available), so
+nothing past the transport install has been exercised end to end; `grpc-relay`
+(needs the client binary and `remotevm.grpc.enabled`); and the custom-persist
+guard's failure path (no qube here enables that service).
+
+The checks below still want real hardware with a remote host:
 
 ```sh
 # The RemoteVM exists and has the three properties set
