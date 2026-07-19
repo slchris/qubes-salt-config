@@ -515,6 +515,11 @@ Deploy (from dom0), after the console qube exists and is running:
 # initialises its copy from the template, which has no such unit, and the file is
 # gone. Writing the canonical copy into /rw/bind-dirs and letting the bind mount
 # project it into /etc is what actually survives.
+#
+# Confirmed on R4.3 hardware (qubes-core-agent 4.3.45-1+deb13u1) while fixing the
+# same defect in mgmt.remotevm.relay: with the file written straight to the real
+# path and listed in binds, it is gone after one reboot and nothing reports an
+# error; written to /rw/bind-dirs, it survives.
 "qubesair-console-unit":
   file.managed:
     - name: /rw/bind-dirs/etc/systemd/system/qubes-air-console.service
@@ -714,15 +719,16 @@ Deploy (from dom0), after the console qube exists and is running:
     - show_changes: True
     - content: |
         # Managed by qubesair.console — do not edit between markers.
-        # Fallback for the first boot after install: bind-dirs.sh can only bind
-        # over a path that exists, and the template has no such unit, so the bind
-        # may not have happened. Install from the SAME /rw source, and only when
-        # the file is absent, so there is still one source of truth.
-        if [ ! -e /etc/systemd/system/qubes-air-console.service ]; then
-            install -D -m 0644 \
-                /rw/bind-dirs/etc/systemd/system/qubes-air-console.service \
-                /etc/systemd/system/qubes-air-console.service 2>/dev/null || true
-        fi
+        # Only the start belongs here; `systemctl enable` does not survive the
+        # root-volume reset (see the note on the unit above).
+        #
+        # Installing the unit as a fallback used to be done here too, on the
+        # belief that bind-dirs cannot bind over a path the template does not
+        # ship. The shipped script (qubes-core-agent 4.3.45-1+deb13u1) creates
+        # the missing target itself whenever the /rw copy exists, which the unit
+        # state above guarantees; it only skips an entry when NEITHER side
+        # exists. Verified on R4.3 hardware via mgmt.remotevm.relay: apply,
+        # reboot, file still present and still bound, with no fallback involved.
         systemctl daemon-reload 2>/dev/null || true
         systemctl start qubes-air-console 2>/dev/null || true
     - require:
