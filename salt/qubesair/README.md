@@ -290,6 +290,23 @@ would pin yesterday's netvm. Everything that is genuinely *state* (database,
 terraform state, agent identities) already lives under `/rw` via
 `cfg.qubesair.data_dir` and needs no bind mount at all.
 
+## Verified end-to-end on hardware (2026-07)
+
+The whole chain was run on the real Proxmox "infra" cluster, not just linted:
+`qubesair.clone` → `install` (terraform + provider from the LAN mirror) →
+`create` (the AppVM + the ConnectTCP policy) → `console` (binary + web UI + SSH
+key). From the browser in `slchris_homelab`, over `qvm-connect-tcp`, a qube was
+created through the UI; terraform cloned template 901, the cloud-init snippet
+uploaded over SSH, the agent installed from the artifact store, and the console
+probed it to `agent_health: healthy`. The provisioning log streamed live in the
+card the whole time.
+
+What is NOT yet exercised: registering that VM as a dom0 RemoteVM and calling it
+over cross-machine qrexec — see
+[qubes-air/docs/remotevm-alignment.md §5.5](https://github.com/slchris/qubes-air/blob/main/docs/remotevm-alignment.md).
+The checks below are the per-qube DNS/network layer, still worth running on a
+fresh console qube.
+
 ## Verify
 
 ```bash
