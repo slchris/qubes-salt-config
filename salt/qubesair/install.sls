@@ -62,6 +62,42 @@ Deploy (from dom0):
        'sha256': '6ed47bc00d0913a1d0880618fa1376115e9edab6b4a658c081061a7f0e4ca360'},
     ]) -%}
 
+{#- Shell preamble shared by every download in this state. Defined once because
+    it was previously written out twice and the two copies drifted: a fix applied
+    to the terraform download left the provider download still sourcing a file
+    that does not exist, and the second failure looked like a different problem.
+
+    A TemplateVM has NO netvm. Its only route out is the Qubes update proxy, and
+    salt does not source profile scripts, so a curl with no proxy set here does
+    not reach anything.
+
+    The address is read from apt's own config, which is where
+    qubes-core-agent-networking actually writes it (/etc/apt/apt.conf.d/01qubes-proxy,
+    `Acquire::http::Proxy "http://..."`). This used to source
+    /etc/profile.d/qubes-proxy.sh, which does not exist on debian-13-minimal
+    (qubes-core-agent 4.3.45) — guarded by `-r`, so it set no proxy and curl
+    reported a connection failure for a host that is in fact reachable.
+
+    Both http_proxy and https_proxy are set: only https_proxy was enough while
+    the URLs were https://, and silently was not once they pointed at a
+    plain-HTTP mirror on the LAN.
+
+    Stored WITHOUT leading indentation. Both call sites sit inside a "- name: |"
+    block scalar and interpolate it through the indent(8) filter, placed behind
+    eight literal spaces: the spaces indent the first line, the filter indents
+    the rest. Carrying the indentation inside the value instead does not survive
+    the whitespace-trimming set tag below — it eats the first line's spaces, and
+    the result is a block scalar that fails to parse (salt exits 20 with a
+    render error rather than anything naming indentation). -#}
+{%- set qubes_proxy_preamble -%}
+if [ -z "${http_proxy:-}${HTTP_PROXY:-}${https_proxy:-}${HTTPS_PROXY:-}" ]; then
+  qproxy="$(sed -n 's/^Acquire::http::Proxy *"\(.*\)".*/\1/p' \
+                /etc/apt/apt.conf.d/01qubes-proxy 2>/dev/null | head -n1)"
+  : "${qproxy:=http://127.0.0.1:8082/}"
+  export http_proxy="$qproxy" https_proxy="$qproxy"
+fi
+{%- endset -%}
+
 {% if grains['nodename'] != 'dom0' %}
 {% if qa.get('enabled', False) %}
 
@@ -201,27 +237,7 @@ include:
         set -eu
         tmp="$(mktemp -d)"
         trap 'rm -rf "$tmp"' EXIT
-        # A TemplateVM has NO netvm. Its only route out is the Qubes update
-        # proxy, and salt does not source profile scripts, so a curl with no
-        # proxy set here does not reach anything.
-        #
-        # The proxy address is read from apt's own config, which is where
-        # qubes-core-agent-networking actually writes it
-        # (/etc/apt/apt.conf.d/01qubes-proxy, `Acquire::http::Proxy "http://..."`).
-        # This used to source /etc/profile.d/qubes-proxy.sh, which does not exist
-        # on debian-13-minimal (qubes-core-agent 4.3.45) — the `-r` test simply
-        # failed, no proxy was set, and curl reported connection failure for a
-        # host that is in fact reachable. Falls back to the documented default.
-        #
-        # Both http_proxy and https_proxy are set: sourcing only https_proxy was
-        # enough while the URLs were https://, and silently was not once they
-        # pointed at a plain-HTTP mirror on the LAN.
-        if [ -z "${http_proxy:-}${HTTP_PROXY:-}${https_proxy:-}${HTTPS_PROXY:-}" ]; then
-          qproxy="$(sed -n 's/^Acquire::http::Proxy *"\(.*\)".*/\1/p' \
-                        /etc/apt/apt.conf.d/01qubes-proxy 2>/dev/null | head -n1)"
-          : "${qproxy:=http://127.0.0.1:8082/}"
-          export http_proxy="$qproxy" https_proxy="$qproxy"
-        fi
+        {{ qubes_proxy_preamble | indent(8) }}
         curl -fsSL {% if tf_https %}--proto '=https' --tlsv1.2 {% endif %}-o "$tmp/terraform.zip" '{{ tf_url }}'
         echo '{{ tf_sha }}  '"$tmp/terraform.zip" | sha256sum -c -
         unzip -q -o "$tmp/terraform.zip" -d "$tmp"
@@ -259,9 +275,7 @@ include:
         set -eu
         tmp="$(mktemp -d)"
         trap 'rm -rf "$tmp"' EXIT
-        if [ -z "${https_proxy:-}${HTTPS_PROXY:-}" ] && [ -r /etc/profile.d/qubes-proxy.sh ]; then
-          . /etc/profile.d/qubes-proxy.sh
-        fi
+        {{ qubes_proxy_preamble | indent(8) }}
         curl -fsSL -o "$tmp/provider.zip" '{{ p.url }}'
         echo '{{ p.sha256 }}  '"$tmp/provider.zip" | sha256sum -c -
         install -D -m 0644 -o root -g root "$tmp/provider.zip" '{{ p_zip }}'
