@@ -118,7 +118,14 @@ include:
       # script cannot tell "dnsmasq is up" from "dnsmasq died on a bad config",
       # and repointing resolv.conf blindly turns a DNS misconfiguration into a
       # qube with no DNS at all.
-      - dnsutils
+      #
+      # bind9-dnsutils, not dnsutils: the transitional `dnsutils` package is gone
+      # in Debian 13 (trixie) — `apt-cache policy dnsutils` reports no candidate
+      # at all — and this template is built from debian-13-minimal. The old name
+      # failed the whole pkg.installed state, which then took both dnsmasq states
+      # down with it as unmet requisites: 5 failures whose visible cause was
+      # "requisite failed", three steps away from the one package that was wrong.
+      - bind9-dnsutils
       # SSH client only. The bpg/proxmox provider speaks SSH natively (Go), so
       # this is not a hard dependency of the provider — it is here because
       # uploading cloud-init snippets over SFTP to the PVE nodes is the most
