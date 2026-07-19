@@ -178,7 +178,18 @@ features:
     - contents: |
         # SPDX-License-Identifier: MIT — managed by qubesair.create
         # Browser access to the console over qrexec (qvm-connect-tcp).
+        #
+        # Two allow rules per client, because the target is matched literally and
+        # the caller decides which form it sends:
+        #   `qvm-connect-tcp {{ ui_port }}:{{ qube }}:{{ ui_port }}` names the target, so the
+        #     rule with the qube name is the one that matches;
+        #   `qvm-connect-tcp {{ ui_port }}::{{ ui_port }}` sends no target and lands on @default,
+        #     which is redirected here with target=.
+        # With only the @default rule present, the named form falls through to
+        # the deny below and qvm-connect-tcp reports "Request refused" — which
+        # reads as a missing policy rather than a half-written one.
         {%- for client in ui_clients %}
+        qubes.ConnectTCP +{{ ui_port }} {{ client }} {{ qube }} allow
         qubes.ConnectTCP +{{ ui_port }} {{ client }} @default allow target={{ qube }}
         {%- endfor %}
         # Everything else is refused, including other ports on this qube.
