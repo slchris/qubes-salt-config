@@ -191,9 +191,18 @@ together can rebuild the whole remote fleet.
                 prerequisite and not an optional extra: without it every
                 start/stop fails at exec time with "executable file not found",
                 after the API call has already reported success.
-                terraform_sha256 is the digest of the release zip. Empty means
-                the install state has nothing to verify against, which is the
-                same trust level as piping a URL into the shell.
+                terraform_sha256 is the digest of the release zip, and config
+                always wins. Empty does NOT mean unverified: install.sls carries
+                known-good digests of HashiCorp's official linux_amd64 zips and
+                falls back to the one for terraform_version, refusing to install
+                if it has neither. The trap is pointing terraform_url at a mirror
+                while leaving this empty — the built-in digest is the official
+                zip's, so any mirror copy that is not byte-identical fails a
+                check whose message names neither the mirror nor the fallback.
+                Set it whenever the URL is not releases.hashicorp.com.
+  terraform_providers  provider mirror entries (source/version/url/sha256) for
+                `terraform init` without registry access. Same rule: a mirrored
+                URL needs its own digest here.
   pve_endpoint  the PVE API base URL. Goes through the ingress on 443 rather
                 than 10.31.0.200:8006 for two reasons: the API is only exposed
                 on 443 through the ingress from this network, and the ingress
@@ -399,8 +408,29 @@ in a unit file, a ps listing or this repository.
     "terraform_generated_var_file": "generated/qubes.tfvars.json",
     "terraform_binary": "/usr/local/bin/terraform",
     "terraform_version": "1.9.8",
-    "terraform_url": "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip",
-    "terraform_sha256": "",
+    # Served from the LAN artifact store, not releases.hashicorp.com: the console
+    # qube reaches 10.31.0.2 but not necessarily the internet, and this is the
+    # same store the agent .deb already comes from. Both copies were downloaded
+    # on a workstation, checked against the publisher's own SHA256SUMS, uploaded,
+    # and read back from the store to confirm the served bytes match.
+    #
+    # The digest below is REQUIRED once the URL is off the official host. Left
+    # empty, install.sls falls back to its built-in digest for this version --
+    # which is the digest of HashiCorp's zip, so a mirror copy that differs by a
+    # byte would fail the check for a reason nobody would guess quickly. It is
+    # the same value here only because the mirror serves an unmodified copy.
+    "terraform_url": "http://10.31.0.2/local/qubes-air-tools/terraform_1.9.8_linux_amd64.zip",
+    "terraform_sha256": "186e0145f5e5f2eb97cbd785bc78f21bae4ef15119349f6ad4fa535b83b10df8",
+    # Provider mirror, same reasoning: the qube cannot reach GitHub releases.
+    # The digest is cross-checked against the bpg/proxmox zh: entry already
+    # recorded in qubes-air's terraform/.terraform.lock.hcl, so it is confirmed
+    # by a second source committed at a different time.
+    "terraform_providers": [
+        {"source": "registry.terraform.io/bpg/proxmox",
+         "version": "0.111.1",
+         "url": "http://10.31.0.2/local/qubes-air-tools/terraform-provider-proxmox_0.111.1_linux_amd64.zip",
+         "sha256": "6ed47bc00d0913a1d0880618fa1376115e9edab6b4a658c081061a7f0e4ca360"},
+    ],
     "agent_identity_dir": "/rw/config/qubesair/agent-identity",
     "pve_endpoint": "https://pve.infra.plz.ac/",
     "pve_node": "infra-node1",
