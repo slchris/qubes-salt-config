@@ -202,7 +202,47 @@ together can rebuild the whole remote fleet.
                 Set it whenever the URL is not releases.hashicorp.com.
   terraform_providers  provider mirror entries (source/version/url/sha256) for
                 `terraform init` without registry access. Same rule: a mirrored
-                URL needs its own digest here.
+                URL needs its own digest here. The bpg/proxmox digest currently
+                set is cross-checked against the zh: entry already recorded in
+                qubes-air's terraform/.terraform.lock.hcl, so a second source
+                committed at a different time agrees with it.
+                Both terraform and the provider are served from the LAN artifact
+                store rather than releases.hashicorp.com / GitHub: the console
+                qube reaches 10.31.0.2 but not necessarily the internet, and the
+                agent .deb already comes from there. Each was downloaded on a
+                workstation, checked against the publisher's own SHA256SUMS,
+                uploaded, and read back from the store to confirm the bytes it
+                serves match what was sent.
+  orchestrator_enabled  ships False so a first apply reaches a RUNNING console.
+                Enabling it makes the preflight require a populated terraform
+                root, and nothing in this module populates one — the roots live
+                in the qubes-air repo and need `terraform init` against the
+                provider mirror. A fresh deploy with this True therefore fails
+                at ExecStartPre every time, which reads as "the states are
+                broken" rather than "one manual step is outstanding". To turn
+                provisioning on, see README "Enabling orchestration": copy the
+                terraform root into data_dir/terraform, run terraform init
+                there, then flip this and re-apply qubesair.console.
+  console_binary_source / console_binary_sha256
+                qubesair.console HARD-FAILS while the digest is empty rather
+                than installing something unverified: the console holds the PVE
+                credentials and the fleet CA, so an unchecked binary there is
+                not a partial failure, it is the whole trust chain.
+                The binary comes from the artifact store. Staging it in
+                the salt tree still works (salt://qubesair/files/qubes-air-console)
+                but pushes an 18MB build artifact through scripts/setup.sh on
+                every deploy. It is built with CGO_ENABLED=1 for linux/amd64 —
+                see salt/qubesair/files/README.md for why that flag, --platform
+                and the go version are all load-bearing when building on an
+                arm64 Mac. The digest has no default and qubesair.console
+                hard-fails without it.
+  netvm         sys-firewall here, NOT the sys-tailscale default: no
+                sys-tailscale exists on this machine (mgmt.tailscale is not
+                deployed) and create.sls would set a netvm that is not there.
+                Everything the console needs — the PVE API through the ingress,
+                the artifact store, the remote qubes it provisions — is on
+                10.31.0.0/24. Switch back after deploying mgmt.tailscale if the
+                console should reach the fleet from off-LAN.
   pve_endpoint  the PVE API base URL. Goes through the ingress on 443 rather
                 than 10.31.0.200:8006 for two reasons: the API is only exposed
                 on 443 through the ingress from this network, and the ingress
@@ -359,26 +399,6 @@ in a unit file, a ps listing or this repository.
   },
 
   "qubesair": {
-    {#- SHA256 of the console binary staged at salt/qubesair/files/qubes-air-console.
-
-        No CI publishes this binary yet, so it is cross-compiled by hand and its
-        digest recorded here. qubesair.console HARD-FAILS while this is empty
-        rather than installing something unverified: the console holds the PVE
-        credentials and the fleet CA, so an unchecked binary there is not a
-        partial failure, it is the whole trust chain.
-
-        Build (from the qubes-air repo, CGO_ENABLED=1 is required — go-sqlite3
-        is cgo, and CGO_ENABLED=0 compiles cleanly then dies at runtime with
-        unknown driver "sqlite3"):
-          cd console/backend
-          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o qubes-air-console ./cmd/server
-          sha256sum qubes-air-console
-    -#}
-    # From the artifact store, like the agent .deb, terraform and the provider.
-    # Staging it in the salt tree also works (salt://qubesair/files/...) but puts
-    # an 18MB build artifact through scripts/setup.sh on every deploy.
-    # Built with CGO_ENABLED=1 for linux/amd64 -- see salt/qubesair/files/README.md
-    # for why both of those, and --platform, are load-bearing on an arm64 Mac.
     "console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console",
     "console_binary_sha256": "9ad55a37b290140bf907750f3f8f572a724f8e791f07e3cf0988c3329770217d",
 
@@ -387,12 +407,6 @@ in a unit file, a ps listing or this repository.
     "template": "tpl-qubesair",
     "qube": "qubesair-console",
     "label": "orange",
-    # sys-firewall, not sys-tailscale: no sys-tailscale exists on this machine
-    # (mgmt.tailscale is not deployed), and create.sls would set a netvm that is
-    # not there. Everything the console needs — the PVE API through the ingress,
-    # the artifact store, the remote qubes it provisions — is on 10.31.0.0/24 and
-    # reachable through sys-firewall. Switch back after deploying mgmt.tailscale
-    # if the console should reach the fleet from off-LAN.
     "netvm": "sys-firewall",
     "dns": "10.31.0.252",
     "vcpus": 2,
@@ -402,41 +416,14 @@ in a unit file, a ps listing or this repository.
     "listen": "127.0.0.1:8080",
     "data_dir": "/rw/config/qubesair",
     "database_dsn": "/rw/config/qubesair/qubes-air.db",
-    {#- Ships FALSE so a first apply reaches a RUNNING console.
-
-        Enabling it makes the preflight require a populated terraform root, and
-        nothing in this module populates one — the roots live in the qubes-air
-        repo and need `terraform init` against the provider mirror. A fresh
-        deploy with this set True therefore fails at ExecStartPre every time,
-        which reads as "the states are broken" rather than "one manual step is
-        outstanding".
-
-        To turn provisioning on, see README "Enabling orchestration": copy the
-        terraform root into data_dir/terraform, run terraform init there, then
-        flip this and re-apply qubesair.console. -#}
     "orchestrator_enabled": False,
     "terraform_dir": "/rw/config/qubesair/terraform",
     "terraform_var_file": "/rw/config/qubesair/terraform/environments/infra.tfvars",
     "terraform_generated_var_file": "generated/qubes.tfvars.json",
     "terraform_binary": "/usr/local/bin/terraform",
     "terraform_version": "1.9.8",
-    # Served from the LAN artifact store, not releases.hashicorp.com: the console
-    # qube reaches 10.31.0.2 but not necessarily the internet, and this is the
-    # same store the agent .deb already comes from. Both copies were downloaded
-    # on a workstation, checked against the publisher's own SHA256SUMS, uploaded,
-    # and read back from the store to confirm the served bytes match.
-    #
-    # The digest below is REQUIRED once the URL is off the official host. Left
-    # empty, install.sls falls back to its built-in digest for this version --
-    # which is the digest of HashiCorp's zip, so a mirror copy that differs by a
-    # byte would fail the check for a reason nobody would guess quickly. It is
-    # the same value here only because the mirror serves an unmodified copy.
     "terraform_url": "http://10.31.0.2/local/qubes-air-tools/terraform_1.9.8_linux_amd64.zip",
     "terraform_sha256": "186e0145f5e5f2eb97cbd785bc78f21bae4ef15119349f6ad4fa535b83b10df8",
-    # Provider mirror, same reasoning: the qube cannot reach GitHub releases.
-    # The digest is cross-checked against the bpg/proxmox zh: entry already
-    # recorded in qubes-air's terraform/.terraform.lock.hcl, so it is confirmed
-    # by a second source committed at a different time.
     "terraform_providers": [
         {"source": "registry.terraform.io/bpg/proxmox",
          "version": "0.111.1",
