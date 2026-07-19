@@ -257,10 +257,27 @@ fi
 # gentoo build/dev qubes this channel manages — so it can clean up its own
 # throwaway qubes without being able to remove system qubes (sys-*, dom0, the
 # jump qube, other templates).
+#
+# `tpl-qubesair` and `qubesair-console` are also removable, as EXACT names
+# rather than a `qubesair-` prefix, so the rule cannot silently widen to cover
+# qubes named later.
+#
+# [BUILD-OUT ONLY — read before keeping] qubesair-console exists precisely so
+# the LAN-reachable jump qube does NOT hold the PVE API token, the agent CA
+# private key and the terraform state (salt/qubesair/README.md, "Why not just
+# reuse mgmt-jump"). This entry does not let the jump qube READ any of that, but
+# it does let it DESTROY the control plane and its CA in one call, and whoever
+# reaches this qube's sshd inherits that. It was added while the console is
+# being repeatedly built and torn down and holds nothing irreplaceable.
+#
+# Once the console holds credentials worth protecting, delete these two names
+# and remove those qubes by hand from dom0. A destructive capability granted for
+# convenience during setup is exactly the kind that survives into production
+# because nobody remembers it is there.
 ALLOW=(
   '^qubesctl (--[a-z0-9=,._-]+ )*(state\.(apply|show_top|highstate)|saltutil\.(sync_all|refresh_pillar)|pillar\.items|top\.(enable|disable))( [a-zA-Z0-9=,._-]+)*( test=(True|False))?$'
   '^qubes-dom0-update( --clean)?( --action=[a-z]+)? [a-zA-Z0-9._+-]+$'
-  '^qvm-remove -f (gentoo-|slchris-gentoo-|tpl-gentoo-)[a-zA-Z0-9._-]+$'
+  '^qvm-remove -f ((gentoo-|slchris-gentoo-|tpl-gentoo-)[a-zA-Z0-9._-]+|tpl-qubesair|qubesair-console)$'
   '^qvm-check [a-zA-Z0-9._-]+$'
   '^qvm-ls( --raw-list)?$'
   '^qvm-create (--template [a-zA-Z0-9._-]+ )?(--label [a-z]+ )?[a-zA-Z0-9._-]+$'

@@ -374,7 +374,13 @@ in a unit file, a ps listing or this repository.
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o qubes-air-console ./cmd/server
           sha256sum qubes-air-console
     -#}
-    "console_binary_sha256": "",
+    # From the artifact store, like the agent .deb, terraform and the provider.
+    # Staging it in the salt tree also works (salt://qubesair/files/...) but puts
+    # an 18MB build artifact through scripts/setup.sh on every deploy.
+    # Built with CGO_ENABLED=1 for linux/amd64 -- see salt/qubesair/files/README.md
+    # for why both of those, and --platform, are load-bearing on an arm64 Mac.
+    "console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console",
+    "console_binary_sha256": "9ad55a37b290140bf907750f3f8f572a724f8e791f07e3cf0988c3329770217d",
 
     "enabled": True,
     "template_source": "debian-minimal",
