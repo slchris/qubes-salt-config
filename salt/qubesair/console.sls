@@ -89,6 +89,19 @@ Deploy (from dom0), after the console qube exists and is running:
 {%- set home_dir = data_dir ~ '/home' -%}
 {%- set env_file = data_dir ~ '/console.env' -%}
 {%- set secret_file = data_dir ~ '/secrets.env' -%}
+
+{#- Private key the terraform provider uses to SSH into the PVE nodes.
+    Uploading a cloud-init snippet writes /var/lib/vz/snippets/ over SSH and the
+    PVE API has no endpoint for it, so provisioning cannot work without this.
+
+    This state creates the DIRECTORY but never the key: generating it here would
+    mean a re-apply could replace a key whose public half is installed on the
+    cluster, breaking provisioning at the next job with an authentication error
+    that points at the node rather than at salt. Generate it once, by hand, in
+    the qube — see salt/qubesair/README.md, "Provisioning needs SSH to the
+    nodes". -#}
+{%- set pve_ssh_dir = data_dir ~ '/ssh' -%}
+{%- set pve_ssh_key = qa.get('pve_ssh_key_file', pve_ssh_dir ~ '/pve_ed25519') -%}
 {%- set preflight = data_dir ~ '/console-preflight.sh' -%}
 
 {%- set orch = qa.get('orchestrator_enabled', False) -%}
@@ -205,6 +218,20 @@ Deploy (from dom0), after the console qube exists and is running:
 "qubesair-console-identity-dir":
   file.directory:
     - name: {{ identity_dir }}
+    - user: {{ svc_user }}
+    - group: {{ svc_user }}
+    - mode: '0700'
+    - makedirs: True
+    - require:
+      - file: "qubesair-console-data-dir"
+
+# Directory only — never the key itself. See the note where pve_ssh_key is set:
+# regenerating a key whose public half is already installed on the cluster would
+# break provisioning at the next job, with an error naming the node rather than
+# this state.
+"qubesair-console-ssh-dir":
+  file.directory:
+    - name: {{ pve_ssh_dir }}
     - user: {{ svc_user }}
     - group: {{ svc_user }}
     - mode: '0700'
@@ -385,6 +412,8 @@ Deploy (from dom0), after the console qube exists and is running:
         QUBES_AIR_TERRAFORM_GENERATED_VAR_FILE={{ gen_var_file }}
         QUBES_AIR_AGENT_IDENTITY_DIR={{ identity_dir }}
         QUBES_AIR_AGENT_LISTEN={{ qa.get('agent_listen', '0.0.0.0:8443') }}
+        QUBES_AIR_PROXMOX_SSH_KEY_FILE={{ pve_ssh_key }}
+        QUBES_AIR_PROXMOX_SSH_USERNAME={{ qa.get('pve_ssh_username', 'root') }}
 {%- if web_source %}
         QUBES_AIR_WEB_ROOT={{ web_root }}
 {%- endif %}

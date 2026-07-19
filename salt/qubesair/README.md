@@ -132,6 +132,44 @@ hand it to anyone who can open the page.
 | Page loads, everything shows an error | no API token set yet, or the wrong one — see above |
 | Blank page, 404 on `/` | the frontend was not delivered: `console_web_source` / `console_web_sha256` are unset, so the console is serving its API only |
 
+## Provisioning needs SSH to the PVE nodes
+
+Not optional, and not obvious: uploading a qube's cloud-init snippet writes
+`/var/lib/vz/snippets/` **on the node over SSH**. The PVE API has no endpoint
+for it. That snippet carries the per-qube agent identity, so a cluster reachable
+only on 443 cannot be provisioned at all — a `terraform apply` gets as far as
+cloning the VM and then fails, leaving a half-built qube behind.
+
+The key is generated **in the console qube** and never leaves it. `qubesair.console`
+creates the directory but deliberately does not create the key: a re-apply that
+replaced a key whose public half is installed on the cluster would break
+provisioning at the next job, with an authentication error naming the node
+rather than salt.
+
+```sh
+# Once, in the console qube (as the service user):
+ssh-keygen -t ed25519 -N '' -C qubesair-console-to-pve \
+    -f /rw/config/qubesair/ssh/pve_ed25519
+cat /rw/config/qubesair/ssh/pve_ed25519.pub
+```
+
+Install that public key as `root` on the PVE nodes. On a **clustered** PVE,
+`/root/.ssh/authorized_keys` is shared through `/etc/pve`, so adding it on one
+node covers all of them — verify rather than assume, since that is a property of
+the cluster and not of this formula:
+
+```sh
+# On one node:
+echo 'ssh-ed25519 AAAA... qubesair-console-to-pve' >> /root/.ssh/authorized_keys
+
+# From the console qube, against a node the scheduler might actually pick:
+ssh -i /rw/config/qubesair/ssh/pve_ed25519 root@<node-ip> hostname
+```
+
+The console reads the key at job time and passes it to terraform as a
+`TF_VAR_`, so it never lands in the terraform root or in state — the same rule
+the API token follows. Rotating it needs no restart.
+
 ## How terraform gets in, and why that way
 
 terraform is **not packaged in Debian** and is absent from
