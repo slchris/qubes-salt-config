@@ -11,7 +11,8 @@ Installs:
     mTLS paths / vault cert names, keepalive and reconnect bounds;
   - a systemd unit (qubesair-relay-client.service) that runs the client daemon,
     which dials the remote Remote-Relay OUTBOUND and keeps one long-lived Tunnel;
-  - bind-dirs so the unit + config persist across the AppVM's root-volume reset.
+  - bind-dirs so the unit persists across the AppVM's root-volume reset (the
+    config already lives on /rw and needs no bind).
 
 The relay is a normal networked AppVM (default: the remote-debug jump qube).
 The client binary (cfg.remotevm.grpc.client_bin) is built and placed separately
@@ -30,7 +31,8 @@ Deploy (from dom0):
 {% if grains['nodename'] != 'dom0' %}
 {% if g.get('enabled', False) %}
 
-# Persist config + unit across root-volume reset (AppVM /etc, /usr are reset).
+# Persist the unit across root-volume reset (AppVM /etc, /usr are reset).
+# The config itself is already on /rw and needs no bind.
 "grpc-relay-bind-dirs":
   file.managed:
     - name: /rw/config/qubes-bind-dirs.d/50_qubesair_grpc.conf
@@ -69,9 +71,16 @@ Deploy (from dom0):
         QUBES_AIR_TRANSPORT_RECONNECT_MAX_SECONDS={{ g.get('reconnect_max_seconds', 30) }}
 
 # systemd unit: run the outbound gRPC relay client daemon.
+#
+# Written to the bind-dirs SOURCE under /rw, not straight to /etc/systemd/system.
+# Listing a path in binds while writing the file to the path itself does not
+# survive: bind-dirs seeds its /rw copy from whatever is at <path> the first time
+# it sees the bind, and by then the root volume has been reset, so it seeds from
+# the template — which has no such unit, and the unit is gone.
 "grpc-relay-unit":
   file.managed:
-    - name: /etc/systemd/system/qubesair-relay-client.service
+    - name: /rw/bind-dirs/etc/systemd/system/qubesair-relay-client.service
+    - makedirs: True
     - mode: '0644'
     - user: root
     - group: root
@@ -97,14 +106,65 @@ Deploy (from dom0):
     - require:
       - file: "grpc-relay-config"
 
-# Reload systemd so the new unit is visible. (Enable/start is left manual until
-# the client binary is present — see the [TODO] in the header.)
-"grpc-relay-daemon-reload":
+# Make the unit real for THIS boot, then reload so systemd sees it. The .conf
+# above only takes effect at the next boot — bind-dirs.sh runs during early boot,
+# long before salt gets here. mount --bind needs an existing target and the
+# template ships none, so it is created empty first; `mountpoint -q ||` makes
+# re-runs a no-op.
+#
+# (Enable/start is left manual until the client binary is present — see the
+# [TODO] in the header. When that happens, note that `systemctl enable` will NOT
+# stick: it writes a symlink under /etc/systemd/system/multi-user.target.wants/,
+# which is on the root volume and is discarded with it, leaving `is-enabled`
+# reporting "enabled" on a boot where the service never started. Start it from
+# /rw/config/rc.local instead, the way this repo starts its other AppVM units.)
+"grpc-relay-unit-activate":
   cmd.run:
-    - name: systemctl daemon-reload
+    - name: |
+        set -e
+        target=/etc/systemd/system/qubesair-relay-client.service
+        mkdir -p /etc/systemd/system
+        [ -e "$target" ] || : > "$target"
+        chmod 0644 "$target"
+        mountpoint -q "$target" \
+          || mount --bind /rw/bind-dirs/etc/systemd/system/qubesair-relay-client.service "$target"
+        systemctl daemon-reload
     - runas: root
-    - onchanges:
+    - require:
       - file: "grpc-relay-unit"
+      - file: "grpc-relay-bind-dirs"
+
+# Fallback for the first boot after install: bind-dirs.sh can only bind over a
+# path that exists, and the template has no such unit, so the bind may not
+# happen. Install from the SAME /rw source, and only when absent, so there is
+# still one source of truth.
+"grpc-relay-rc-local-exists":
+  file.managed:
+    - name: /rw/config/rc.local
+    - user: root
+    - group: root
+    - mode: '0755'
+    - replace: False
+    - contents: |
+        #!/bin/sh
+
+"grpc-relay-rc-local":
+  file.blockreplace:
+    - name: /rw/config/rc.local
+    - marker_start: "# >>> mgmt.remotevm.grpc-relay >>>"
+    - marker_end: "# <<< mgmt.remotevm.grpc-relay <<<"
+    - append_if_not_found: True
+    - show_changes: True
+    - content: |
+        # Managed by mgmt.remotevm.grpc-relay — do not edit between markers.
+        if [ ! -e /etc/systemd/system/qubesair-relay-client.service ]; then
+            install -D -m 0644 \
+                /rw/bind-dirs/etc/systemd/system/qubesair-relay-client.service \
+                /etc/systemd/system/qubesair-relay-client.service 2>/dev/null || true
+        fi
+        systemctl daemon-reload 2>/dev/null || true
+    - require:
+      - file: "grpc-relay-rc-local-exists"
 
 {% else %}
 
