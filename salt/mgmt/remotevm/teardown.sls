@@ -25,6 +25,17 @@ A RemoteVM has no running domain, so no shutdown is needed before removal.
   file.absent:
     - name: /etc/qubes/policy.d/30-remotevm.policy
 
+# The console's register channel goes with it. Removing the policy is what
+# actually revokes access; the service file is removed too so a re-applied
+# policy cannot silently re-enable a stale script.
+"remotevm-teardown-register-policy":
+  file.absent:
+    - name: /etc/qubes/policy.d/30-qubesair-register.policy
+
+"remotevm-teardown-register-service":
+  file.absent:
+    - name: /etc/qubes-rpc/qubesair.RegisterRemoteVM
+
 {% if not keep %}
 {% for t in targets %}
 "remotevm-teardown-remove-{{ t.local_name }}":

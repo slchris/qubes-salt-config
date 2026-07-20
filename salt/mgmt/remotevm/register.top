@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.remotevm.register

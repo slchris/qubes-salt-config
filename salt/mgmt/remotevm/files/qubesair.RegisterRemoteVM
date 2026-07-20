@@ -1,0 +1,125 @@
+#!/bin/bash
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# qrexec service: qubesair.RegisterRemoteVM  (runs in dom0)
+#
+# The console provisions a qube with terraform and knows it exists; dom0 does
+# not, because the console writes terraform, not qvm-prefs. This is the channel
+# that closes that gap: the console asks dom0 to register (or drop) a RemoteVM
+# addressing shell so local qubes can reach the provisioned machine through the
+# relay, with dom0 policy in front.
+#
+# It is a SCOPED write into dom0, not a shell. Like qubes.RemoteDebug's dedicated
+# actions, it accepts a fixed verb grammar and nothing else, and every qube name
+# must match the console's own `remote-*` naming so this can never create or
+# touch a system qube. The policy (mgmt.remotevm.register) allows ONLY the
+# console qube to call it.
+#
+# Protocol — ONE line on stdin:
+#   register <local_name> <remote_name> [relay] [transport_rpc]
+#   deregister <local_name>
+#   status <local_name>
+#
+# relay/transport_rpc default to the values baked in below at deploy time from
+# config.jinja, so the common call is just `register <local> <remote>`.
+#
+# All output is on STDOUT (qrexec relays stdout, not stderr), so the caller sees
+# what happened.
+
+set -u
+
+# Filled in from config.jinja by the salt state that ships this file.
+DEFAULT_RELAY='{{ relay }}'
+DEFAULT_TRANSPORT='{{ transport }}'
+
+# A RemoteVM this channel may manage. Scoped to the console's naming so a bug or
+# a compromised console cannot name sys-net, dom0, a template, or the relay. Keep
+# in step with the console's qube naming (QubeService / terraform remote_qubes).
+NAME_RE='^remote-[a-zA-Z0-9._-]+$'
+# The remote_name is the qube's own name on the far side; looser, but still no
+# shell metacharacters or whitespace.
+REMOTE_NAME_RE='^[a-zA-Z0-9._-]+$'
+RELAY_RE='^[a-zA-Z0-9._-]+$'
+# transport_rpc is an RPC service name, e.g. qubesair.SSHProxy.
+TRANSPORT_RE='^[a-zA-Z][a-zA-Z0-9._-]+$'
+
+read -r verb name a3 a4 || { echo "register: empty request"; exit 1; }
+
+check_name() {
+    if [[ ! "$1" =~ $NAME_RE ]]; then
+        echo "register: REFUSED — '$1' is not a remote-* qube name"; exit 126
+    fi
+}
+
+case "$verb" in
+register)
+    check_name "$name"
+    remote_name="${a3:-}"
+    relay="${a4:-$DEFAULT_RELAY}"
+    # a4 may be the relay OR (when the 4th positional is transport) — keep it
+    # simple: positional relay only, transport stays the deploy-time default.
+    transport="$DEFAULT_TRANSPORT"
+    [[ "$remote_name" =~ $REMOTE_NAME_RE ]] || { echo "register: bad remote_name '$remote_name'"; exit 1; }
+    [[ "$relay" =~ $RELAY_RE ]] || { echo "register: bad relay '$relay'"; exit 1; }
+    [[ "$transport" =~ $TRANSPORT_RE ]] || { echo "register: bad transport_rpc '$transport'"; exit 1; }
+
+    # Create only if absent. The exact invocation for a RemoteVM on R4.3 is the
+    # one unknown this service exists to pin down, so its stderr is captured and
+    # relayed rather than discarded — a failure here must say WHY.
+    if qvm-check --quiet -- "$name" 2>/dev/null; then
+        echo "register: '$name' already exists — updating properties"
+    else
+        echo "register: qvm-create --class RemoteVM -- $name"
+        if ! out="$(qvm-create --class RemoteVM --label gray -- "$name" 2>&1)"; then
+            echo "register: FAILED to create RemoteVM:"
+            printf '%s\n' "$out" | sed 's/^/  /'
+            exit 1
+        fi
+    fi
+
+    # The three properties that make a RemoteVM reachable through the relay.
+    for pair in "relayvm=$relay" "transport_rpc=$transport" "remote_name=$remote_name"; do
+        prop="${pair%%=*}"; val="${pair#*=}"
+        if ! out="$(qvm-prefs -- "$name" "$prop" "$val" 2>&1)"; then
+            echo "register: FAILED to set $prop=$val:"
+            printf '%s\n' "$out" | sed 's/^/  /'
+            exit 1
+        fi
+        echo "register: $prop=$val"
+    done
+    echo "register: DONE — $name -> $remote_name via $relay ($transport)"
+    exit 0
+    ;;
+
+deregister)
+    check_name "$name"
+    if ! qvm-check --quiet -- "$name" 2>/dev/null; then
+        echo "deregister: '$name' does not exist (already gone)"; exit 0
+    fi
+    # A RemoteVM has no disk and is not running, so removal is just the metadata.
+    if ! out="$(qvm-remove -f -- "$name" 2>&1)"; then
+        echo "deregister: FAILED:"; printf '%s\n' "$out" | sed 's/^/  /'; exit 1
+    fi
+    echo "deregister: DONE — removed RemoteVM $name"
+    exit 0
+    ;;
+
+status)
+    check_name "$name"
+    if ! qvm-check --quiet -- "$name" 2>/dev/null; then
+        echo "status: '$name' not registered"; exit 0
+    fi
+    echo "status: $name"
+    for prop in class relayvm transport_rpc remote_name; do
+        v="$(qvm-prefs -- "$name" "$prop" 2>/dev/null || echo '?')"
+        echo "  $prop = $v"
+    done
+    exit 0
+    ;;
+
+*)
+    echo "register: unknown verb '$verb' (want register|deregister|status)"
+    exit 1
+    ;;
+esac
