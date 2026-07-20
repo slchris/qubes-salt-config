@@ -111,7 +111,13 @@ status)
         echo "status: '$name' not registered"; exit 0
     fi
     echo "status: $name"
-    for prop in class relayvm transport_rpc remote_name; do
+    # class is NOT a qvm-prefs property — asking for it returns an error and the
+    # status read silently showed "?" for the one field that proves this is a
+    # RemoteVM at all. It comes from qvm-ls.
+    klass="$(qvm-ls --raw-data --fields NAME,CLASS 2>/dev/null \
+             | awk -F'|' -v n="$name" '$1 == n { print $2 }')"
+    echo "  class = ${klass:-?}"
+    for prop in relayvm transport_rpc remote_name; do
         v="$(qvm-prefs -- "$name" "$prop" 2>/dev/null || echo '?')"
         echo "  $prop = $v"
     done

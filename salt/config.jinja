@@ -110,6 +110,17 @@ were refused: a configuration gap, not a missing feature.
             Add it back here in the same change that ships an actual
             /etc/qubes-rpc/qubesair.Status.
 
+remotevm.register_callers — which qubes may call qubesair.RegisterRemoteVM, the
+dom0 service that registers a provisioned qube as a RemoteVM addressing shell.
+The console is the intended caller: it is the only thing that knows the fleet,
+since it writes terraform rather than qvm-prefs. mgmt-jump is listed too, and
+that grants it nothing new — its qubes.RemoteDebug whitelist already allows
+`qubesctl state.apply`, which can create RemoteVMs through mgmt.remotevm.create.
+Having it here means manual registration (and verifying the channel on a machine
+where the console is not deployed) does not need a hand-edited policy.
+The service itself refuses any name outside `remote-*`, so no caller on this
+list can touch a system qube, a template, the relay, or dom0.
+
 remotevm.allowed_sources — which LOCAL qubes may make those calls. "@anyvm"
 combined with an "allow" action means any qube on this machine, including a
 disposable that just opened an attachment, can reach the remote fleet, and it
@@ -368,6 +379,7 @@ in a unit file, a ps listing or this repository.
       {"local_name": "remote-dev-1", "remote_name": "dev", "host": ""},
     ],
     "allowed_sources": ["qubesair-console"],
+    "register_callers": ["qubesair-console", "mgmt-jump"],
     "services": [
       {"name": "qubesair.Ping", "action": "allow"},
     ],
