@@ -50,11 +50,16 @@ Deploy (from dom0):
         # path. Only names and addresses cross this — no credentials.
         qubesair.RemoteEndpoints * {{ relay }} {{ console }} allow
         qubesair.RemoteEndpoints * @anyvm @anyvm deny
+        {%- set exec_action = csr.get('exec_action', 'ask') %}
         {% for t in targets %}
         # A: a caller may reach RemoteVM {{ t.local_name }} (triggers the rewrite).
+        # Ping/Status are read-only -> allow. Exec runs a command on the remote,
+        # so it defaults to `ask` (dom0 confirms each call); set
+        # remotevm.grpc.csr.exec_action=allow to skip the prompt for trusted callers.
         {%- for c in callers %}
         qubesair.Ping   * {{ c }} {{ t.local_name }} allow
         qubesair.Status * {{ c }} {{ t.local_name }} allow
+        qubesair.Exec   * {{ c }} {{ t.local_name }} {{ exec_action }}
         {%- endfor %}
         {% endfor %}
         # B: the rewritten transport call lands on the relay's gRPC handler.
