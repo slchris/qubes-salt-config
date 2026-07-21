@@ -58,9 +58,10 @@ Deploy (from dom0):
         # it defaults to `ask` (dom0 confirms each call); set
         # remotevm.grpc.csr.exec_action=allow to skip the prompt for trusted callers.
         {%- for c in callers %}
-        qubesair.Ping   * {{ c }} @tag:remote-zone allow
-        qubesair.Status * {{ c }} @tag:remote-zone allow
-        qubesair.Exec   * {{ c }} @tag:remote-zone {{ exec_action }}
+        qubesair.Ping     * {{ c }} @tag:remote-zone allow
+        qubesair.Status   * {{ c }} @tag:remote-zone allow
+        qubesair.Exec     * {{ c }} @tag:remote-zone {{ exec_action }}
+        qubesair.FileCopy * {{ c }} @tag:remote-zone {{ csr.get('filecopy_action', exec_action) }}
         {%- endfor %}
         # Any other service to a RemoteVM is denied by default.
         * * @anyvm @tag:remote-zone deny
