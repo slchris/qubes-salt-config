@@ -63,6 +63,17 @@ Deploy (from dom0):
         qubesair.Exec     * {{ c }} @tag:remote-zone {{ exec_action }}
         qubesair.FileCopy * {{ c }} @tag:remote-zone {{ csr.get('filecopy_action', exec_action) }}
         {%- endfor %}
+        # Seamless desktop (docs §0.14): enumerate a RemoteVM's apps for the start
+        # menu, and launch one so its window forwards (under the remote's Xpra).
+        # GetAppmenus is read-only; StartApp runs a program, so it inherits the same
+        # gate as Exec. dom0/@adminvm is allowed too, because qvm-sync-appmenus runs
+        # there.
+        {%- for c in callers %}
+        qubes.GetAppmenus * {{ c }} @tag:remote-zone allow
+        qubes.StartApp    * {{ c }} @tag:remote-zone {{ exec_action }}
+        {%- endfor %}
+        qubes.GetAppmenus * @adminvm @tag:remote-zone allow
+        qubes.StartApp    * @adminvm @tag:remote-zone allow
         # Any other service to a RemoteVM is denied by default.
         * * @anyvm @tag:remote-zone deny
 
@@ -79,6 +90,8 @@ Deploy (from dom0):
         {%- for c in callers %}
         qubesair.GrpcProxy * {{ c }} {{ relay }} allow
         {%- endfor %}
+        # dom0's qvm-sync-appmenus reaches a RemoteVM through the same rewrite.
+        qubesair.GrpcProxy * @adminvm {{ relay }} allow
         qubesair.GrpcProxy * @anyvm @anyvm deny
 
 {% endif %}

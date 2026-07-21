@@ -57,6 +57,129 @@ if [[ "$cmdline" =~ ^deploy\ ([a-zA-Z0-9_-]+)$ ]]; then
     fi
 fi
 
+# Dedicated menu-diag action: `menu-diag <vm>` inspects why a qube does/doesn't show in
+# the App Menu (class, internal, features) vs a reference qube, and forces a menu refresh.
+if [[ "$cmdline" =~ ^menu-diag\ ([a-zA-Z0-9._-]+)$ ]]; then
+    VM="${BASH_REMATCH[1]}"
+    python3 - "$VM" <<'PY' 2>&1
+import sys, qubesadmin
+q = qubesadmin.Qubes()
+names = [d.name for d in q.domains]
+def g(vm, attr):
+    try: return getattr(vm, attr)
+    except Exception as e: return "<err:%s>" % type(e).__name__
+def show(name):
+    if name not in names: print("  %s: NOT FOUND" % name); return
+    vm = q.domains[name]
+    print("=== %s ===" % name)
+    print("  klass:", g(vm, 'klass'), "| provides_network:", g(vm, 'provides_network'),
+          "| internal(prop):", g(vm, 'internal'))
+    try: feats = dict(vm.features.items())
+    except Exception as e: feats = "<err:%s>" % type(e).__name__
+    print("  features:", feats)
+show(sys.argv[1])
+for ref in ('personal','work','dev-work','anon-whonix','vault','untrusted'):
+    if ref in names: show(ref); break
+PY
+    echo "--- forcing menu refresh (xdg + app-menu) ---"
+    xdg-desktop-menu forceupdate 2>&1 | sed 's/^/  /'
+    update-desktop-database "$HOME/.local/share/applications" 2>&1 | sed 's/^/  /'
+    pkill -HUP -f qubes-app-menu 2>/dev/null && echo "  sent HUP to qubes-app-menu" || echo "  (no qubes-app-menu process to signal)"
+    exit 0
+fi
+
+# Dedicated sync-appmenus action: `sync-appmenus <vm>` runs qvm-sync-appmenus with
+# stderr folded into stdout (qrexec relays only stdout) and reports what landed, so a
+# RemoteVM's start-menu sync is debuggable. Scoped to a single VM name; no free-form args.
+if [[ "$cmdline" =~ ^sync-appmenus\ ([a-zA-Z0-9._-]+)$ ]]; then
+    VM="${BASH_REMATCH[1]}"
+    CONSOLE="qubesair-console"
+    # dom0 can't rewrite RemoteVM RPC, so fetch the native app list through a VM caller
+    # (the console is allowed), then build the menu in dom0 from it.
+    echo "sync-appmenus: fetching $VM apps via $CONSOLE"
+    TMP="$(mktemp)"; trap 'rm -f "$TMP"' EXIT
+    qvm-run --pass-io -u user -- "$CONSOLE" "qrexec-client-vm $VM qubes.GetAppmenus </dev/null" > "$TMP" 2>/dev/null
+    got=$(grep -c ':Exec=' "$TMP" 2>/dev/null || echo 0)
+    echo "sync-appmenus: fetched $got app entries ($(wc -c < "$TMP")B)"
+    if [ "$got" -lt 1 ]; then echo "sync-appmenus: nothing fetched; aborting"; exit 0; fi
+    D="$HOME/.local/share/qubes-appmenus/$VM"; mkdir -p "$D/apps.templates"
+    python3 - "$VM" "$D" "$TMP" <<'PY'
+import sys, os
+vm, D, src = sys.argv[1], sys.argv[2], sys.argv[3]
+apps = {}
+for line in open(src, encoding='utf-8', errors='replace').read().splitlines():
+    if ':' not in line: continue
+    f, kv = line.split(':', 1)
+    if f.endswith('.desktop'): apps.setdefault(f, []).append(kv)
+tdir = os.path.join(D, 'apps.templates'); names = []
+for f, kvs in apps.items():
+    open(os.path.join(tdir, f), 'w').write("[Desktop Entry]\n" + "\n".join(kvs) + "\n")
+    names.append(f)
+open(os.path.join(D, 'whitelisted-appmenus.list'), 'w').write("\n".join(names) + "\n")
+print("  wrote %d templates + whitelist: %s" % (len(names), " ".join(n[:-8] for n in names)))
+PY
+    # qvm-appmenus crashes on RemoteVM, so build the menu entries directly, mimicking a
+    # normal qube's, but routing the launch through a proxy VM (dom0 can't reach the
+    # RemoteVM; the console can). Show a reference entry so the format can be verified.
+    echo "--- reference: a normal qube's menu entry ---"
+    ref="$(ls -1 "$HOME/.local/share/qubes-appmenus/"*/apps/*.desktop 2>/dev/null | grep -v "$VM" | head -1)"
+    echo "  ref: $ref"; [ -n "$ref" ] && sed 's/^/  ref| /' "$ref"
+    echo "--- which qubes currently have menu entries ---"
+    for d in "$HOME/.local/share/qubes-appmenus/"*/apps; do
+        [ -d "$d" ] && c=$(ls -1 "$d"/*.desktop 2>/dev/null | grep -c .) && [ "$c" -gt 0 ] && echo "  $(basename "$(dirname "$d")"): $c"
+    done | head
+    echo "--- generating $VM menu entries (proxy launch via $CONSOLE) ---"
+    APPS="$HOME/.local/share/qubes-appmenus/$VM/apps"; mkdir -p "$APPS"
+    python3 - "$VM" "$D/apps.templates" "$APPS" "$CONSOLE" <<'PY'
+import sys, os, glob
+vm, tdir, appsdir, console = sys.argv[1:5]
+made = []
+for tpl in glob.glob(os.path.join(tdir, "*.desktop")):
+    base = os.path.basename(tpl)[:-8]          # strip .desktop
+    name = base
+    for l in open(tpl):
+        if l.startswith("Name=") and "[" not in l.split("=")[0]:
+            name = l.split("=", 1)[1].strip(); break
+    exec_line = ("qvm-run -q -a -- %s 'qrexec-client-vm %s qubes.StartApp+%s'"
+                 % (console, vm, base))
+    out = ("[Desktop Entry]\nType=Application\nName=%s\nExec=%s\n"
+           "Icon=%s\nX-Qubes-VM=%s\nCategories=X-Qubes-VM;\n"
+           % (name, exec_line, vm, vm))
+    dest = os.path.join(appsdir, "%s-%s.desktop" % (vm, base))
+    open(dest, "w").write(out); made.append(dest)
+print("  wrote %d menu entries" % len(made))
+PY
+    chmod 0644 "$APPS"/*.desktop 2>/dev/null
+    update-desktop-database "$HOME/.local/share/applications" 2>/dev/null
+    echo "  entries in $APPS: $(ls -1 "$APPS"/*.desktop 2>/dev/null | grep -c .)"
+    ls -1 "$APPS" 2>/dev/null | sed 's/^/    entry: /'
+    echo "  (check the App Menu for '$VM'; if empty, its widget filters RemoteVM out)"
+    exit 0
+fi
+
+# Dedicated test-getappmenus action: `test-getappmenus <vm>` runs the SAME call
+# qvm-sync-appmenus uses (qubesadmin run_service qubes.GetAppmenus), reporting bytes and
+# the first apps, so we can tell whether the dom0->RemoteVM transport delivers the list.
+if [[ "$cmdline" =~ ^test-getappmenus\ ([a-zA-Z0-9._-]+)$ ]]; then
+    VM="${BASH_REMATCH[1]}"
+    python3 - "$VM" <<'PY' 2>&1
+import sys, qubesadmin
+vm = qubesadmin.Qubes().domains[sys.argv[1]]
+try:
+    p = vm.run_service('qubes.GetAppmenus')
+    p.stdin.close()
+    out = p.stdout.read()
+    p.wait()
+    print("run_service ok: rc=%s bytes=%d" % (p.returncode, len(out)))
+    for line in out.decode('utf-8', 'replace').splitlines():
+        if ':Name=' in line or ':Exec=' in line:
+            print("  " + line)
+except Exception as e:
+    print("run_service FAILED: %r" % (e,))
+PY
+    exit 0
+fi
+
 # Dedicated push-file action: `push-file <jump-qube> <target-qube> <name>` pulls
 # /tmp/<name> from the jump qube and drops it into <target-qube>'s /home/user/<name>.
 # dom0 is only a relay (jump -> dom0 stdin -> target). Scoped: source is always
@@ -289,6 +412,7 @@ ALLOW=(
   '^qvm-volume resize [a-zA-Z0-9._-]+:private [0-9]+[GM]?$'
   '^qvm-shutdown( --wait)? [a-zA-Z0-9._-]+$'
   '^qvm-start [a-zA-Z0-9._-]+$'
+  '^qvm-sync-appmenus( --force-rpc)? [a-zA-Z0-9._-]+$'
 )
 
 allowed=0
