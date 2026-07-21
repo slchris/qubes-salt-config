@@ -415,6 +415,7 @@ Deploy (from dom0), after the console qube exists and is running:
         QUBES_AIR_PROXMOX_SSH_KEY_FILE={{ pve_ssh_key }}
         QUBES_AIR_PROXMOX_SSH_USERNAME={{ qa.get('pve_ssh_username', 'root') }}
         QUBES_AIR_REGISTER_REMOTEVM={{ 'true' if qa.get('register_remotevm', False) else 'false' }}
+        QUBES_AIR_ENCRYPT_DATA_DEFAULT={{ 'true' if qa.get('encrypt_data_default', False) else 'false' }}
 {%- if web_source %}
         QUBES_AIR_WEB_ROOT={{ web_root }}
 {%- endif %}
