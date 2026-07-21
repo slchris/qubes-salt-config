@@ -65,6 +65,14 @@ Deploy (from dom0):
         {%- endfor %}
         # Any other service to a RemoteVM is denied by default.
         * * @anyvm @tag:remote-zone deny
+
+        # C (GUI / streaming): a raw TCP tunnel is opened DIRECTLY on the relay
+        # (the RemoteVM rewrite only carries buffered RPC via GrpcProxy). The relay
+        # handler restricts the destination to a known RemoteVM's GUI ports.
+        {%- for c in callers %}
+        qubesair.ConnectTCP * {{ c }} {{ relay }} allow
+        {%- endfor %}
+        qubesair.ConnectTCP * @anyvm @anyvm deny
         # B: the rewritten transport call lands on the relay's gRPC handler.
         # ([C1]) If R4.3 sources the rewritten call from something other than the
         # original caller, widen the source here — see grpc-transport-design.md.

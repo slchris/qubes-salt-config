@@ -85,6 +85,17 @@ Deploy (from dom0):
     - group: root
     - mode: '0755'
 
+# Raw TCP tunnel handler (GUI / any streaming TCP), invoked directly on the relay
+# (not via the RemoteVM rewrite). socat is already present on the relay.
+"grpc-csr-relay-connecttcp":
+  file.managed:
+    - name: {{ bin_dir }}/qubesair.ConnectTCP
+    - source: salt://mgmt/remotevm/files/qubesair.ConnectTCP
+    - makedirs: True
+    - user: root
+    - group: root
+    - mode: '0755'
+
 # --- renewal timer (units live on /rw, linked into place by boot.sh) ---------
 "grpc-csr-relay-renew-service":
   file.managed:
@@ -203,6 +214,7 @@ Deploy (from dom0):
         ln -sf {{ bin_dir }}/relay-call        /usr/local/bin/relay-call
         ln -sf {{ bin_dir }}/relay-bootstrap   /usr/local/bin/relay-bootstrap
         ln -sf {{ bin_dir }}/qubesair.GrpcProxy /etc/qubes-rpc/qubesair.GrpcProxy
+        ln -sf {{ bin_dir }}/qubesair.ConnectTCP /etc/qubes-rpc/qubesair.ConnectTCP
         ln -sf {{ sysd_dir }}/qubesair-relay-renew.service     /etc/systemd/system/qubesair-relay-renew.service
         ln -sf {{ sysd_dir }}/qubesair-relay-renew.timer       /etc/systemd/system/qubesair-relay-renew.timer
         ln -sf {{ sysd_dir }}/qubesair-relay-endpoints.service /etc/systemd/system/qubesair-relay-endpoints.service
@@ -256,6 +268,7 @@ Deploy (from dom0):
       - file: "grpc-csr-relay-call-bin"
       - file: "grpc-csr-relay-bootstrap-bin"
       - file: "grpc-csr-relay-handler"
+      - file: "grpc-csr-relay-connecttcp"
       - file: "grpc-csr-relay-renew-service"
       - file: "grpc-csr-relay-renew-timer"
       - file: "grpc-csr-relay-refresh-endpoints"
