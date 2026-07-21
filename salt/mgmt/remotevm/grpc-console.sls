@@ -55,6 +55,26 @@ Deploy (from dom0):
     - group: root
     - mode: '0755'
 
+# Endpoint lister for the relay to pull (path b, endpoint delivery). It reads
+# only qube names + addresses from the database — no CA, no secrets — so unlike
+# the issuer it is not privileged beyond database read.
+"grpc-console-list-endpoints-bin":
+  file.managed:
+    - name: /usr/local/bin/list-endpoints
+    - source: {{ csr.list_endpoints_source }}
+    - source_hash: sha256={{ csr.get('list_endpoints_sha256', '') }}
+    - user: root
+    - group: root
+    - mode: '0755'
+
+"grpc-console-endpoints-service":
+  file.managed:
+    - name: /etc/qubes-rpc/qubesair.RemoteEndpoints
+    - source: salt://mgmt/remotevm/files/qubesair.RemoteEndpoints
+    - user: root
+    - group: root
+    - mode: '0755'
+
 {% endif %}
 {% endif %}
 {% endif %}

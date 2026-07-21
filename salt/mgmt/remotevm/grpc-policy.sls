@@ -44,6 +44,12 @@ Deploy (from dom0):
         # another qube's identity even though the service is reachable.
         qubesair.IssueRelayCert * {{ relay }} {{ console }} allow
         qubesair.IssueRelayCert * @anyvm @anyvm deny
+
+        # The relay pulls the endpoint map (qube -> ip:port) from the console and
+        # writes it into its own QubesDB, so the console is not in the per-call
+        # path. Only names and addresses cross this — no credentials.
+        qubesair.RemoteEndpoints * {{ relay }} {{ console }} allow
+        qubesair.RemoteEndpoints * @anyvm @anyvm deny
         {% for t in targets %}
         # A: a caller may reach RemoteVM {{ t.local_name }} (triggers the rewrite).
         {%- for c in callers %}

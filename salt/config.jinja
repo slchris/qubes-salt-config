@@ -374,7 +374,7 @@ in a unit file, a ps listing or this repository.
 
   "remotevm": {
     "relay": "mgmt-jump",
-    "transport_rpc": "qubesair.SSHProxy",
+    "transport_rpc": "qubesair.GrpcProxy",
     "targets": [
       {"local_name": "remote-dev-1", "remote_name": "dev", "host": ""},
       {"local_name": "remote-reg2", "remote_name": "remote-reg2", "host": ""},
@@ -420,6 +420,9 @@ in a unit file, a ps listing or this repository.
         "relay_call_sha256": "65d195385291c0cc6892218b57dc4014bacf357ea248c0c8c130a870e672ded2",
         "relay_bootstrap_source": "http://10.31.0.2/local/qubes-air-tools/relay-bootstrap",
         "relay_bootstrap_sha256": "42adcd51bac7b8a1f90b9f05d60253e94b58c8193bd6f0e791bb337f93e7d4c8",
+        "list_endpoints_source": "http://10.31.0.2/local/qubes-air-tools/list-endpoints",
+        "list_endpoints_sha256": "7582588129445cc15535ba5dfc44fb1907de92eefa2dca98239cc1894f0ed630",
+        "endpoints_on_calendar": "*:0/2",
       },
     },
   },

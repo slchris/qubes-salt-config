@@ -123,6 +123,68 @@ Deploy (from dom0):
         [Install]
         WantedBy=timers.target
 
+# --- endpoint refresh: pull the qube->ip:port map from the console -----------
+# The relay learns each RemoteVM's address from the console (control plane) and
+# writes it into its OWN QubesDB, which the qubesair.GrpcProxy handler reads.
+# Runs as `user`: qubesdb-write works unprivileged, and this touches no key.
+"grpc-csr-relay-refresh-endpoints":
+  file.managed:
+    - name: {{ bin_dir }}/refresh-endpoints.sh
+    - makedirs: True
+    - mode: '0755'
+    - user: root
+    - group: root
+    - contents: |
+        #!/bin/bash
+        # SPDX-License-Identifier: MIT — managed by mgmt.remotevm.grpc-csr-relay
+        set -uo pipefail
+        eps="$(qrexec-client-vm {{ console }} qubesair.RemoteEndpoints 2>/dev/null || true)"
+        [ -n "$eps" ] || { echo "refresh-endpoints: console returned nothing" >&2; exit 0; }
+        printf '%s\n' "$eps" | while read -r name ep _; do
+            [ -n "$name" ] || continue
+            # Strict whitelist: these values steer a dial, so never trust them raw.
+            [[ "$name" =~ ^remote-[a-zA-Z0-9._-]+$ ]] || continue
+            [[ "$ep" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}:[0-9]{1,5}$ ]] || continue
+            qubesdb-write "/remote-endpoint/$name" "$ep"
+        done
+
+"grpc-csr-relay-endpoints-service":
+  file.managed:
+    - name: {{ sysd_dir }}/qubesair-relay-endpoints.service
+    - makedirs: True
+    - mode: '0644'
+    - user: root
+    - group: root
+    - contents: |
+        # SPDX-License-Identifier: MIT — managed by mgmt.remotevm.grpc-csr-relay
+        [Unit]
+        Description=Qubes Air relay endpoint map refresh (pull from console)
+        After=qubes-qrexec-agent.service
+
+        [Service]
+        Type=oneshot
+        User=user
+        ExecStart={{ bin_dir }}/refresh-endpoints.sh
+
+"grpc-csr-relay-endpoints-timer":
+  file.managed:
+    - name: {{ sysd_dir }}/qubesair-relay-endpoints.timer
+    - makedirs: True
+    - mode: '0644'
+    - user: root
+    - group: root
+    - contents: |
+        # SPDX-License-Identifier: MIT — managed by mgmt.remotevm.grpc-csr-relay
+        [Unit]
+        Description=Refresh the Qubes Air relay endpoint map frequently
+
+        [Timer]
+        OnCalendar={{ csr.get('endpoints_on_calendar', '*:0/2') }}
+        Persistent=true
+
+        [Install]
+        WantedBy=timers.target
+
 # --- boot script: relink the reset paths, start the timer, refresh the cert --
 # /usr/local/bin and /etc/qubes-rpc are on the root volume and reset on reboot,
 # so they are symlinked back to the /rw copies at every boot. Running
@@ -141,15 +203,21 @@ Deploy (from dom0):
         ln -sf {{ bin_dir }}/relay-call        /usr/local/bin/relay-call
         ln -sf {{ bin_dir }}/relay-bootstrap   /usr/local/bin/relay-bootstrap
         ln -sf {{ bin_dir }}/qubesair.GrpcProxy /etc/qubes-rpc/qubesair.GrpcProxy
-        ln -sf {{ sysd_dir }}/qubesair-relay-renew.service /etc/systemd/system/qubesair-relay-renew.service
-        ln -sf {{ sysd_dir }}/qubesair-relay-renew.timer   /etc/systemd/system/qubesair-relay-renew.timer
+        ln -sf {{ sysd_dir }}/qubesair-relay-renew.service     /etc/systemd/system/qubesair-relay-renew.service
+        ln -sf {{ sysd_dir }}/qubesair-relay-renew.timer       /etc/systemd/system/qubesair-relay-renew.timer
+        ln -sf {{ sysd_dir }}/qubesair-relay-endpoints.service /etc/systemd/system/qubesair-relay-endpoints.service
+        ln -sf {{ sysd_dir }}/qubesair-relay-endpoints.timer   /etc/systemd/system/qubesair-relay-endpoints.timer
         systemctl daemon-reload || true
-        systemctl start qubesair-relay-renew.timer 2>/dev/null || true
+        systemctl start qubesair-relay-renew.timer     2>/dev/null || true
+        systemctl start qubesair-relay-endpoints.timer 2>/dev/null || true
         # Obtain/refresh the client certificate AS user, so relay.key is owned by
         # the user the qrexec transport service runs as. Non-fatal: a transient
         # failure must not block the rest of boot; the timer retries.
         runuser -u user -- {{ bin_dir }}/relay-bootstrap -console {{ console }} -dir {{ relay_dir }} || \
           echo "qubesair relay: bootstrap deferred to timer" >&2
+        # Pull the endpoint map now so a reboot does not wait for the timer.
+        runuser -u user -- {{ bin_dir }}/refresh-endpoints.sh || \
+          echo "qubesair relay: endpoint refresh deferred to timer" >&2
 
 # Ensure rc.local exists (with a shebang) WITHOUT clobbering any existing
 # content: replace:False writes the contents only when the file is absent.
@@ -190,6 +258,9 @@ Deploy (from dom0):
       - file: "grpc-csr-relay-handler"
       - file: "grpc-csr-relay-renew-service"
       - file: "grpc-csr-relay-renew-timer"
+      - file: "grpc-csr-relay-refresh-endpoints"
+      - file: "grpc-csr-relay-endpoints-service"
+      - file: "grpc-csr-relay-endpoints-timer"
       - file: "grpc-csr-relay-boot-script"
 
 {% endif %}
