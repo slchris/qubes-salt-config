@@ -1,0 +1,88 @@
+#!/bin/bash
+# qubesair.GrpcProxy —— RemoteVM gRPC transport 服务 (部署在 Relay 的 /etc/qubes-rpc/)
+# =====================================================================
+# 这是 RemoteVM 的 transport_rpc 服务, qubesair.SSHProxy 的 gRPC 对应物。dom0 把本地
+# AppVM 对 RemoteVM 的调用改写为对本 Relay 的一次 qrexec 调用, 服务名形如:
+#     qubesair.GrpcProxy + <RemoteVM名> + <原服务>[+arg]
+# 其中 "<target>+<service>[+arg]" 作为 qrexec 服务参数 ($1) 传进来。
+#
+# 与 SSHProxy 的区别: 不 SSH 到宿主机再跑 qrexec-client-vm (KVM agent 宿主没有 qrexec),
+# 而是用 relay-call 直接拨远端 agent 的 mTLS gRPC 端口。stdin(RPC 请求)与 stdout(应答)透传。
+#
+# 两种部署形态, 按本 Relay 上有什么自动选择 (见 docs/grpc-transport-design.md §0):
+#   - provisioned (方案 b, 独立 relay): 本 qube 持一张 console 下发的客户端证书
+#     (/rw/config/qubesair-relay/relay.{crt,key} + ca.crt, 由 relay-bootstrap 写),
+#     不持 CA。端点从 QubesDB /remote/<target> 读 (dom0 在注册时写入 "ip:port")。
+#   - mint (回退, console-as-relay): 本 qube 就是 console, 持 CA + qube→IP 库,
+#     relay-call 现签证书并从库里解析端点。
+# =====================================================================
+
+set -euo pipefail
+
+log() { echo "qubesair.GrpcProxy: $*" >&2; }
+
+# ---- 1. 解析参数: "target+service[+arg]" ----
+arg="${1:-}"
+if [[ -z "$arg" ]]; then
+    log "用法: 经 qrexec 以 <target+service> 调用"
+    exit 1
+fi
+# dom0 rewrites as transport_rpc+<target>+<service>+<原参数>; with no original
+# argument that leaves a TRAILING '+', so take the service as the SECOND field
+# rather than "everything after the first +" — otherwise it becomes "Ping+" and
+# the agent rejects it. Any real trailing argument is dropped: the gRPC call
+# carries its body on stdin, not as a qrexec service argument.
+target="${arg%%+*}"      # 第一个 + 之前
+rest="${arg#*+}"         # 第一个 + 之后 (可能形如 "service+" 或 "service+arg")
+service="${rest%%+*}"    # 第二个字段, 丢掉改写附加的空/多余参数
+
+if [[ -z "$target" || -z "$service" || "$target" == "$arg" ]]; then
+    log "参数格式错误, 期望 'target+service[+arg]', 实得: '$arg'"
+    exit 1
+fi
+
+# ---- 2. 纵深校验: 只接受 console 的 remote-* 命名与合法服务名 ----
+# 与 qubesair.RegisterRemoteVM 的 NAME_RE 对齐, 使被 dom0 policy 放行进来的调用也
+# 无法诱使 relay 去拨任意名字。
+if [[ ! "$target" =~ ^remote-[a-zA-Z0-9._-]+$ ]]; then
+    log "拒绝: '$target' 不是 remote-* 名"
+    exit 126
+fi
+if [[ ! "$service" =~ ^[a-zA-Z][a-zA-Z0-9._+-]*$ ]]; then
+    log "拒绝: 非法服务名 '$service'"
+    exit 126
+fi
+
+RELAY_DIR="${QUBES_AIR_RELAY_DIR:-/rw/config/qubesair-relay}"
+CONSOLE_DIR="${QUBES_AIR_DATA_DIR:-/rw/config/qubesair}"
+
+log "转发: source=${QREXEC_REMOTE_DOMAIN:-?} target=$target service=$service"
+
+# ---- 3a. provisioned 模式: 独立 relay, 加载已下发证书, 端点从 QubesDB ----
+if [[ -r "$RELAY_DIR/relay.crt" && -r "$RELAY_DIR/relay.key" && -r "$RELAY_DIR/ca.crt" ]]; then
+    endpoint="$(qubesdb-read "/remote/$target" 2>/dev/null || true)"
+    if [[ -z "$endpoint" ]]; then
+        log "QubesDB /remote/$target 未设置 —— dom0 注册时是否写了端点映射?"
+        exit 1
+    fi
+    # 端点必须是 ip:port; QubesDB 的值不可拿去当命令拼接, 这里严格白名单。
+    if [[ ! "$endpoint" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}:[0-9]{1,5}$ ]]; then
+        log "拒绝: /remote/$target 的端点 '$endpoint' 不是合法 ip:port"
+        exit 126
+    fi
+    exec /usr/local/bin/relay-call \
+        -cert "$RELAY_DIR/relay.crt" -key "$RELAY_DIR/relay.key" -ca "$RELAY_DIR/ca.crt" \
+        -addr "$endpoint" "$target" "$service"
+fi
+
+# ---- 3b. mint 模式回退: 本 qube 是 console, 现签 + 从库解析端点 ----
+if [[ -r "$CONSOLE_DIR/secrets.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$CONSOLE_DIR/secrets.env"
+    set +a
+    exec /usr/local/bin/relay-call -db "$CONSOLE_DIR/qubes-air.db" "$target" "$service"
+fi
+
+log "既无 $RELAY_DIR 下的下发证书, 也无 $CONSOLE_DIR/secrets.env —— 本服务未正确部署"
+exit 1

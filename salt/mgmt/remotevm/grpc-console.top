@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Target the console qube (path b: relay-cert issuer). Match cfg.remotevm.grpc.csr.console_qube.
+base:
+  'qubesair-console':
+    - mgmt.remotevm.grpc-console

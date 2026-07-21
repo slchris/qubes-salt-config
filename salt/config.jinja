@@ -377,6 +377,7 @@ in a unit file, a ps listing or this repository.
     "transport_rpc": "qubesair.SSHProxy",
     "targets": [
       {"local_name": "remote-dev-1", "remote_name": "dev", "host": ""},
+      {"local_name": "remote-reg2", "remote_name": "remote-reg2", "host": ""},
     ],
     "allowed_sources": ["qubesair-console"],
     "register_callers": ["qubesair-console", "mgmt-jump"],
@@ -407,13 +408,26 @@ in a unit file, a ps listing or this repository.
         "ca_file": "/etc/qubesair/ca.crt",
         "bundle_dir": "/home/user/qubesair-remote-bundle",
       },
+      "csr": {
+        "enabled": True,
+        "console_qube": "qubesair-console",
+        "relay_dir": "/rw/config/qubesair-relay",
+        "allowed_callers": ["qubesair-console"],
+        "renew_on_calendar": "*-*-* 04,10,16,22:00:00",
+        "issue_bin_source": "http://10.31.0.2/local/qubes-air-tools/issue-relay-cert",
+        "issue_bin_sha256": "2ae55d4f40a1d63e25cc2cedd5a5cba3dbfd670f9d7c23dca7efdae3b13a3e27",
+        "relay_call_source": "http://10.31.0.2/local/qubes-air-tools/relay-call",
+        "relay_call_sha256": "65d195385291c0cc6892218b57dc4014bacf357ea248c0c8c130a870e672ded2",
+        "relay_bootstrap_source": "http://10.31.0.2/local/qubes-air-tools/relay-bootstrap",
+        "relay_bootstrap_sha256": "42adcd51bac7b8a1f90b9f05d60253e94b58c8193bd6f0e791bb337f93e7d4c8",
+      },
     },
   },
 
   "qubesair": {
     "ui_clients": ["slchris_homelab", "mgmt-jump"],
     "console_web_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console-web.tar.gz",
-    "console_web_sha256": "9aa53cd80deff717c9928a0c5482f93ec177c15b519f81173431d0ebc8432bd2",
+    "console_web_sha256": "22fceda89d42572de1f94db4963fc368f035e85964f43502ea156f8d6b4b71c0",
     "console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console",
     "console_binary_sha256": "1c5149e21f5d0f9059e68e83198aa65707bac2ee1b206569c98f19802ec21357",
 

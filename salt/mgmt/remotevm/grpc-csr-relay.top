@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Target the separate relay qube (path b). Default mgmt-jump; match cfg.remotevm.relay.
+base:
+  'mgmt-jump':
+    - mgmt.remotevm.grpc-csr-relay

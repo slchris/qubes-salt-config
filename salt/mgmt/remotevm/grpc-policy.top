@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# dom0 qrexec policy for the path-b gRPC transport.
+base:
+  'dom0':
+    - mgmt.remotevm.grpc-policy
