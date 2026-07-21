@@ -51,17 +51,19 @@ Deploy (from dom0):
         qubesair.RemoteEndpoints * {{ relay }} {{ console }} allow
         qubesair.RemoteEndpoints * @anyvm @anyvm deny
         {%- set exec_action = csr.get('exec_action', 'ask') %}
-        {% for t in targets %}
-        # A: a caller may reach RemoteVM {{ t.local_name }} (triggers the rewrite).
-        # Ping/Status are read-only -> allow. Exec runs a command on the remote,
-        # so it defaults to `ask` (dom0 confirms each call); set
+        # A: a caller may reach ANY RemoteVM — @tag:remote-zone is set on every one
+        # by qubesair.RegisterRemoteVM, so a newly provisioned qube is covered
+        # without editing this file. That triggers dom0's transport rewrite.
+        # Ping/Status are read-only -> allow. Exec runs a command on the remote, so
+        # it defaults to `ask` (dom0 confirms each call); set
         # remotevm.grpc.csr.exec_action=allow to skip the prompt for trusted callers.
         {%- for c in callers %}
-        qubesair.Ping   * {{ c }} {{ t.local_name }} allow
-        qubesair.Status * {{ c }} {{ t.local_name }} allow
-        qubesair.Exec   * {{ c }} {{ t.local_name }} {{ exec_action }}
+        qubesair.Ping   * {{ c }} @tag:remote-zone allow
+        qubesair.Status * {{ c }} @tag:remote-zone allow
+        qubesair.Exec   * {{ c }} @tag:remote-zone {{ exec_action }}
         {%- endfor %}
-        {% endfor %}
+        # Any other service to a RemoteVM is denied by default.
+        * * @anyvm @tag:remote-zone deny
         # B: the rewritten transport call lands on the relay's gRPC handler.
         # ([C1]) If R4.3 sources the rewritten call from something other than the
         # original caller, widen the source here — see grpc-transport-design.md.

@@ -88,6 +88,12 @@ register)
         fi
         echo "register: $prop=$val"
     done
+    # Tag as a member of the remote zone so ONE dom0 policy line (@tag:remote-zone)
+    # covers every RemoteVM this channel creates — the local-call policy does not
+    # have to be edited each time a qube is provisioned. Idempotent.
+    if qvm-tags -- "$name" add remote-zone >/dev/null 2>&1; then
+        echo "register: tag remote-zone"
+    fi
     echo "register: DONE — $name -> $remote_name via $relay ($transport)"
     exit 0
     ;;
