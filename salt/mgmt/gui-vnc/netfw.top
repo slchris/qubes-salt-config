@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Runs in dom0 (it pushes the firewall script into the hops with qvm-run).
+# qubesctl cannot run states inside sys-net by default, which is why this is a
+# dom0 state rather than a sys-net one.
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.gui-vnc.netfw

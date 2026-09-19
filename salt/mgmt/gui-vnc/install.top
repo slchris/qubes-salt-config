@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# The template here must match cfg.gui_vnc.template. A Salt top cannot read
+# config.jinja, so if you change the template in config.jinja, change it here
+# too (same caveat as mgmt.remotevm's relay tops).
+
+base:
+  'fedora-43-xfce':
+    - mgmt.gui-vnc.install

@@ -332,6 +332,62 @@ copied wholesale to /srv/salt/slchris by scripts/setup.sh:
 Put them in {data_dir}/secrets.env, mode 0600, owned by the service user, and
 have the systemd unit read it with EnvironmentFile= so the values never appear
 in a unit file, a ps listing or this repository.
+
+gui_vnc — drive THIS machine's desktop from a browser, so the physical monitor
+can be used for something else. Qubes renders every qube's windows into a GUI
+domain; the officially supported remote variant is a VNC GUI domain (Qubes'
+qvm.sys-gui-vnc, built here as mgmt.gui-vnc). This is a different concern from
+qubesair/remotevm, which manage a REMOTE Proxmox fleet, not this machine's own
+console.
+  enabled       master switch; every mgmt.gui-vnc state no-ops when False.
+  template      the XFCE template the GUI domain is built from. Qubes' GUI
+                domain session is XFCE, so this must be an *-xfce template
+                (default fedora-43-xfce). mgmt.gui-vnc.install adds
+                qubes-vm-guivm and the remaining XFCE bits to it.
+  template_repo repo to install `template` from (qvm.template_installed).
+  qube          the GUI domain AppVM. Its netvm is empty on purpose: the qube
+                that composites every window must not also face the network.
+  memory/maxmem/vcpus  sizing. The GUI domain is the memory consumer here, not
+                dom0 — it holds every qube's compositing buffers.
+  vnc_port      where the VNC server inside the GUI domain listens (localhost).
+  autostart     start the GUI domain at boot.
+  default_guivm True on this machine: mgmt.gui-vnc.prefs sets the global
+                `default_guivm` to the GUI domain, so every qube renders there
+                and the physical screen no longer shows qube windows. This does
+                NOT disturb running qubes — they move on their next start, and a
+                reboot puts everything on the GUI domain. Do NOT use
+                `qvm-shutdown --all` to force it: that stops sys-usb (killing a
+                USB keyboard) and the network qubes (dropping SSH). To keep dom0
+                as the default and put only selected qubes on the GUI domain,
+                set this False and `qvm-prefs <qube> guivm <qube>` instead.
+  sync_dom0_password  copy the dom0 user's /etc/shadow hash into the GUI domain
+                so lightdm accepts the password you already know. Qubes' own
+                sys-gui-vnc does the same. The hash lands in a 0600 file (plus a
+                boot-time usermod) inside a qube that has no network. Set False
+                and set the `user` password by hand if you would rather it never
+                leave dom0. You log in as the template's `user` with your dom0
+                password either way.
+  admin_global_permissions  'rwx' | 'ro' | 'none' — Admin API grant appended to
+                the GUI domain's policy includes. 'rwx' matches the Qubes
+                default for a GuiVM.
+  web           the browser front end (noVNC + websockify) in its own qube:
+    enabled       deploy the front end at all.
+    template_source  salt directory to clone the front-end template from.
+    template      cloned template name (default tpl-gui-vnc-web).
+    qube          the front-end AppVM.
+    netvm         its NetVM. Keep sys-firewall: netfw's DNAT is a two-hop path
+                  sys-net -> sys-firewall -> this qube and assumes exactly that
+                  chain. This module is LAN-only by design (see the README); it
+                  does not expose the VNC session over a VPN.
+    listen        websockify bind address:port. 0.0.0.0:6080 is reached only via
+                  the DNAT, which is source-filtered to remote_debug.lan_subnet.
+    target_port   loopback port websockify forwards to; a socat listener there
+                  bridges to the GUI domain's VNC over qrexec.
+    network       only 'portforward' is implemented: ext_port on sys-net's
+                  physical LAN IP, DNAT'd to this qube. Any other value installs
+                  no rules and exposes nothing.
+    ext_port      the LAN port mapped to websockify.
+  keep_qubes    teardown leaves the qubes in place when True.
 -#}
 
 {%- set cfg = {
@@ -478,6 +534,38 @@ in a unit file, a ps listing or this repository.
     "agent_probe_settle_seconds": 300,
     "agent_cert_renew_interval_seconds": 3600,
     "agent_cert_renew_threshold_percent": 33,
+  },
+
+  "gui_vnc": {
+    "enabled": True,
+    "template": "fedora-43-xfce",
+    "template_repo": "qubes-templates-itl",
+    "qube": "sys-gui-vnc",
+    "label": "black",
+    "memory": 2000,
+    "maxmem": 4000,
+    "vcpus": 2,
+    "vnc_port": 5900,
+    "autostart": True,
+    "default_guivm": True,
+    "sync_dom0_password": True,
+    "admin_global_permissions": "rwx",
+    "web": {
+      "enabled": True,
+      "template_source": "debian-minimal",
+      "template": "tpl-gui-vnc-web",
+      "qube": "sys-vncweb",
+      "label": "orange",
+      "netvm": "sys-firewall",
+      "memory": 400,
+      "maxmem": 1500,
+      "vcpus": 2,
+      "listen": "0.0.0.0:6080",
+      "target_port": 5901,
+      "network": "portforward",
+      "ext_port": 6080,
+    },
+    "keep_qubes": False,
   },
 
   "tailscale": {

@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# The qube here must match cfg.gui_vnc.web.qube (a Salt top cannot read
+# config.jinja). Change both together.
+
+base:
+  'sys-vncweb':
+    - mgmt.gui-vnc.web-configure

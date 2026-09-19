@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Aggregate reference for the whole gui-vnc module. Enabling this applies every
+# stage to its proper target in one pass, but qubesctl cannot create-then-
+# configure a brand-new qube in a single highstate, and the template names here
+# cannot read config.jinja — see the module README for the ordered per-stage
+# apply, which is what you should actually run.
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.gui-vnc.clone
+    - mgmt.gui-vnc.create
+    - mgmt.gui-vnc.prefs
+    - mgmt.gui-vnc.web-create
+    - mgmt.gui-vnc.netfw
+  'fedora-43-xfce':
+    - mgmt.gui-vnc.install
+  'tpl-gui-vnc-web':
+    - mgmt.gui-vnc.web-install
+  'sys-vncweb':
+    - mgmt.gui-vnc.web-configure

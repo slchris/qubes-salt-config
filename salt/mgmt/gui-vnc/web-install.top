@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# The template here must match cfg.gui_vnc.web.template (a Salt top cannot read
+# config.jinja). Change both together.
+
+base:
+  'tpl-gui-vnc-web':
+    - mgmt.gui-vnc.web-install
