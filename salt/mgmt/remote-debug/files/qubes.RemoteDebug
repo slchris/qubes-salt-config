@@ -57,6 +57,30 @@ if [[ "$cmdline" =~ ^deploy\ ([a-zA-Z0-9_-]+)$ ]]; then
     fi
 fi
 
+# Dedicated qgrep action: `qgrep <pattern>` greps the installed Qubes python source
+# (read-only) so the RemoteVM class + App Menu filtering can be studied from dom0.
+if [[ "$cmdline" =~ ^qgrep\ ([a-zA-Z0-9._:-]+)$ ]]; then
+    PAT="${BASH_REMATCH[1]}"
+    grep -rnE --include='*.py' -- "$PAT" \
+        /usr/lib/python3*/site-packages/qubes/ \
+        /usr/lib/python3*/site-packages/qui/ \
+        /usr/lib/python3*/site-packages/qubesappmenus/ \
+        /usr/lib/python3*/site-packages/qubes_menu/ 2>/dev/null \
+        | sed 's#/usr/lib/python3[0-9.]*/site-packages/##' | head -40
+    exit 0
+fi
+
+# Dedicated qshow action: `qshow <substr>` prints the first Qubes python file whose path
+# matches <substr> (read-only), for reading the RemoteVM class etc.
+if [[ "$cmdline" =~ ^qshow\ ([a-zA-Z0-9._/-]+)$ ]]; then
+    SUB="${BASH_REMATCH[1]}"
+    case "$SUB" in *..*) echo "no .."; exit 0;; esac
+    f="$(find /usr/lib/python3*/site-packages/qubes /usr/lib/python3*/site-packages/qui \
+            /usr/lib/python3*/site-packages/qubes_menu -type f -name '*.py' -path "*$SUB*" 2>/dev/null | head -1)"
+    [ -n "$f" ] && { echo "=== $f ==="; grep -nE '.' "$f" | head -120; } || echo "not found: $SUB"
+    exit 0
+fi
+
 # Dedicated menu-diag action: `menu-diag <vm>` inspects why a qube does/doesn't show in
 # the App Menu (class, internal, features) vs a reference qube, and forces a menu refresh.
 if [[ "$cmdline" =~ ^menu-diag\ ([a-zA-Z0-9._-]+)$ ]]; then
