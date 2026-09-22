@@ -42,6 +42,7 @@ exactly the problem this module exists to avoid.
 | `create.sls` | dom0 | template prefs, the AppVM, private-volume size |
 | `configure.sls` | `qubesair-console` | split-horizon DNS (qube networking) |
 | `console.sls` | `qubesair-console` | the console **service** — binary, unit, env, data layout (owned separately) |
+| `backup.sls` | `qubesair-console` | the database backup — binary, service, timer, one run per boot |
 
 `configure.sls` and `console.sls` are deliberately disjoint: different state-ID
 prefixes, different files, different `rc.local` marker blocks, and **no shared
@@ -80,6 +81,68 @@ sudo qubesctl --skip-dom0 --targets=qubesair-console state.apply qubesair.config
 #    invisible.
 sudo qubesctl --skip-dom0 --targets=qubesair-console state.apply qubesair.console
 ```
+
+### Backups (optional, but a console whose database exists once is a console you can lose)
+
+`qubesair.backup` deploys the snapshot/encrypt/prune job for the console
+database. It is **off until you finish three steps**, and it says so rather than
+rendering a timer that backs nothing up:
+
+1. **Mount the off-host medium** somewhere and put it in `cfg.qubesair.backup.offhost_dir`.
+   The unit declares `RequiresMountsFor` it, so an unmounted medium fails the
+   backup instead of leaving the only copy on the disk the backup exists to
+   survive. Whether that is LUKS, `qvm-block`, or a network mount is your call —
+   this state does not guess.
+2. **Build and pin the binary.** `qubes-air-backup` is built from the qubes-air
+   Go source and nothing publishes it yet:
+
+   ```bash
+   cd console/backend
+   CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+     go build -trimpath -ldflags="-s -w" -o qubes-air-backup ./cmd/qubes-air-backup
+   cp qubes-air-backup <this repo>/salt/qubesair/files/
+   shasum -a 256 <this repo>/salt/qubesair/files/qubes-air-backup
+   ```
+
+   Put the digest in `cfg.qubesair.backup.binary_sha256`; the state hard-fails
+   without it, for the same reason the console binary is pinned.
+3. **Create the passphrase once, inside the console qube** — and copy it to the
+   off-host medium. It is not recoverable from the archives:
+
+   ```bash
+   # in qubesair-console
+   printf 'QUBES_AIR_BACKUP_PASSPHRASE=%s\n' "$(head -c 32 /dev/urandom | base64)" \
+     > /rw/config/qubesair/backup.env && chmod 0600 /rw/config/qubesair/backup.env
+   ```
+
+   The state enforces that file's mode and owner and refuses to run while it is
+   missing or empty, but it never writes it: a state that owned the passphrase
+   would replace the key on some future apply and orphan every archive written
+   before it.
+
+Then set `cfg.qubesair.backup.enabled: True` and apply:
+
+```bash
+sudo qubesctl --skip-dom0 --targets=qubesair-console state.apply qubesair.backup
+
+# verify, in the qube — run it now rather than the night you need it
+systemctl list-timers qubes-air-backup.timer
+systemctl start qubes-air-backup.service
+journalctl -u qubes-air-backup -n 50
+ls -lt /secure/offhost/*.qab | head
+```
+
+Two things worth knowing before trusting it:
+
+- **The timer alone would not be enough.** It cannot fire while this AppVM is
+  down, and `Persistent=true` does not rescue that here: its missed-run stamp
+  lives under `/var/lib/systemd/timers/`, on the root volume this AppVM discards
+  on every shutdown. So the state also runs one backup per boot
+  (`cfg.qubesair.backup.run_at_boot`). Set that False only if this qube really
+  does run at the scheduled time.
+- **Copy archives back in with `cp -p`.** `prune` orders by mtime, so copies that
+  lose their timestamp look like the newest archives and push the real newest one
+  out of the keep window.
 
 ## Opening the console
 
@@ -263,7 +326,7 @@ A useful negative check — this qube must have nothing listening inbound:
 ss -lntp                               # no sshd, console on 127.0.0.1 only
 ```
 
-## What these four states do NOT do
+## What these states do NOT do
 
 The console **service** — binary, systemd unit, env files, secrets, database and
 resource records — is `console.sls`, not these. What is provided here is the
@@ -291,3 +354,26 @@ no terraform root to copy and no `init` to run. What provisioning does require:
 
 A zone with no registered adapter is refused at operation time rather than
 silently doing nothing.
+
+## Running commands on remote hosts (`qubesair.Exec` / `qubesair.FileCopy`)
+
+Provisioning needs nothing from you here. Running arbitrary commands or copying
+files on a provisioned host is a **separate** capability, and it is off until you
+name the paths:
+
+```jinja
+"agent_exec_allow": ["/usr/bin/qm", "/usr/sbin/pvesm"],   # absolute PROGRAMS
+"agent_filecopy_roots": ["/var/lib/vz/dump"],             # absolute DIRECTORIES
+```
+
+Both are empty by default and **empty means the service is disabled inside the
+guest**: the agent rejects every Exec/FileCopy call rather than allowing all of
+them. `console.sls` writes them into the console's environment (`QUBES_AIR_EXEC_ALLOW`
+/ `QUBES_AIR_FILECOPY_ROOTS`, colon-separated), the console delivers them to each
+new agent with its cloud-init identity, and the agent validates them again on its
+own side. `/` is refused as a FileCopy root. An entry containing `:` is refused —
+that separator is the wire format, and a path that contains one could not be
+delivered unambiguously.
+
+The console validates both lists at startup, so a typo fails the service rather
+than silently delivering an allowlist nobody can use.

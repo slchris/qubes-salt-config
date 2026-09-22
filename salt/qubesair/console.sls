@@ -352,6 +352,15 @@ Deploy (from dom0), after the console qube exists and is running:
         QUBES_AIR_AGENT_LISTEN={{ qa.get('agent_listen', '0.0.0.0:8443') }}
         QUBES_AIR_AGENT_REVOCATION_URL={{ qa.get('agent_revocation_url', '') }}
         QUBES_AIR_AGENT_ALLOWED_SERVICES={{ qa.get('agent_allowed_services', ['qubesair.Ping']) | join(',') }}
+        # COLON-separated, unlike the comma-separated lists above: the console
+        # splits these two on ':' because that is the exact format it delivers to
+        # the guest in agent.env, so a value pasted from either side means the
+        # same thing. Paths cannot contain ':', and the console refuses one that
+        # does. An empty value is unset — which leaves the service disabled
+        # inside the guest, because the guest's own default is to reject every
+        # Exec/FileCopy call rather than to allow all of them.
+        QUBES_AIR_EXEC_ALLOW={{ qa.get('agent_exec_allow', []) | join(':') }}
+        QUBES_AIR_FILECOPY_ROOTS={{ qa.get('agent_filecopy_roots', []) | join(':') }}
         QUBES_AIR_PROXMOX_SSH_KEY_FILE={{ pve_ssh_key }}
         QUBES_AIR_PROXMOX_SSH_USERNAME={{ qa.get('pve_ssh_username', 'root') }}
         QUBES_AIR_PROXMOX_SSH_KNOWN_HOSTS_FILE={{ qa.get('pve_ssh_known_hosts_file', pve_ssh_dir ~ '/pve_known_hosts') }}

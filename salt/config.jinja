@@ -266,6 +266,54 @@ together can rebuild the whole remote fleet.
                 so rotating a certificate would mean REBUILDING the qube, and
                 since every certificate in a rollout is issued within the same
                 few minutes they would all expire on the same day.
+  agent_exec_allow / agent_filecopy_roots
+                the two path allowlists the console DELIVERS to each new agent
+                (as QUBESAIR_EXEC_ALLOW / QUBESAIR_FILECOPY_ROOTS in the guest's
+                agent.env). Both default to empty, and empty means the service is
+                DISABLED inside the guest: the agent rejects every Exec/FileCopy
+                call rather than allowing all of them. That direction is the
+                whole design — an empty default that meant "allow everything"
+                would run operator-supplied commands as root on every remote
+                host. Set them only when something actually needs to run there:
+                Exec entries are absolute PROGRAM paths, FileCopy entries are
+                absolute DIRECTORIES ("/" is refused by the console, since it
+                would allow every path). Colon-separated on the wire, so an entry
+                containing ':' is rejected — do not write one.
+  backup        the console database snapshot: create + encrypt + prune, in the
+                qubesair.backup state. Keys:
+                  enabled       master switch; the state no-ops when False.
+                  offhost_dir   the mounted off-host medium the archives land on.
+                                Must be a MOUNT: the unit declares
+                                RequiresMountsFor it, so an unmounted medium fails
+                                the backup instead of leaving the only copy on the
+                                disk the backup exists to survive. Mounting it is
+                                the operator's job — this state does not guess
+                                whether that is LUKS, qvm-block, or a network
+                                mount.
+                  keep          archives kept, newest by mtime. The real bound is
+                                not disk: an archive is openable only while the
+                                passphrase AND every keyring version it references
+                                still exist, so a very large keep can hold
+                                archives that no longer decrypt.
+                  schedule      OnCalendar expression. The timer cannot fire
+                                while the AppVM is down, and Persistent=true does
+                                not cover that here: its missed-run stamp lives on
+                                the root volume, which this AppVM discards on
+                                every shutdown. Which is why the state also runs
+                                one backup per boot.
+                  run_at_boot   set False to drop that boot-time run and rely on
+                                the schedule alone. Only correct if this qube
+                                actually runs at the scheduled time.
+                  user          defaults to service_user. Set it to root only if
+                                the off-host medium is root-only; the passphrase
+                                file's owner follows this same key, so the unit
+                                and the file it reads cannot drift apart.
+                  binary_source / binary_sha256
+                                the qubes-air-backup binary, delivered and pinned
+                                exactly like the console binary above. The digest
+                                has no default and qubesair.backup hard-fails
+                                without it. Nothing publishes this binary yet —
+                                build it with the recipe in that failure message.
 
 qubesair secrets — NONE of these belong in this file, which is committed and is
 copied wholesale to /srv/salt/slchris by scripts/setup.sh:
@@ -471,6 +519,17 @@ console.
     "agent_probe_settle_seconds": 300,
     "agent_cert_renew_interval_seconds": 3600,
     "agent_cert_renew_threshold_percent": 33,
+    "agent_exec_allow": [],
+    "agent_filecopy_roots": [],
+    "backup": {
+      "enabled": False,
+      "offhost_dir": "/secure/offhost",
+      "keep": 14,
+      "schedule": "*-*-* 03:30:00",
+      "run_at_boot": True,
+      "binary_source": "salt://qubesair/files/qubes-air-backup",
+      "binary_sha256": "",
+    },
   },
 
   "gui_vnc": {

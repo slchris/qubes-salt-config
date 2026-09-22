@@ -8,9 +8,14 @@
 
 # The Qubes Air console binary is cross-compiled by hand into the salt tree
 # (see salt/qubesair/files/README.md). It is a ~30MB build artifact, not
-# source, and it is pinned by cfg.qubesair.console.binary_sha256 — so the
+# source, and it is pinned by cfg.qubesair.console_binary_sha256 — so the
 # digest in config.jinja is what gets reviewed, not the blob.
 /salt/qubesair/files/qubes-air-console
+
+# Same treatment for the backup tool qubesair.backup runs: it also needs
+# CGO_ENABLED=1 for linux/amd64 (the database driver is cgo), and it is pinned
+# by cfg.qubesair.backup.binary_sha256, which has no default.
+/salt/qubesair/files/qubes-air-backup
 
 # Python
 __pycache__/
