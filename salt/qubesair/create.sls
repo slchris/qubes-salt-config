@@ -47,8 +47,8 @@ Deploy (from dom0):
 include:
   - {{ slsdotpath }}.clone
 
-{# The template holds the toolchain but never runs terraform, so it stays small.
-   The AppVM below is where terraform actually plans and gets the memory. #}
+{# The template holds the runtime packages but does no provisioning, so it stays
+   small. The AppVM below is where provider calls run and gets the memory. #}
 {% load_yaml as defaults -%}
 name: {{ template }}
 force: True
@@ -81,7 +81,7 @@ features:
    up when someone means to use it rather than on every boot. Turn it on with
    `qvm-prefs {{ qube }} autostart True` once the console runs as a service.
 
-   Memory is sized for terraform, not for the console: a plan across the fleet
+   Memory is sized for provisioning, not for the console: an operation across the fleet
    plus the bpg/proxmox provider needs considerably more than the 400MB the
    other AppVMs in config.jinja use, and the machine only has ~3.9G. #}
 {% load_yaml as defaults -%}
@@ -108,11 +108,9 @@ features:
 {%- endload %}
 {{ load(defaults) }}
 
-{# The default 2G private volume does not hold the terraform provider cache
-   (~200MB), the .terraform directory, the SQLite database and the agent
-   identity documents at once. terraform's failure mode when it runs out of
-   space mid-apply is a half-written state file, i.e. a fleet whose real shape
-   and recorded shape have diverged — much more expensive than the disk.
+{# The default 2G private volume does not hold the SQLite database, the agent
+   identity documents and the provider's local state at once. Running out of
+   space mid-provision is the failure mode this avoids.
 
    qvm-volume can only GROW a volume, so the guard compares sizes and skips
    rather than attempting a shrink (which errors out and fails the run) when the

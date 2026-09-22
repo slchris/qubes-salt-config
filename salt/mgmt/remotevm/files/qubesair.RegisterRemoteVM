@@ -4,8 +4,9 @@
 #
 # qrexec service: qubesair.RegisterRemoteVM  (runs in dom0)
 #
-# The console provisions a qube with terraform and knows it exists; dom0 does
-# not, because the console writes terraform, not qvm-prefs. This is the channel
+# The console provisions a qube through provider APIs and knows it exists; dom0
+# does not, because the console writes provider state, not qvm-prefs. This is
+# the channel
 # that closes that gap: the console asks dom0 to register (or drop) a RemoteVM
 # addressing shell so local qubes can reach the provisioned machine through the
 # relay, with dom0 policy in front.
@@ -35,7 +36,7 @@ DEFAULT_TRANSPORT='{{ transport }}'
 
 # A RemoteVM this channel may manage. Scoped to the console's naming so a bug or
 # a compromised console cannot name sys-net, dom0, a template, or the relay. Keep
-# in step with the console's qube naming (QubeService / terraform remote_qubes).
+# in step with the console's qube naming (QubeService / provider resource records).
 NAME_RE='^remote-[a-zA-Z0-9._-]+$'
 # The remote_name is the qube's own name on the far side; looser, but still no
 # shell metacharacters or whitespace.

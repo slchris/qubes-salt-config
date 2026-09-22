@@ -21,7 +21,7 @@ name has to keep working.
 Why a local dnsmasq rather than just writing the resolver into resolv.conf:
 resolv.conf can only express "ask these servers, in order", not "ask THIS server
 for THAT zone". Handing every query to 10.31.0.252 makes the console's public
-DNS (registry.terraform.io for `terraform init`, among others) depend on an
+DNS (public names, among others) depend on an
 internal resolver recursing for the whole internet — and if it does not, it
 answers NXDOMAIN, which glibc treats as a real answer and never retries against
 the next nameserver. Split-horizon forwarding keeps internal names internal and
@@ -42,7 +42,6 @@ Deploy (from dom0):
     states that each think they set its mode is how a 0700 secrets directory
     quietly becomes 0755. #}
 {%- set net_dir = qa.get('net_dir', '/rw/config/qubesair-net') -%}
-{%- set tfrc = qa.get('terraform_cli_config', '/etc/terraform/cli.tfrc') -%}
 
 {#- Which names go to the internal resolver. Derived from pve_endpoint by
     default — both the exact host and its parent zone — so that changing the
@@ -71,22 +70,6 @@ Deploy (from dom0):
     - group: root
     - mode: '0755'
     - makedirs: True
-
-# terraform reads $HOME/.terraformrc or $TF_CLI_CONFIG_FILE and nothing else.
-# The template ships /root/.terraformrc; /home is the private volume, which the
-# template cannot reach, so the `user` case is covered here. This is for
-# INTERACTIVE use — the console service runs with its own HOME and ProtectHome=yes
-# (see qubesair.console), so it needs TF_CLI_CONFIG_FILE set in its unit
-# instead; without that the service ignores the seeded provider mirror and goes
-# to the registry, which merely makes `terraform init` slower until the day the
-# registry is unreachable from this network and it fails outright.
-"qubesair-user-terraformrc":
-  file.symlink:
-    - name: /home/user/.terraformrc
-    - target: {{ tfrc }}
-    - user: user
-    - group: user
-    - force: True
 
 # --- 2. Split-horizon DNS ----------------------------------------------------
 {% if not internal_dns %}

@@ -4,8 +4,8 @@ SPDX-License-Identifier: MIT
 
 Install the console's channel for registering RemoteVMs (dom0).
 
-The console provisions qubes with terraform; dom0 has no way to learn they
-exist, because the console writes terraform, not qvm-prefs (config.jinja says as
+The console provisions qubes through provider APIs; dom0 has no way to learn they
+exist, because the console writes provider state, not qvm-prefs (config.jinja says as
 much under `remotevm.targets`). This ships a SCOPED qrexec service the console
 calls to register a provisioned qube as a RemoteVM addressing shell, and a
 policy that lets ONLY the console qube call it.

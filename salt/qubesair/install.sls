@@ -14,20 +14,12 @@ here.
 NOT in /usr/local, though. An AppVM mounts its private volume's usrlocal
 subdirectory over /usr/local (`findmnt /usr/local` in a running AppVM shows
 /dev/xvdb[/usrlocal]), which completely masks whatever the template has there.
-A terraform installed to the template's /usr/local/bin is therefore invisible in
-every AppVM built from it, while the state that installed it reports success —
-measured here, where the file was present in tpl-qubesair and absent in
-qubesair-console. Template-wide binaries belong on the root volume: /usr/bin.
+Template-wide binaries belong on the root volume: /usr/bin.
 
-The inverse is also true and worth stating, since it is what makes the trap
-convincing: /usr/local in an AppVM IS persistent, because it is on the private
-volume. It is the per-qube place, not the template place.
-
-debian-13-minimal ships none of this: terraform, sqlite3, curl and git are all
-absent (measured on the target machine). The console does not embed terraform,
-it execs it, so terraform is a hard prerequisite — without it every start/stop
-fails at exec time with "executable file not found", AFTER the API call has
-already reported success to the caller.
+debian-13-minimal ships none of this: the console's runtime dependencies
+(sqlite3, dnsmasq, dig, an SSH client) are all absent (measured on the target
+machine). The console is a self-contained binary: it drives provider APIs with
+Go's own HTTP/TLS stack and does no exec of terraform or any other tool.
 
 Deploy (from dom0):
   sudo qubesctl --skip-dom0 --targets=tpl-qubesair state.apply qubesair.install
@@ -36,79 +28,6 @@ Deploy (from dom0):
 {%- from 'config.jinja' import cfg with context -%}
 {%- set qa = cfg.get('qubesair', {}) -%}
 {%- set m = cfg.get('mirror', {}) -%}
-
-{%- set tf_bin = qa.get('terraform_binary', '/usr/bin/terraform') -%}
-{%- set tf_version = qa.get('terraform_version', '1.9.8') -%}
-{%- set tf_url = qa.get('terraform_url',
-      'https://releases.hashicorp.com/terraform/' ~ tf_version ~
-      '/terraform_' ~ tf_version ~ '_linux_amd64.zip') -%}
-
-{#- Known-good digests of the OFFICIAL terraform release zips (linux_amd64),
-    taken from HashiCorp's own terraform_<v>_SHA256SUMS. They are a FALLBACK for
-    when cfg.qubesair.terraform_sha256 is left empty — which it currently is —
-    so that a stock deploy still verifies what it downloads instead of either
-    failing or, far worse, installing an unchecked binary.
-
-    cfg always wins when set, so pointing terraform_url at a mirror or at the
-    LAN artifact store only requires pasting that copy's digest into
-    config.jinja. Extend this map when bumping terraform_version:
-      curl -s https://releases.hashicorp.com/terraform/<v>/terraform_<v>_SHA256SUMS | grep linux_amd64 -#}
-{%- set tf_known_sha = {
-      '1.9.8':  '186e0145f5e5f2eb97cbd785bc78f21bae4ef15119349f6ad4fa535b83b10df8',
-      '1.15.8': 'd25ce7b6902013ad905db3d2eab0be4cd905887fe88b81a6171b8d5503c31f3d',
-    } -%}
-{%- set tf_sha = qa.get('terraform_sha256', '') or tf_known_sha.get(tf_version, '') -%}
-{%- set tf_https = tf_url.startswith('https://') -%}
-
-{#- Terraform provider mirror. The bpg/proxmox pin matches the version and the
-    zip digest already recorded in qubes-air's terraform/.terraform.lock.hcl
-    (the lock file's "zh:" hash for a provider IS the release zip's SHA256), so
-    this digest is corroborated by a file the console repo already trusts rather
-    than being a number typed in here. #}
-{%- set mirror_dir = qa.get('terraform_mirror_dir', '/usr/share/terraform/providers') -%}
-{%- set tfrc = qa.get('terraform_cli_config', '/etc/terraform/cli.tfrc') -%}
-{%- set providers = qa.get('terraform_providers', [
-      {'source': 'registry.terraform.io/bpg/proxmox',
-       'version': '0.111.1',
-       'url': 'https://github.com/bpg/terraform-provider-proxmox/releases/download/v0.111.1/terraform-provider-proxmox_0.111.1_linux_amd64.zip',
-       'sha256': '6ed47bc00d0913a1d0880618fa1376115e9edab6b4a658c081061a7f0e4ca360'},
-    ]) -%}
-
-{#- Shell preamble shared by every download in this state. Defined once because
-    it was previously written out twice and the two copies drifted: a fix applied
-    to the terraform download left the provider download still sourcing a file
-    that does not exist, and the second failure looked like a different problem.
-
-    A TemplateVM has NO netvm. Its only route out is the Qubes update proxy, and
-    salt does not source profile scripts, so a curl with no proxy set here does
-    not reach anything.
-
-    The address is read from apt's own config, which is where
-    qubes-core-agent-networking actually writes it (/etc/apt/apt.conf.d/01qubes-proxy,
-    `Acquire::http::Proxy "http://..."`). This used to source
-    /etc/profile.d/qubes-proxy.sh, which does not exist on debian-13-minimal
-    (qubes-core-agent 4.3.45) — guarded by `-r`, so it set no proxy and curl
-    reported a connection failure for a host that is in fact reachable.
-
-    Both http_proxy and https_proxy are set: only https_proxy was enough while
-    the URLs were https://, and silently was not once they pointed at a
-    plain-HTTP mirror on the LAN.
-
-    Stored WITHOUT leading indentation. Both call sites sit inside a "- name: |"
-    block scalar and interpolate it through the indent(8) filter, placed behind
-    eight literal spaces: the spaces indent the first line, the filter indents
-    the rest. Carrying the indentation inside the value instead does not survive
-    the whitespace-trimming set tag below — it eats the first line's spaces, and
-    the result is a block scalar that fails to parse (salt exits 20 with a
-    render error rather than anything naming indentation). -#}
-{%- set qubes_proxy_preamble -%}
-if [ -z "${http_proxy:-}${HTTP_PROXY:-}${https_proxy:-}${HTTPS_PROXY:-}" ]; then
-  qproxy="$(sed -n 's/^Acquire::http::Proxy *"\(.*\)".*/\1/p' \
-                /etc/apt/apt.conf.d/01qubes-proxy 2>/dev/null | head -n1)"
-  : "${qproxy:=http://127.0.0.1:8082/}"
-  export http_proxy="$qproxy" https_proxy="$qproxy"
-fi
-{%- endset -%}
 
 {% if grains['nodename'] != 'dom0' %}
 {% if qa.get('enabled', False) %}
@@ -150,12 +69,9 @@ include:
       # to read a log. It does not weaken the boundary that matters here — the
       # user account can already read the console's data directory.
       - qubes-core-agent-passwordless-root
-      # Fetching + verifying the terraform and provider archives below.
+      # The console verifies the PVE API's TLS certificate with the system CA
+      # pool; a minimal template may not ship it.
       - ca-certificates
-      - curl
-      - unzip
-      # The console shells out to terraform, which uses git for module sources.
-      - git
       # The console links its own SQLite driver; this is the operator's only way
       # to inspect the database when the API is the thing being debugged.
       - sqlite3
@@ -169,190 +85,13 @@ include:
       #
       # bind9-dnsutils, not dnsutils: the transitional `dnsutils` package is gone
       # in Debian 13 (trixie) — `apt-cache policy dnsutils` reports no candidate
-      # at all — and this template is built from debian-13-minimal. The old name
-      # failed the whole pkg.installed state, which then took both dnsmasq states
-      # down with it as unmet requisites: 5 failures whose visible cause was
-      # "requisite failed", three steps away from the one package that was wrong.
+      # at all — and this template is built from debian-13-minimal.
       - bind9-dnsutils
-      # SSH client only. The bpg/proxmox provider speaks SSH natively (Go), so
-      # this is not a hard dependency of the provider — it is here because
-      # uploading cloud-init snippets over SFTP to the PVE nodes is the most
-      # fragile step in provisioning (bootstrap-design.md §4) and diagnosing it
-      # from anywhere other than this qube reproduces none of the conditions.
+      # SSH client only. Uploading the cloud-init snippet writes
+      # /var/lib/vz/snippets/ on the node over SSH and the PVE API has no
+      # endpoint for it (still true in PVE 9.2), so the console needs an SSH
+      # client to provision.
       - openssh-client
-
-{% if not tf_sha %}
-
-# Refuse rather than install an unverified binary. This mirrors what the console
-# itself does with the agent package: a URL with no digest is rejected at
-# startup on purpose. terraform is handed the PVE API token and drives the whole
-# cluster, so an unpinned download is a straight path from "anyone on the
-# network path" to "root on every remote qube".
-"qubesair-terraform-digest-required":
-  test.fail_without_changes:
-    - name: |
-        cfg.qubesair.terraform_sha256 is empty and this state has no built-in
-        digest for terraform {{ tf_version }}, so the download cannot be
-        verified and terraform was NOT installed.
-
-        Fix by pasting the digest into salt/config.jinja:
-          curl -s https://releases.hashicorp.com/terraform/{{ tf_version }}/terraform_{{ tf_version }}_SHA256SUMS \
-            | grep linux_amd64
-        or pin a version this state already knows: {{ tf_known_sha.keys() | join(', ') }}.
-    - failhard: True
-
-{% elif tf_version not in tf_url %}
-
-# Fails closed anyway (the digest would not match), but the bare
-# "sha256sum: WARNING: 1 computed checksum did NOT match" that produces sends
-# people hunting for a compromised mirror instead of a stale URL.
-"qubesair-terraform-version-url-mismatch":
-  test.fail_without_changes:
-    - name: |
-        cfg.qubesair.terraform_version is {{ tf_version }} but terraform_url
-        does not mention that version:
-          {{ tf_url }}
-        The digest is selected by VERSION, so these must agree. Update both.
-    - failhard: True
-
-{% else %}
-
-# Download, VERIFY, then install — in that order, in one shell so a failed
-# verification can never be followed by an install. The archive is unpacked into
-# a temp dir that the trap removes, so a rejected binary is not left behind for
-# someone to "just chmod +x" later.
-#
-# Source: the pinned release zip from releases.hashicorp.com, checked against a
-# digest that travels with this repo. Chosen over the two alternatives:
-#
-#   - HashiCorp's apt repo (apt.releases.hashicorp.com) is GPG-signed, but it
-#     FLOATS: `apt-get install terraform` gives whatever is newest that day, so
-#     two templates built a week apart run different terraform against the same
-#     cluster and nothing records which. It also has no CN mirror — this repo
-#     already dropped VS Code from templates.dev.install for exactly that
-#     failure (packages.microsoft.com unreachable often enough to break the
-#     whole install), and apt.releases.hashicorp.com is the same shape of bet.
-#
-#   - The LAN artifact store at 10.31.0.2 is fast and always reachable, but it
-#     serves over plain HTTP with no TLS and no signature (bootstrap-design.md
-#     §6.4). That is ACCEPTABLE — but only because the digest travels a
-#     different, trusted channel (this repo -> scripts/setup.sh -> dom0
-#     /srv/salt) than the bytes do, which is the same argument that makes the
-#     agent .deb safe. It is not preferable, because it adds a publish step
-#     whose failure mode is a stale binary served under the right name. Point
-#     terraform_url there when the upstream link is unusable; the digest check
-#     below is unchanged and becomes the ONLY thing standing between the LAN
-#     and root on the cluster.
-"qubesair-terraform-install":
-  cmd.run:
-    - name: |
-        set -eu
-        tmp="$(mktemp -d)"
-        trap 'rm -rf "$tmp"' EXIT
-        {{ qubes_proxy_preamble | indent(8) }}
-        curl -fsSL {% if tf_https %}--proto '=https' --tlsv1.2 {% endif %}-o "$tmp/terraform.zip" '{{ tf_url }}'
-        echo '{{ tf_sha }}  '"$tmp/terraform.zip" | sha256sum -c -
-        unzip -q -o "$tmp/terraform.zip" -d "$tmp"
-        install -D -m 0755 -o root -g root "$tmp/terraform" '{{ tf_bin }}'
-    - runas: root
-    - require:
-      - pkg: qubesair-packages
-    {#- Pins DOWNWARD as well as upward: a terraform that is not exactly the
-        configured version is replaced, so an ad-hoc upgrade inside the template
-        does not silently become the version driving the cluster. #}
-    - unless: test -x '{{ tf_bin }}' && '{{ tf_bin }}' version | head -n1 | grep -qx 'Terraform v{{ tf_version }}'
-
-{% endif %}
-
-# --- Provider mirror ---------------------------------------------------------
-# `terraform init` reaches out to registry.terraform.io on every run. Seeding a
-# filesystem mirror makes the provider that actually matters here — bpg/proxmox,
-# the one holding the PVE token — come from a byte-for-byte pinned copy instead
-# of whatever the registry serves at apply time, and lets init work when the
-# registry is slow or blocked from this network.
-{% for p in providers %}
-{%- set parts = p.get('source', '').split('/') %}
-{%- if parts | length == 3 %}
-{%- set p_host = parts[0] %}
-{%- set p_ns = parts[1] %}
-{%- set p_type = parts[2] %}
-{%- set p_zip = mirror_dir ~ '/' ~ p_host ~ '/' ~ p_ns ~ '/' ~ p_type ~ '/terraform-provider-' ~ p_type ~ '_' ~ p.version ~ '_linux_amd64.zip' %}
-
-{% if p.get('sha256', '') %}
-# "packed" filesystem_mirror layout: terraform expects the release zip itself,
-# named exactly as the registry names it, under <host>/<namespace>/<type>/.
-"qubesair-provider-{{ p_type }}":
-  cmd.run:
-    - name: |
-        set -eu
-        tmp="$(mktemp -d)"
-        trap 'rm -rf "$tmp"' EXIT
-        {{ qubes_proxy_preamble | indent(8) }}
-        curl -fsSL -o "$tmp/provider.zip" '{{ p.url }}'
-        echo '{{ p.sha256 }}  '"$tmp/provider.zip" | sha256sum -c -
-        install -D -m 0644 -o root -g root "$tmp/provider.zip" '{{ p_zip }}'
-    - runas: root
-    - require:
-      - pkg: qubesair-packages
-    - unless: |
-        set -eu
-        test -f '{{ p_zip }}' || exit 1
-        echo '{{ p.sha256 }}  {{ p_zip }}' | sha256sum -c - >/dev/null 2>&1
-{% else %}
-"qubesair-provider-{{ p_type }}-digest-required":
-  test.fail_without_changes:
-    - name: |
-        Provider {{ p.source }} {{ p.version }} has no sha256 in
-        cfg.qubesair.terraform_providers — not mirrored. A provider runs with
-        the PVE credentials; it is not installed unverified.
-    - failhard: True
-{% endif %}
-{%- endif %}
-{% endfor %}
-
-# Only the mirrored providers are pinned to the mirror; everything else still
-# resolves from the registry, so this does not silently break `terraform init`
-# for a provider nobody remembered to mirror (qubes-air's terraform/main.tf also
-# declares hashicorp/google and hashicorp/aws — see this module's README).
-"qubesair-terraform-cli-config":
-  file.managed:
-    - name: {{ tfrc }}
-    - makedirs: True
-    - mode: '0644'
-    - user: root
-    - group: root
-    - contents: |
-        # SPDX-License-Identifier: MIT — managed by qubesair.install
-        provider_installation {
-          filesystem_mirror {
-            path    = "{{ mirror_dir }}"
-            include = [
-        {%- for p in providers %}
-              "{{ p.source }}",
-        {%- endfor %}
-            ]
-          }
-          direct {
-            exclude = [
-        {%- for p in providers %}
-              "{{ p.source }}",
-        {%- endfor %}
-            ]
-          }
-        }
-
-# terraform has no system-wide config path on Linux — it reads $HOME/.terraformrc
-# or $TF_CLI_CONFIG_FILE and nothing else. /root/.terraformrc is on the root
-# volume, so shipping the symlink in the TEMPLATE is what makes it survive the
-# AppVM's reboot reset. The `user` case is handled in qubesair.configure, since
-# /home is the private volume and the template cannot reach it.
-"qubesair-terraform-root-rc":
-  file.symlink:
-    - name: /root/.terraformrc
-    - target: {{ tfrc }}
-    - force: True
-    - require:
-      - file: qubesair-terraform-cli-config
 
 # Bind dnsmasq to loopback from the very first second of boot. Debian's default
 # listens on every interface: qubesair.configure only rewrites the resolver

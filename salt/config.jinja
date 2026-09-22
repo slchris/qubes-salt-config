@@ -85,14 +85,15 @@ were refused: a configuration gap, not a missing feature.
             differ, QubesDB /remote/<local_name> holds the mapping); host is the
             SSH destination the relay uses to reach the remote host.
             dom0 has NO way to discover a qube the console provisioned — the
-            console writes terraform, not qvm-prefs — so anything not listed
+            console writes provider state, not qvm-prefs — so anything not listed
             here is simply unreachable from this machine no matter how healthy
             it is on the PVE side. Keep it in step with the console's fleet.
             host is consumed ONLY by mgmt.remotevm.relay (the SSHProxy
             transport), which writes it into the relay's ~/.ssh/config. The
             gRPC transport (mgmt.remotevm.grpc-relay) ignores it and dials
-            remotevm.grpc.remote_endpoint instead. Fill host from the address
-            terraform reports before applying the SSHProxy relay state; an
+            remotevm.grpc.remote_endpoint instead. Fill host from the address the
+            console publishes (QubesDB /remote-endpoint/<name>) before applying
+            the SSHProxy relay state; an
             empty host renders "HostName " and every ssh attempt fails.
   services  the allow-list of qrexec services the local side may invoke on a
             RemoteVM. Each entry punches a cross-machine hole, so list only
@@ -113,7 +114,7 @@ were refused: a configuration gap, not a missing feature.
 remotevm.register_callers — which qubes may call qubesair.RegisterRemoteVM, the
 dom0 service that registers a provisioned qube as a RemoteVM addressing shell.
 The console is the intended caller: it is the only thing that knows the fleet,
-since it writes terraform rather than qvm-prefs. mgmt-jump is listed too, and
+since it writes provider state rather than qvm-prefs. mgmt-jump is listed too, and
 that grants it nothing new — its qubes.RemoteDebug whitelist already allows
 `qubesctl state.apply`, which can create RemoteVMs through mgmt.remotevm.create.
 Having it here means manual registration (and verifying the channel on a machine
@@ -130,7 +131,7 @@ Scoped to the console qube, which is the only thing that needs it.
 qubesair — the Qubes Air console: a DEDICATED template plus an AppVM built from
 it. Deliberately NOT mgmt-jump. mgmt-jump accepts inbound SSH (see
 remote_debug), and a qube anyone on the LAN can knock on must not also hold the
-PVE API credentials, the agent CA private key, and the terraform state that
+PVE API credentials, the agent CA private key, and the provider credentials that
 together can rebuild the whole remote fleet.
   enabled       master switch; the qubesair states no-op when False, so the rest
                 of this block can be filled in and reviewed before deploying.
@@ -158,82 +159,28 @@ together can rebuild the whole remote fleet.
                 validation of a perfectly good Let's Encrypt certificate on the
                 one connection that carries the PVE API token. Fixing DNS keeps
                 the name, and therefore keeps the certificate meaningful.
-  memory/maxmem/vcpus  sizing. terraform is the memory consumer here, not the
-                console; a plan over a few dozen qubes plus the bpg/proxmox
-                provider wants noticeably more than the 400MB the other AppVMs
-                in this file use.
+  memory/maxmem/vcpus  sizing. Provisioning is the memory consumer here, not the
+                console; a large fleet operation wants noticeably more than the
+                400MB the other AppVMs in this file use.
   private_size  the AppVM private volume. The default 2G does not comfortably
-                hold the terraform provider cache (~200MB), the .terraform
-                directory, the SQLite database and the agent identity documents
-                at once, and terraform's failure mode when it runs out of space
-                mid-apply is a half-applied state file.
+                hold the SQLite database, the agent identity documents and the
+                provider's local state at once.
   listen        host:port the console binds. Loopback by default: the console
                 has NO TLS and its API token is the only thing in front of it,
                 so binding 0.0.0.0 publishes an unencrypted control plane for
                 the entire fleet to the LAN. Reach it over SSH port-forward.
   data_dir      persistent root for everything the console writes. An AppVM's
                 root volume is RESET on every reboot — only /rw and /home
-                survive — so the database, keys and terraform state must live
+                survive — so the database, keys and resource records must live
                 under /rw or they are silently recreated empty after a restart.
                 Files that must appear elsewhere in the filesystem (unit files,
                 /etc/qubes-rpc services) are bind-mounted from here via
                 bind-dirs, the same pattern mgmt.tailscale.configure uses.
   database_dsn  SQLite path. Env: QUBES_AIR_DATABASE_DSN.
   orchestrator_enabled  False makes the console a mock: start/stop flip the
-                database row and never invoke terraform. True is what actually
-                provisions, and it makes terraform_dir mandatory (the console
-                refuses to start otherwise).
-  terraform_dir the terraform root the console shells out in. Env:
-                QUBES_AIR_TERRAFORM_DIR.
-  terraform_var_file  the OPERATOR-owned base var-file: endpoint, node, zone
-                toggles. It must NOT define remote_qubes.
-  terraform_generated_var_file  the CONSOLE-owned var-file holding remote_qubes
-                rendered from the database. It is always passed AFTER
-                terraform_var_file because terraform lets the last -var-file win
-                for a given variable, and terraform replaces maps wholesale
-                rather than merging them. Define remote_qubes in the base file
-                too and whichever file loses the ordering silently erases the
-                other's view of the fleet — the console's qubes vanish from the
-                plan and the next apply destroys them.
-  terraform_binary / terraform_version / terraform_url / terraform_sha256
-                terraform is NOT packaged in Debian and is absent from
-                debian-13-minimal, along with sqlite3, curl and git. The console
-                does not embed terraform, it execs it, so this is a hard
-                prerequisite and not an optional extra: without it every
-                start/stop fails at exec time with "executable file not found",
-                after the API call has already reported success.
-                terraform_sha256 is the digest of the release zip, and config
-                always wins. Empty does NOT mean unverified: install.sls carries
-                known-good digests of HashiCorp's official linux_amd64 zips and
-                falls back to the one for terraform_version, refusing to install
-                if it has neither. The trap is pointing terraform_url at a mirror
-                while leaving this empty — the built-in digest is the official
-                zip's, so any mirror copy that is not byte-identical fails a
-                check whose message names neither the mirror nor the fallback.
-                Set it whenever the URL is not releases.hashicorp.com.
-  terraform_providers  provider mirror entries (source/version/url/sha256) for
-                `terraform init` without registry access. Same rule: a mirrored
-                URL needs its own digest here. The bpg/proxmox digest currently
-                set is cross-checked against the zh: entry already recorded in
-                qubes-air's terraform/.terraform.lock.hcl, so a second source
-                committed at a different time agrees with it.
-                Both terraform and the provider are served from the LAN artifact
-                store rather than releases.hashicorp.com / GitHub: the console
-                qube reaches 10.31.0.2 but not necessarily the internet, and the
-                agent .deb already comes from there. Each was downloaded on a
-                workstation, checked against the publisher's own SHA256SUMS,
-                uploaded, and read back from the store to confirm the bytes it
-                serves match what was sent.
-  orchestrator_enabled  ships False so a first apply reaches a RUNNING console.
-                Enabling it makes the preflight require a populated terraform
-                root, and nothing in this module populates one — the roots live
-                in the qubes-air repo and need `terraform init` against the
-                provider mirror. A fresh deploy with this True therefore fails
-                at ExecStartPre every time, which reads as "the states are
-                broken" rather than "one manual step is outstanding". To turn
-                provisioning on, see README "Enabling orchestration": copy the
-                terraform root into data_dir/terraform, run terraform init
-                there, then flip this and re-apply qubesair.console.
+                database row and never call a provider. True is what actually
+                provisions, via the zone's provider adapter. A zone with no
+                registered adapter is refused at operation time.
   console_binary_source / console_binary_sha256
                 qubesair.console HARD-FAILS while the digest is empty rather
                 than installing something unverified: the console holds the PVE
@@ -306,7 +253,7 @@ together can rebuild the whole remote fleet.
                 forever, which has wedged this console before.
   agent_probe_settle_seconds    how long after a provision or resume the console
                 keeps retrying before calling an agent unreachable. A fresh qube
-                CANNOT answer when terraform returns — cloud-init only starts
+                CANNOT answer when the provider returns — cloud-init only starts
                 fetching the agent once the VM has reported its address — so
                 probing once at job completion would mark every healthy qube
                 unreachable. Bounded rather than infinite so a genuinely broken
@@ -486,9 +433,9 @@ console.
   "qubesair": {
     "ui_clients": ["slchris_homelab", "mgmt-jump"],
     "console_web_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console-web.tar.gz",
-    "console_web_sha256": "22fceda89d42572de1f94db4963fc368f035e85964f43502ea156f8d6b4b71c0",
-    "console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console",
-    "console_binary_sha256": "20c0c3f3284f2d9fdd36009c905559cf9b70972e91d05b37ff8c90cf0e8adb0a",
+    "console_web_sha256": "455c2975d16d3375cdffa407123751672555ead1c3011d6d960faec7f0da1f45",
+    "console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console-native-f4bcc156",
+    "console_binary_sha256": "f4bcc156d7e29e211da2578e56e3cf481d19c1585aa6bd0c469fe69751cb6724",
 
     "enabled": True,
     "template_source": "debian-minimal",
@@ -501,32 +448,22 @@ console.
     "memory": 1000,
     "maxmem": 2400,
     "private_size": "10G",
-    "listen": "127.0.0.1:8080",
+    "listen": "0.0.0.0:8080",
     "data_dir": "/rw/config/qubesair",
     "database_dsn": "/rw/config/qubesair/qubes-air.db",
     "orchestrator_enabled": True,
-    "terraform_dir": "/rw/config/qubesair/terraform",
-    "terraform_var_file": "/rw/config/qubesair/terraform/environments/infra.tfvars",
-    "terraform_generated_var_file": "generated/qubes.tfvars.json",
-    "terraform_binary": "/usr/bin/terraform",
-    "terraform_version": "1.9.8",
-    "terraform_url": "http://10.31.0.2/local/qubes-air-tools/terraform_1.9.8_linux_amd64.zip",
-    "terraform_sha256": "186e0145f5e5f2eb97cbd785bc78f21bae4ef15119349f6ad4fa535b83b10df8",
-    "terraform_providers": [
-        {"source": "registry.terraform.io/bpg/proxmox",
-         "version": "0.111.1",
-         "url": "http://10.31.0.2/local/qubes-air-tools/terraform-provider-proxmox_0.111.1_linux_amd64.zip",
-         "sha256": "6ed47bc00d0913a1d0880618fa1376115e9edab6b4a658c081061a7f0e4ca360"},
-    ],
     "agent_identity_dir": "/rw/config/qubesair/agent-identity",
     "pve_endpoint": "https://pve.infra.plz.ac/",
     "pve_node": "infra-node1",
     "agent_listen": "0.0.0.0:8443",
+    "agent_revocation_url": "http://10.31.0.135:18080/pki/revocations",
+    "cors_origins": ["http://10.31.0.135:18080"],
+    "agent_allowed_services": ["qubesair.Ping", "qubesair.UnlockData", "qubesair.RekeyData"],
     "register_remotevm": True,
     "encrypt_data_default": True,
-    "agent_package_url": "http://10.31.0.2/local/qubes-air/qubes-air-agent_0.0.0+luks+f56b42e_amd64.deb",
-    "agent_package_sha256": "3380e9c39f772d1a56b1ab55208042d434977ea5a4ebdc18928d636d93a42600",
-    "agent_package_version": "0.0.0+luks+f56b42e",
+    "agent_package_url": "http://10.31.0.2/local/qubes-air/qubes-air-agent_3d4fdad_amd64.deb",
+    "agent_package_sha256": "639fda1d367746b941d0a9179f08ccc7267535a456a83f7a4f14e2e8490814b0",
+    "agent_package_version": "3d4fdad",
     "apt_mirror": "http://10.31.0.2/debian",
     "apt_security_mirror": "http://10.31.0.2/debian-security",
     "agent_probe_interval_seconds": 60,
