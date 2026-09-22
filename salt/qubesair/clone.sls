@@ -6,7 +6,7 @@ Clone the base template into the DEDICATED console template (runs IN dom0).
 
 A dedicated template — rather than reusing tpl-dev or mgmt-jump's template —
 because the console qube built from it holds the PVE API token, the agent CA
-private key and the terraform state for the whole remote fleet. Every package
+private key and the provider credentials for the whole remote fleet. Every package
 in this template is attack surface for those secrets, so the template gets
 exactly the console's prerequisites and nothing else.
 

@@ -22,20 +22,12 @@ Why /rw for everything, including the binary
 An AppVM's root volume is discarded on every shutdown and re-derived from the
 template. Anything this state writes to /usr, /etc or /var exists only until the
 next reboot. So the binary, the database, the agent identity directory and the
-terraform root all live under cfg.qubesair.data_dir, which is on /rw.
+provider resource records all live under cfg.qubesair.data_dir, which is on /rw.
 
 Worth stating because the obvious placement is wrong in a way that tests clean:
 install to /usr/bin and the console runs perfectly until the first reboot, after
 which the unit fails with "No such file or directory" and nothing explains why
 it used to work.
-
-/usr/local is a separate trap in the other direction, and the two are easy to
-mix up. In an AppVM /usr/local is mounted from the PRIVATE volume
-(/dev/xvdb[/usrlocal]), so it persists per-qube — but it also masks whatever the
-template has at that path. A binary installed to the TEMPLATE's /usr/local/bin
-is therefore invisible in every AppVM built from it. terraform was installed
-there and could not be executed by the console; cfg.qubesair.terraform_binary is
-now /usr/bin/terraform, on the root volume, which the AppVM does inherit.
 
 Keeping the console binary out of the template is also what makes upgrading it a
 file copy plus a service restart, instead of a template rebuild and a reboot of
@@ -44,13 +36,13 @@ every qube built from it.
 What this state deliberately does NOT do
 ----------------------------------------
 It never handles the Proxmox credential. The console reads cluster credentials
-from its own ENCRYPTED credential store (console/internal/service/tfcreds.go:
-the zone's proxmox.credential_id is looked up, decrypted with the keyring, and
-injected into terraform's subprocess environment). A PROXMOX_VE_* variable in
-this unit's environment would not be used for zone-scoped work at all — it would
-simply be a second, plaintext copy of the secret in a salt-managed file, one
-`git add -A` away from being published. The operator POSTs it once to
-/api/v1/credentials; the notification at the end of a successful run says how.
+from its own ENCRYPTED credential store (the zone's proxmox.credential_id is
+looked up, decrypted with the keyring, and handed to the provider adapter for
+that call). A PROXMOX_VE_* variable in this unit's environment would not be used
+for zone-scoped work at all — it would simply be a second, plaintext copy of the
+secret in a salt-managed file, one `git add -A` away from being published. The
+operator POSTs it once to /api/v1/credentials; the notification at the end of a
+successful run says how.
 
 Deploy (from dom0), after the console qube exists and is running:
   sudo qubesctl --skip-dom0 --targets=<cfg.qubesair.qube> state.apply qubesair.console
@@ -65,7 +57,6 @@ Deploy (from dom0), after the console qube exists and is running:
 
 {%- set svc_user = qa.get('service_user', 'user') -%}
 {%- set data_dir = qa.get('data_dir', '/rw/config/qubesair') -%}
-{%- set tfrc = qa.get('terraform_cli_config', '/etc/terraform/cli.tfrc') -%}
 
 {#- cfg.qubesair.listen is a single "host:port" string. rsplit on the LAST colon
     so a bare IPv6 literal does not lose its tail; a value with no colon at all
@@ -79,10 +70,6 @@ Deploy (from dom0), after the console qube exists and is running:
 {%- set db_path = qa.get('database_dsn', data_dir ~ '/qubes-air.db') -%}
 {%- set db_dir = db_path.rsplit('/', 1)[0] -%}
 {%- set identity_dir = qa.get('agent_identity_dir', data_dir ~ '/agent-identity') -%}
-{%- set tf_dir = qa.get('terraform_dir', data_dir ~ '/terraform') -%}
-{%- set tf_bin = qa.get('terraform_binary', 'terraform') -%}
-{%- set var_file = qa.get('terraform_var_file', '') -%}
-{%- set gen_var_file = qa.get('terraform_generated_var_file', 'generated/qubes.tfvars.json') -%}
 
 {%- set bin_dir = data_dir ~ '/bin' -%}
 {%- set bin_path = bin_dir ~ '/qubes-air-console' -%}
@@ -90,7 +77,8 @@ Deploy (from dom0), after the console qube exists and is running:
 {%- set env_file = data_dir ~ '/console.env' -%}
 {%- set secret_file = data_dir ~ '/secrets.env' -%}
 
-{#- Private key the terraform provider uses to SSH into the PVE nodes.
+{#- Private key the console uses to SSH into the PVE nodes (cloud-init snippet
+    upload).
     Uploading a cloud-init snippet writes /var/lib/vz/snippets/ over SSH and the
     PVE API has no endpoint for it, so provisioning cannot work without this.
 
@@ -137,16 +125,16 @@ Deploy (from dom0), after the console qube exists and is running:
     - name: |
         cfg.qubesair.console_binary_sha256 is not set, and it has no default.
 
-        Unlike terraform (fetched from a release URL by the qubesair install
-        state), the console binary is built from the qubes-air Go source. Nothing
-        publishes it, so it is cross-compiled by hand into this repo's salt tree
-        and pinned by digest — otherwise "the console is deployed" says nothing
+        Unlike a package, the console binary is built from the qubes-air Go
+        source. Nothing publishes it, so it is cross-compiled by hand into this
+        repo's salt tree and pinned by digest — otherwise "the console is
+        deployed" says nothing
         about WHAT is deployed.
 
         On your workstation, in the qubes-air repo:
 
           docker run --rm --platform linux/amd64 -v "$PWD":/src \
-              -w /src/console/backend golang:1.25 \
+              -w /src/console/backend golang:1.26 \
               sh -c 'CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
                   -trimpath -ldflags="-s -w" -o /src/dist/qubes-air-console ./cmd/server'
           shasum -a 256 dist/qubes-air-console
@@ -160,7 +148,7 @@ Deploy (from dom0), after the console qube exists and is running:
             arm64 and a cgo build for GOARCH=amd64 needs an x86-64 cross
             toolchain it does not ship. Emulating amd64 makes it native inside
             the container.
-          - golang:1.25: console/backend/go.mod requires go >= 1.25.0.
+          - golang:1.26: console/backend/go.mod requires go >= 1.26.0.
 
         Publish it to the artifact store (same login + read-back pattern as
         scripts/publish-agent-deb.sh), then add BOTH keys to the qubesair block
@@ -239,20 +227,9 @@ Deploy (from dom0), after the console qube exists and is running:
     - require:
       - file: "qubesair-console-data-dir"
 
-"qubesair-console-terraform-dir":
-  file.directory:
-    - name: {{ tf_dir }}
-    - user: {{ svc_user }}
-    - group: {{ svc_user }}
-    - mode: '0750'
-    - makedirs: True
-    - require:
-      - file: "qubesair-console-data-dir"
-
-# HOME for the service. terraform writes a plugin cache and CLI state under
-# $HOME; ProtectHome=yes in the unit hides the real /home/user, so HOME points
-# here instead. Without it terraform falls back to an absent or unwritable home
-# and `init` fails in a way that reads as a network problem.
+# HOME for the service. ProtectHome=yes in the unit hides the real /home/user,
+# so HOME points here instead; anything the console writes under $HOME (caches,
+# local state) lands on the private volume rather than an unwritable home.
 "qubesair-console-home-dir":
   file.directory:
     - name: {{ home_dir }}
@@ -352,41 +329,6 @@ Deploy (from dom0), after the console qube exists and is running:
       - file: "qubesair-console-web-archive"
 {% endif %}
 
-{% if var_file %}
-# Operator-owned base var-file (endpoint, node, zone toggles). replace: False so
-# it is created once as a skeleton and never overwritten — the operator's edits
-# are the point of the file. It must exist even when empty: the console always
-# passes -var-file for it and terraform fails the apply if the path is missing.
-#
-# It must NOT define remote_qubes. That variable is owned by the console, which
-# renders it to {{ gen_var_file }} from the database before every invocation and
-# passes it AFTER this file so the last -var-file wins. Defining it here would
-# put two sources of truth in one apply.
-"qubesair-console-terraform-varfile":
-  file.managed:
-    - name: {{ var_file }}
-    - user: {{ svc_user }}
-    - group: {{ svc_user }}
-    - mode: '0600'
-    - makedirs: True
-    - dir_mode: '0750'
-    - replace: False
-    - contents: |
-        # SPDX-License-Identifier: MIT — operator-owned, NOT managed by salt.
-        # Created once by qubesair.console; your edits are preserved.
-        #
-        # Base terraform variables for the Qubes Air console. Do NOT define
-        # remote_qubes here — the console renders it to {{ gen_var_file }} from
-        # its database and passes it after this file, so anything set here would
-        # be silently overridden anyway.
-        #
-        # Credentials do NOT belong here either: terraform writes every variable
-        # value into state in plaintext. The console injects Proxmox credentials
-        # into terraform's environment from its encrypted credential store.
-    - require:
-      - file: "qubesair-console-terraform-dir"
-{% endif %}
-
 # --- 3. Non-secret configuration --------------------------------------------
 # Everything the console reads that is not a secret. Empty values are written
 # rather than omitted so the file documents the full surface; config.go treats an
@@ -406,14 +348,22 @@ Deploy (from dom0), after the console qube exists and is running:
         QUBES_AIR_DATABASE_DSN={{ db_path }}
         QUBES_AIR_CORS_ORIGINS={{ cors | join(',') }}
         QUBES_AIR_ORCHESTRATOR_ENABLED={{ 'true' if orch else 'false' }}
-        QUBES_AIR_TERRAFORM_DIR={{ tf_dir }}
-        QUBES_AIR_TERRAFORM_BINARY={{ tf_bin }}
-        QUBES_AIR_TERRAFORM_VAR_FILE={{ var_file }}
-        QUBES_AIR_TERRAFORM_GENERATED_VAR_FILE={{ gen_var_file }}
         QUBES_AIR_AGENT_IDENTITY_DIR={{ identity_dir }}
         QUBES_AIR_AGENT_LISTEN={{ qa.get('agent_listen', '0.0.0.0:8443') }}
+        QUBES_AIR_AGENT_REVOCATION_URL={{ qa.get('agent_revocation_url', '') }}
+        QUBES_AIR_AGENT_ALLOWED_SERVICES={{ qa.get('agent_allowed_services', ['qubesair.Ping']) | join(',') }}
+        # COLON-separated, unlike the comma-separated lists above: the console
+        # splits these two on ':' because that is the exact format it delivers to
+        # the guest in agent.env, so a value pasted from either side means the
+        # same thing. Paths cannot contain ':', and the console refuses one that
+        # does. An empty value is unset — which leaves the service disabled
+        # inside the guest, because the guest's own default is to reject every
+        # Exec/FileCopy call rather than to allow all of them.
+        QUBES_AIR_EXEC_ALLOW={{ qa.get('agent_exec_allow', []) | join(':') }}
+        QUBES_AIR_FILECOPY_ROOTS={{ qa.get('agent_filecopy_roots', []) | join(':') }}
         QUBES_AIR_PROXMOX_SSH_KEY_FILE={{ pve_ssh_key }}
         QUBES_AIR_PROXMOX_SSH_USERNAME={{ qa.get('pve_ssh_username', 'root') }}
+        QUBES_AIR_PROXMOX_SSH_KNOWN_HOSTS_FILE={{ qa.get('pve_ssh_known_hosts_file', pve_ssh_dir ~ '/pve_known_hosts') }}
         QUBES_AIR_REGISTER_REMOTEVM={{ 'true' if qa.get('register_remotevm', False) else 'false' }}
         QUBES_AIR_ENCRYPT_DATA_DEFAULT={{ 'true' if qa.get('encrypt_data_default', False) else 'false' }}
 {%- if web_source %}
@@ -593,32 +543,6 @@ Deploy (from dom0), after the console qube exists and is running:
         [ "$idmode" = "700" ] \
             || fail "{{ identity_dir }} is mode $idmode, expected 700 — it holds agent PRIVATE KEYS"
 
-        {%- if orch %}
-
-        # --- terraform --------------------------------------------------------
-        # Only when orchestration is enabled. With it disabled the console flips
-        # database status without invoking terraform and none of this applies.
-        command -v '{{ tf_bin }}' >/dev/null 2>&1 || [ -x '{{ tf_bin }}' ] \
-            || fail 'orchestration is enabled but {{ tf_bin }} is missing (the qubesair install state puts it in the TEMPLATE; installing it in the AppVM would not survive a reboot)'
-
-        [ -d '{{ tf_dir }}' ] || fail 'orchestration is enabled but {{ tf_dir }} does not exist'
-
-        ls '{{ tf_dir }}'/*.tf >/dev/null 2>&1 \
-            || fail '{{ tf_dir }} contains no .tf files; copy the terraform root from the qubes-air repo into it'
-        {%- if var_file %}
-
-        [ -f '{{ var_file }}' ] || fail 'missing {{ var_file }} (re-apply qubesair.console)'
-        {%- endif %}
-
-        # The console never runs `terraform init` — it goes straight to plan and
-        # apply. Without .terraform/ the first apply fails with a provider error
-        # minutes into a job, recorded as a failed provision rather than as a
-        # missing setup step. Catch it at startup, when the message can still
-        # name the command to run.
-        [ -d '{{ tf_dir }}/.terraform' ] \
-            || fail 'terraform has not been initialised in {{ tf_dir }}; run: cd {{ tf_dir }} && HOME={{ home_dir }} {{ tf_bin }} init'
-        {%- endif %}
-
         exit 0
     - require:
       - file: "qubesair-console-data-dir"
@@ -662,8 +586,8 @@ Deploy (from dom0), after the console qube exists and is running:
         Wants=network-online.target
 
         # A failed precondition here is almost always permanent: a missing
-        # binary, a key that is not 32 bytes, an uninitialised terraform
-        # directory. Restart=on-failure with a start limit rides out a genuinely
+        # binary, a key that is not 32 bytes, an unwritable data directory.
+        # Restart=on-failure with a start limit rides out a genuinely
         # transient fault (the listen port still held by the previous process
         # during a restart) and then gives up, leaving the unit in `failed` where
         # `systemctl --failed` reports it.
@@ -682,8 +606,8 @@ Deploy (from dom0), after the console qube exists and is running:
         [Service]
         Type=simple
 
-        # Not root. The console binds a port above 1024, shells out to terraform
-        # and writes its own state; none of that needs privilege, and the process
+        # Not root. The console binds a port above 1024 and writes its own
+        # state; none of that needs privilege, and the process
         # holds the fleet's CA. It runs as the qube's existing `user` rather than
         # a dedicated system account on purpose: /etc/passwd is on the root
         # volume and is reset from the template on every boot, so a user created
@@ -699,20 +623,10 @@ Deploy (from dom0), after the console qube exists and is running:
         EnvironmentFile={{ env_file }}
         EnvironmentFile={{ secret_file }}
 
-        # terraform writes a plugin cache and CLI state under $HOME. ProtectHome
-        # below hides the real /home/user, so HOME is redirected to a directory
-        # this service owns.
+        # Anything the console writes under $HOME (caches, local state) lands in
+        # a directory this service owns. ProtectHome below hides the real
+        # /home/user, so HOME is redirected here.
         Environment=HOME={{ home_dir }}
-
-        # And because HOME was redirected, terraform no longer finds the
-        # .terraformrc that qubesair.install symlinks into the real home. It
-        # has no system-wide config path on Linux — $HOME/.terraformrc or
-        # TF_CLI_CONFIG_FILE, nothing else — so without this it silently ignores
-        # the pinned provider mirror and reaches for the public registry.
-        # Silently: `terraform init` succeeds either way, and the difference only
-        # shows up as a provider version nobody chose, or as a failure on a host
-        # with no route to the internet.
-        Environment=TF_CLI_CONFIG_FILE={{ tfrc }}
 
         # Only reached if QUBES_AIR_DATABASE_DSN were somehow unset, in which
         # case config.go defaults to the relative path "./qubes-air.db". Pointing
@@ -753,9 +667,9 @@ Deploy (from dom0), after the console qube exists and is running:
         # that mentions systemd.
         #
         # The console writes MORE than the agent did: the SQLite database plus
-        # its -wal and -shm sidecars, agent identity documents, terraform's
-        # generated var-file, terraform state and the .terraform provider
-        # directory, and terraform's cache under HOME. All of it is under
+        # its -wal and -shm sidecars, agent identity documents, the provider
+        # resource records and any local state, and any cache under HOME. All of
+        # it is under
         # {{ data_dir }}, which is on /rw — a path ProtectSystem=full does not
         # cover — so today this line changes nothing.
         #
@@ -907,7 +821,6 @@ Deploy (from dom0), after the console qube exists and is running:
       - file: "qubesair-console-preflight"
       - file: "qubesair-console-identity-dir"
       - file: "qubesair-console-home-dir"
-      - file: "qubesair-console-terraform-dir"
       - cmd: "qubesair-console-secrets"
       - cmd: "qubesair-console-unit-activate"
       - cmd: "qubesair-console-rc-local-shebang"
@@ -927,7 +840,8 @@ Deploy (from dom0), after the console qube exists and is running:
            to mint a replacement, and every remote qube must be re-provisioned.
 
         3. Store the Proxmox credential — via the API, never in a file. It is
-           encrypted with the key above and read back only when terraform runs:
+           encrypted with the key above and read back only when a provider call
+           runs:
              curl -sS -X POST http://{{ listen }}/api/v1/credentials \
                   -H "Authorization: Bearer $TOKEN" \
                   -H 'Content-Type: application/json' \
@@ -948,7 +862,7 @@ Deploy (from dom0), after the console qube exists and is running:
         {%- if not orch %}
 
         NOTE: orchestration is DISABLED (cfg.qubesair.orchestrator_enabled is
-        False). start/stop only flip database status; terraform is never invoked
+        False). start/stop only flip database status; no provider is called
         and no VM is created.
         {%- endif %}
     - require:
