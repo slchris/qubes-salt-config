@@ -209,8 +209,19 @@ together can rebuild the whole remote fleet.
                 PVE's self-signed certificate and forces verification off on
                 the connection that carries the API token. Requires cfg
                 qubesair.dns to be in effect.
-  pve_node      default node for placement; the cluster is heterogeneous
-                (node4 runs an older PVE than the rest), so pinning matters.
+  pve_node      default node for placement, and **nothing in this repository
+                reads it** — no state, no env file, no unit (grep for it: the
+                only two hits are this comment and the value). It is recorded
+                here because the operator picks a node when creating a zone in
+                the console, and this is where that choice is written down.
+                The comment used to justify pinning by calling the cluster
+                heterogeneous ("node4 runs an older PVE than the rest"). That
+                was measured through the PVE API on 2026-09-22 and no longer
+                holds: all six nodes reported pve-manager 9.2.10 with the same
+                repoid. Homogeneous that day — so if you pin a node, pin it for
+                a reason you can name, and write it here. If the cluster ever
+                does become heterogeneous, this is the comment that has to say
+                so first, because nothing else will notice.
   agent_listen  address the REMOTE agent binds on each provisioned qube.
   agent_package_url / agent_package_sha256 / agent_package_version
                 how a booting remote qube gets the agent. The agent is
