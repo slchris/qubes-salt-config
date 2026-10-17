@@ -26,9 +26,11 @@ unit is Debian + nftables and **fail-closed**:
     never falls back to the clearnet path through sys-firewall.
 *   The gateway's own clearnet egress is restricted to the WireGuard
     handshake (the `Endpoint` ip:port parsed from `wg0.conf`).
-*   Downstream DNS (the Qubes virtual nameservers 10.139.1.1/.2) is DNAT'd to
-    the tunnel resolver from the conf's `DNS=` line (fallback `9.9.9.9`,
-    still routed through the tunnel) — no DNS leak to the upstream resolvers.
+*   **All** downstream DNS on port 53 (TCP/UDP, any destination — the Qubes
+    virtual nameservers 10.139.1.1/.2 as well as hardcoded resolvers) is
+    DNAT'd to the tunnel resolver from the conf's `DNS=` line (fallback
+    `9.9.9.9`, still routed through the tunnel) — no DNS leak to the upstream
+    resolvers. For Mullvad, `DNS=` is its own `10.64.0.1`.
 
 The firewall lives in a marker-merged `# >>> project-net >>>` block of
 `/rw/config/qubes-firewall-user-script` and owns the whole
@@ -103,6 +105,8 @@ The [templates/ai](../ai/) unit does this declaratively for the `ai` qube.
 # Inside sys-project-net:
 sudo wg show                                  # handshake present?
 sudo nft list table inet project-net          # kill-switch loaded?
+sudo nft list chain inet project-net dnat-dns # vif*:53 -> conf DNS=
+sudo nft list chain inet project-net forward | grep maxseg  # MSS clamp
 sudo journalctl -t project-net                # boot-time wg-quick output
 
 # Inside a downstream qube (Mullvad):
@@ -153,6 +157,9 @@ different provider entirely.
     (fail-closed, not a leak).
 *   IPv6: downstream v6 is fail-closed too (dropped unless it can go through
     the tunnel); the tunnel itself is used v4-only by this unit.
+*   TCP MSS is clamped to the route MTU on forwarded SYNs, so downstream vifs
+    advertising MTU 1500 do not blackhole full-size segments into the
+    1420-MTU tunnel.
 *   `openresolv` is installed because `wg-quick` aborts on confs carrying
     `DNS=` when no `resolvconf` binary exists.
 *   While the tunnel is up, the gateway's own `/etc/resolv.conf` points at

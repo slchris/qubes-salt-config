@@ -12,9 +12,10 @@ rc.local runs later), and it stays up if the tunnel dies:
   2. the gateway's own clearnet egress is limited to the WireGuard handshake
      (the Endpoint ip:port parsed from wg0.conf) — tunnel down => nothing
      leaks, things just stop working until it is back;
-  3. downstream DNS (queries to the Qubes virtual NS 10.139.1.1/.2) is DNAT'd
-     to the tunnel resolver from wg0.conf's DNS= line (fallback: 9.9.9.9,
-     still routed THROUGH the tunnel) so lookups never exit via the upstream
+  3. ALL downstream DNS on port 53 (TCP/UDP, any destination — the Qubes
+     virtual NS 10.139.1.1/.2 as well as hardcoded resolvers) is DNAT'd to
+     the tunnel resolver from wg0.conf's DNS= line (fallback: 9.9.9.9, still
+     routed THROUGH the tunnel) so lookups never exit via the upstream
      resolvers — the classic VPN-gateway DNS leak;
   4. NAT: masquerade downstream traffic out wg0.
 
@@ -117,9 +118,9 @@ Deploy (from dom0):
         else
           logger -t project-net "no valid IPv4 Endpoint in wg0.conf - gateway fully closed"
         fi
-        nft add rule inet project-net dnat-dns iifname "vif*" ip daddr { 10.139.1.1, 10.139.1.2 } udp dport 53 counter dnat ip to $DNS_IP \
+        nft add rule inet project-net dnat-dns iifname "vif*" meta nfproto ipv4 udp dport 53 counter dnat ip to $DNS_IP \
           || logger -t project-net "FAILED to add udp DNS dnat to $DNS_IP"
-        nft add rule inet project-net dnat-dns iifname "vif*" ip daddr { 10.139.1.1, 10.139.1.2 } tcp dport 53 counter dnat ip to $DNS_IP \
+        nft add rule inet project-net dnat-dns iifname "vif*" meta nfproto ipv4 tcp dport 53 counter dnat ip to $DNS_IP \
           || logger -t project-net "FAILED to add tcp DNS dnat to $DNS_IP"
 
 "project-net-fw-shebang":

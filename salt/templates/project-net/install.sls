@@ -91,6 +91,10 @@ include:
         table inet project-net {
           chain forward {
             type filter hook forward priority -10; policy accept;
+            # Clamp TCP MSS to the route MTU (wg0 is 1420). Downstream vifs
+            # advertise MTU 1500, so without this, large segments blackhole
+            # into the tunnel instead of being sized correctly.
+            tcp flags syn / syn,rst tcp option maxseg size set rt mtu
             ct state established,related accept
             iifname "vif*" oifname "wg0" accept
             iifname "vif*" counter drop
