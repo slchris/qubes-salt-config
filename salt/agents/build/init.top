@@ -1,0 +1,18 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Highstate convenience for the build qube. Creating agent-build and applying
+states inside tpl-agent-build/agent-build cannot happen in one target pass on
+a fresh machine; the README gives the ordered commands. This top is useful
+once the qubes exist.
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - agents.build.create
+  'tpl-agent-build':
+    - agents.build.install
+  'agent-build':
+    - agents.build.configure

@@ -620,4 +620,28 @@ console.
   "qubes": {
     "dev": {"git": {"name": "Chris Su", "email": "chris@lesscrowds.org"}},
   },
+
+  "agents": {
+    "build": {
+      "template_source": "debian-minimal",
+      "template": "tpl-agent-build",
+      "qube": "agent-build",
+      "label": "orange",
+      "netvm": "sys-firewall",
+      "vcpus": 2,
+      "memory": 2000,
+      "maxmem": 6000,
+      "private_size": "20G",
+      "workspace": "/home/user/agent-build",
+      "bundle_dir": "/home/user/agent-bundles",
+    },
+    "template": {
+      "source": "debian-minimal",
+      "name": "tpl-agents",
+      "label": "blue",
+      "vcpus": 4,
+      "memory": 400,
+      "maxmem": 8000,
+    },
+  },
 } -%}
