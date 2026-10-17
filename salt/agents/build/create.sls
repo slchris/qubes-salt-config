@@ -12,9 +12,10 @@ Create the agent build qubes.
                    and is not backed up: a bundle is reproducible from the lock.
 
 The build NetVM is cfg.agents.build.netvm. It defaults to sys-firewall so the
-pipeline works before the Mullvad/AnyTLS gateways exist; point it at a
-dedicated sys-build-net later, and keep it separate from project exits so a
-compromised build qube cannot observe project traffic.
+pipeline works before the BWG/VPN gateways exist; point it at sys-bwg-net to
+send downloads through BWG, or at a dedicated sys-build-net, and keep it
+separate from project exits so a compromised build qube cannot observe
+project traffic.
 
 Changing netvm requires the qube to be stopped: qvm.prefs will fail on a
 running AppVM. Stop agent-build before changing cfg.agents.build.netvm.

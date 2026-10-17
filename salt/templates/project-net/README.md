@@ -117,26 +117,37 @@ curl https://am.i.mullvad.net/connected
 
 ## Multiple project networks
 
-Every qube name derives from this unit's directory name. For another isolated
-project network, copy the whole directory:
+Every gateway is one key in `cfg.project_nets` (`salt/config.jinja`). The key
+becomes the qube name `sys-<key>`; `"project-net"` preserves the original
+`sys-project-net`. All gateways share `tpl-project-net` and this unit's
+fail-closed firewall states, so there is no directory to copy and no top file
+to hand-edit.
 
-```sh
-cp -r salt/templates/project-net salt/templates/acme-net
+```jinja
+"project_nets": {
+  "project-net": {},
+  "bwg-mullvad-lax701": {},
+  "bwg-mullvad-nyc": {},
+},
 ```
 
-then edit the **five .top files** in the copy by hand — tops cannot use
-slsdotpath, and **both** things they hardcode must change:
+Each gateway still needs its **own** secret
+`/rw/config/wireguard/wg0.conf` (Address, PrivateKey, DNS, Peer). Those values
+are never stored in Salt or git. Per-key overrides are optional: `template`,
+`label`, `netvm`, `memory`, `maxmem`.
 
-*   every state path: `templates.project-net.<state>` →
-    `templates.acme-net.<state>` (all five files);
-*   the target qube names `tpl-project-net` / `sys-project-net` →
-    `tpl-acme-net` / `sys-acme-net` (install.top, configure.top, init.top).
+For a BWG-backed Mullvad exit, the other half lives in the homelab repo: add
+the Qubes gateway's public key to `buyvm.wireguardIngress.peers`, a fresh
+ingress subnet to `extraAddresses`, and a matching `buyvm.mullvadExits.<name>`
+with its own `routingTable` / `fallbackTable` pair. Then create the gateway
+here, drop in its `wg0.conf`, and attach the project qube:
 
-If you only change the qube names, the copy's tops still apply
-**this** unit's states — you'd silently re-create tpl-/sys-project-net and
-never get the acme qubes. Then rerun `scripts/setup.sh` and apply. You get
-`sys-acme-net` with its own wg0.conf — e.g. a different Mullvad exit, or a
-different provider entirely.
+```sh
+qvm-prefs my-project-qube netvm sys-bwg-mullvad-lax701
+```
+
+`init.top` and `configure.top` loop over `cfg.project_nets`, so adding a key is
+enough for the highstate as well.
 
 ## Notes and limitations
 

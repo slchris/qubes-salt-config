@@ -394,6 +394,15 @@ console.
                   no rules and exposes nothing.
     ext_port      the LAN port mapped to websockify.
   keep_qubes    teardown leaves the qubes in place when True.
+
+project_nets — one entry per project-network gateway. The key becomes
+  sys-<key> (e.g. "bwg-mullvad-lax701" -> sys-bwg-mullvad-lax701). Every
+  gateway uses tpl-project-net and shares the fail-closed firewall; each one
+  still needs its own /rw/config/wireguard/wg0.conf, which is a secret and is
+  never stored here. Optional fields per key: template (default
+  tpl-project-net), label, netvm, memory, maxmem. "project-net" preserves the
+  original sys-project-net. Adding a key is all the Salt side needs; the other
+  end (BWG peer/subnet/table) lives in the homelab repo.
 -#}
 
 {%- set cfg = {
@@ -418,6 +427,10 @@ console.
     "fedora_baseurl": "https://mirrors.tuna.tsinghua.edu.cn/fedora",
     "dom0_baseurl": "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum",
     "pip_index": "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple",
+  },
+
+  "project_nets": {
+    "project-net": {},
   },
 
   "remote_debug": {

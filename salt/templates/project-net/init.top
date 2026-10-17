@@ -3,11 +3,14 @@ SPDX-FileCopyrightText: 2026 Chris Su
 SPDX-License-Identifier: MIT
 #}
 
+{% from 'config.jinja' import cfg with context %}
 base:
   'dom0':
     - match: nodegroup
     - templates.project-net.create
   'tpl-project-net':
     - templates.project-net.install
-  'sys-project-net':
+{% for key in cfg.project_nets %}
+  'sys-{{ key }}':
     - templates.project-net.configure
+{% endfor %}

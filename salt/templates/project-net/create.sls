@@ -9,14 +9,12 @@ traffic through a WireGuard tunnel — Mullvad or any provider/peer that hands
 out a standard wg-quick conf. Attach the project's qubes with
 `qvm-prefs <qube> netvm sys-project-net` (templates.ai does this in salt).
 
-Need another isolated project network? Copy this whole unit directory to
-salt/templates/<other>-net/ — every qube name in the .sls files derives from
-the directory name via slsdotpath — then edit the five .top files in the
-copy BY HAND (tops cannot use slsdotpath): BOTH the state paths
-(templates.project-net.<state> -> templates.<other>-net.<state>) AND the
-target qube names (tpl-project-net/sys-project-net in install.top,
-configure.top, init.top). Missing the state paths silently re-applies THIS
-unit instead of the copy.
+Need another isolated project network? Add a key to cfg.project_nets in
+config.jinja. The key becomes sys-<key>; every gateway shares tpl-project-net
+and the same fail-closed firewall states, and each one needs its own
+/rw/config/wireguard/wg0.conf (a secret, never stored in Salt). "project-net"
+preserves the original sys-project-net. The BWG-side peer, ingress subnet and
+routing table pair live in the homelab repo.
 
 IMPORTANT deploy order: apply install + configure (and drop wg0.conf in)
 BEFORE starting any qube that uses this gateway as its netvm. Until
@@ -24,6 +22,7 @@ configure has run inside sys-project-net, the fail-closed firewall does not
 exist yet and downstream traffic would take the default (clearnet) path.
 #}
 
+{% from 'config.jinja' import cfg with context %}
 {%- from "qvm/template.jinja" import load -%}
 {% set name = slsdotpath.split('.')[-1] %}
 
@@ -48,21 +47,25 @@ features:
 {%- endload %}
 {{ load(defaults) }}
 
+{# One gateway per project_nets key. The key becomes sys-<key>;
+   "project-net" keeps the original sys-project-net. All of them use the
+   same tpl-project-net and the same per-qube firewall state. #}
+{% for key, net in cfg.project_nets.items() %}
 {% load_yaml as defaults -%}
-name: sys-{{ name }}
+name: sys-{{ key }}
 force: True
 require:
 - qvm: tpl-{{ name }}
 present:
-- template: tpl-{{ name }}
-- label: orange
+- template: {{ net.get('template', 'tpl-' ~ name) }}
+- label: {{ net.get('label', 'orange') }}
 prefs:
-- template: tpl-{{ name }}
-- label: orange
-- netvm: sys-firewall
+- template: {{ net.get('template', 'tpl-' ~ name) }}
+- label: {{ net.get('label', 'orange') }}
+- netvm: {{ net.get('netvm', 'sys-firewall') }}
 - audiovm: ""
-- memory: 300
-- maxmem: 600
+- memory: {{ net.get('memory', 300) }}
+- maxmem: {{ net.get('maxmem', 600) }}
 - provides-network: True
 - autostart: False
 - include_in_backups: True
@@ -71,3 +74,4 @@ features:
   - servicevm
 {%- endload %}
 {{ load(defaults) }}
+{% endfor %}
