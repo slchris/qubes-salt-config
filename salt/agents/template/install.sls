@@ -5,8 +5,9 @@ SPDX-License-Identifier: MIT
 Install the base development toolchain in tpl-agents (Debian minimal).
 
 This state does NOT install Node or any coding agent: the agent bundle carries
-a pinned Node runtime and the agent trees themselves. Keeping the runtime out
-of apt is what makes the bundle the unit of versioning and rollback.
+a pinned Node runtime, the agent trees, and the pinned GUI application .debs.
+Keeping those versions out of apt is what makes the bundle the unit of
+versioning and rollback.
 
 The template has no netvm; packages come through the Qubes update proxy.
 qubes-core-agent-networking is installed for that proxy, not to give the
@@ -61,5 +62,13 @@ include:
       - tree
       - man-db
       - bash-completion
+      # GUI applications (Chrome, VS Code, Claude Desktop) arrive as pinned
+      # .debs in the bundle; these are the menu/desktop helpers, while the
+      # applications' own library dependencies are resolved by
+      # install-agents.sh's apt-get -f install.
+      - xdg-utils
+      - desktop-file-utils
+      - fonts-liberation
+      - dbus-x11
 
 {% endif %}

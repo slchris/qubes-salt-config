@@ -14,8 +14,10 @@ Credentials and agent configurations (~/.claude, ~/.codex, ~/.config/opencode,
 #}
 
 {% from 'config.jinja' import cfg with context %}
+{% import_yaml 'agents/lock.yml' as lock %}
 {%- from "qvm/template.jinja" import load -%}
 {% set t = cfg.agents.template %}
+{% set gui_desktops = lock.get('gui_apps', {}).values() | map(attribute='desktop_file') | select | join(' ') %}
 
 include:
   - agents.template.clone
@@ -34,7 +36,7 @@ prefs:
 - include_in_backups: True
 features:
 - set:
-  - menu-items: "qubes-run-terminal.desktop qubes-start.desktop"
-  - default-menu-items: "qubes-run-terminal.desktop qubes-start.desktop"
+  - menu-items: "qubes-run-terminal.desktop qubes-start.desktop {{ gui_desktops }}"
+  - default-menu-items: "qubes-run-terminal.desktop qubes-start.desktop {{ gui_desktops }}"
 {%- endload %}
 {{ load(defaults) }}

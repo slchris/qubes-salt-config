@@ -12,8 +12,9 @@
 #   - npm agents are versioned directories under /opt/agents-bundle/agents/;
 #     old versions are left in place, and /usr/local/bin/<bin> points at the
 #     version selected by the bundle.
-#   - the .deb agent is installed system-wide with dpkg; the pinned .deb stays
-#     in the bundle for rollback.
+#   - .deb agents and GUI applications are installed system-wide with dpkg;
+#     the pinned .debs stay in the bundle for rollback. `apt-get -f install`
+#     resolves their library dependencies in the template.
 #   - self-update is disabled in the template. Updates come from a new bundle
 #     applied by agents.deliver, then an AppVM restart.
 
@@ -25,18 +26,23 @@ EXPECTED_SHA="${1:-}"
 [ -d "$BUNDLE" ] || { echo "missing $BUNDLE" >&2; exit 1; }
 [ -f "$BUNDLE/install.sh" ] || { echo "missing $BUNDLE/install.sh" >&2; exit 1; }
 
-if [ -n "$EXPECTED_SHA" ] && [ -f /tmp/agents-bundle.tar.gz ]; then
-    printf '%s  %s\n' "$EXPECTED_SHA" /tmp/agents-bundle.tar.gz | sha256sum -c -
+if [ -n "$EXPECTED_SHA" ] && [ -f /var/tmp/agents-bundle.tar.gz ]; then
+    printf '%s  %s\n' "$EXPECTED_SHA" /var/tmp/agents-bundle.tar.gz | sha256sum -c -
+    rm -f /var/tmp/agents-bundle.tar.gz
 fi
 
-echo "==> installing pinned .deb agents"
+echo "==> installing pinned .deb packages"
 if compgen -G "${BUNDLE}/debs/*.deb" >/dev/null; then
     for deb in "${BUNDLE}"/debs/*.deb; do
         echo "    dpkg -i $(basename "$deb")"
-        dpkg -i "$deb"
+        # Missing library dependencies leave the package unpacked but not
+        # configured; apt-get -f below installs them and finishes the job.
+        dpkg -i "$deb" || true
     done
+    echo "==> resolving .deb dependencies"
+    DEBIAN_FRONTEND=noninteractive apt-get -f install -y
 else
-    echo "    (no .deb agents in this bundle)"
+    echo "    (no .debs in this bundle)"
 fi
 
 echo "==> installing npm agent launchers"
@@ -90,5 +96,8 @@ command -v codex >/dev/null 2>&1 && printf 'codex '
 command -v opencode >/dev/null 2>&1 && printf 'opencode '
 command -v pi >/dev/null 2>&1 && printf 'pi '
 command -v grok >/dev/null 2>&1 && printf 'grok '
+command -v google-chrome >/dev/null 2>&1 && printf 'google-chrome '
+command -v code >/dev/null 2>&1 && printf 'code '
+command -v claude-desktop >/dev/null 2>&1 && printf 'claude-desktop '
 echo
 echo "done"

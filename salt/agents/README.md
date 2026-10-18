@@ -29,7 +29,7 @@ tpl-agents              netvm=none; /opt/agents-bundle + /usr/local/bin wrappers
 
 | Path | Purpose |
 |------|---------|
-| `lock.yml` | pinned Node and agent versions, URLs and digests |
+| `lock.yml` | pinned Node, agent and GUI application versions, URLs and digests |
 | `build/` | create/install/configure the build template and qube; run the build |
 | `template/` | create/install/verify `tpl-agents` |
 | `deliver.sls` | pull the newest bundle from `agent-build` into `tpl-agents` |
@@ -44,6 +44,9 @@ what the lock says:
 
 - Node: exact version + tarball URL + sha256.
 - Claude Code: exact `.deb` URL + sha256, installed with `dpkg`.
+- GUI applications: exact `.deb` URL + sha256 in `gui_apps`, installed with
+  `dpkg`; `apt-get -f install` resolves their library dependencies in the
+  template.
 - npm agents: exact package version, installed into a versioned prefix inside
   the bundle.
 
@@ -61,9 +64,33 @@ npm view @earendil-works/pi-coding-agent version
 npm view @xai-official/grok version
 curl -fsSL https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt
 curl -fsSL https://downloads.claude.ai/claude-code/apt/stable/dists/stable/main/binary-amd64/Packages
+curl -fsSL https://downloads.claude.ai/claude-desktop/apt/stable/dists/stable/main/binary-amd64/Packages
+curl -fsSL https://dl.google.com/linux/chrome/deb/dists/stable/main/binary-amd64/Packages
+curl -fsSL https://packages.microsoft.com/repos/code/dists/stable/main/binary-amd64/Packages
 ```
 
 Then edit `lock.yml` and run the update sequence below.
+
+## GUI applications
+
+`gui_apps` in `lock.yml` pins the official Linux beta Claude Desktop, Google
+Chrome and VS Code. They ride in the same verified bundle as the CLI `.debs`;
+`install-agents.sh` runs `dpkg -i` and then `apt-get -f install` to pull their
+library dependencies from the template's normal apt mirror. No GUI app is
+downloaded by the template itself.
+
+`agents.template.create` reads each entry's `desktop_file` and adds it to the
+template's Qubes app-menu whitelist, so new AppVMs see Chrome, VS Code and
+Claude Desktop automatically. After a bundle is delivered:
+
+- restart the AppVM so it boots from the updated template root;
+- run `qvm-sync-appmenus <vm>` if the menu has not refreshed;
+- AppVMs with a custom `menu-items` feature need the new desktop names added
+  explicitly.
+
+The bundle now carries roughly 400 MB of GUI `.deb` files in addition to the
+agent artifacts; `agent-build:private` is already 20G, and the template root
+volume must have room for the installed applications (~1–2 GB).
 
 If a foreign download is slow, stage the exact artifact on the LAN artifact
 store (`10.31.0.2`) and point the lock's `url` at that path. The `sha256`

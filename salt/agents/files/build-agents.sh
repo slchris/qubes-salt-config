@@ -18,7 +18,7 @@
 #   node/node-v<version>-linux-x64/   pinned Node runtime
 #   node/current -> node-v<version>-linux-x64
 #   agents/<name>/<version>/          npm prefix per agent
-#   debs/<package>.deb                pinned .deb agents
+#   debs/<package>.deb                pinned .deb agents and GUI applications
 #   wrappers/<bin>                    /usr/local/bin launchers for npm agents
 #   install.sh                        installer run as root in tpl-agents
 #   manifest.json                     lock + build timestamp
@@ -130,7 +130,7 @@ EOF
             exit 1
             ;;
     esac
-done < <(jq -r '.agents | to_entries[] | @base64' "$LOCK")
+done < <(jq -r '[(.agents // {}), (.gui_apps // {})] | add | to_entries[] | @base64' "$LOCK")
 
 cp "$INSTALLER" "${BUNDLE}/install.sh"
 chmod 0755 "${BUNDLE}/install.sh"

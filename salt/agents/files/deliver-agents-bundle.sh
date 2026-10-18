@@ -41,10 +41,12 @@ fi
 echo "==> ${TEMPLATE} <- ${BUILD_QUBE}:${BUNDLE}"
 echo "    sha256 ${SHA}"
 
+# /tmp is a 1G tmpfs in an AppVM/TemplateVM; the bundle is about 1G. Use the
+# template's root volume for the staging file.
 qvm-run --pass-io -- "$BUILD_QUBE" "cat '${BUNDLE}'" \
-    | qvm-run --pass-io -u root -- "$TEMPLATE" "cat > /tmp/agents-bundle.tar.gz"
+    | qvm-run --pass-io -u root -- "$TEMPLATE" "cat > /var/tmp/agents-bundle.tar.gz"
 
-printf '%s  %s\n' "$SHA" /tmp/agents-bundle.tar.gz \
+printf '%s  %s\n' "$SHA" /var/tmp/agents-bundle.tar.gz \
     | qvm-run --pass-io -u root -- "$TEMPLATE" "sha256sum -c -"
 
 # Keep versioned node/ and agents/ trees; replace only the current deb/wrapper
@@ -52,7 +54,7 @@ printf '%s  %s\n' "$SHA" /tmp/agents-bundle.tar.gz \
 qvm-run --pass-io -u root -- "$TEMPLATE" "
     rm -rf /opt/agents-bundle/debs /opt/agents-bundle/wrappers
     mkdir -p /opt/agents-bundle
-    tar -xzf /tmp/agents-bundle.tar.gz -C /opt/agents-bundle
+    tar -xzf /var/tmp/agents-bundle.tar.gz -C /opt/agents-bundle
     /opt/agents-bundle/install.sh '$SHA'
 "
 
