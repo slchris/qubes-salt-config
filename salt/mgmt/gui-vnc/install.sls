@@ -64,6 +64,30 @@ Deploy (from dom0):
       - greybird-gtk-theme
 {% endif %}
 
+# Qubes' launcher starts x11vnc with no authentication and in single-client
+# mode. Add shared mode, bind VNC to loopback only (the ConnectTCP bridge
+# reaches it from localhost), and require a VNC password stored in the GUI
+# domain's persistent /rw. The password file is created by the operator, never
+# by Salt; x11vnc fails closed if it is missing.
+"gui-vnc-template-x11vnc-options":
+  file.replace:
+    - name: /usr/bin/qubes-run-x11vnc
+    - pattern: '^\s*OPTIONS_VNC=.*$'
+    - repl: '    OPTIONS_VNC="-display :0 -auth /var/run/lightdm/root/:0 -forever -shared -localhost -rfbauth /rw/config/gui-vnc/passwd"'
+    - flags:
+      - MULTILINE
+    - require:
+      - pkg: "gui-vnc-template-packages"
+
+"gui-vnc-template-x11vnc-options-verify":
+  cmd.run:
+    - name: |
+        grep -q -- '-shared' /usr/bin/qubes-run-x11vnc
+        grep -q -- '-localhost' /usr/bin/qubes-run-x11vnc
+        grep -q -- '-rfbauth /rw/config/gui-vnc/passwd' /usr/bin/qubes-run-x11vnc
+    - require:
+      - file: "gui-vnc-template-x11vnc-options"
+
 # Start lightdm only when the qube carries the lightdm service, so the template
 # itself never launches a display manager and the GUI domain decides when to.
 "gui-vnc-template-lightdm-dropin":

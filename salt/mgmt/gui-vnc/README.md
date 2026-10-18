@@ -24,7 +24,7 @@ browser ──http/ws──▶ sys-vncweb  (noVNC + websockify, networked)
 | State | Runs in | Purpose |
 |-------|---------|---------|
 | `clone` | dom0 | install the `*-xfce` GUI-domain template from `qubes-templates-itl` |
-| `install` | that template | `qubes-vm-guivm` + XFCE + the lightdm Qubes drop-in |
+| `install` | that template | `qubes-vm-guivm` + XFCE + the lightdm Qubes drop-in; patches x11vnc for shared/loopback/password auth |
 | `create` | dom0 | create `sys-gui-vnc`, its RPC policy, and the lightdm credential |
 | `prefs` | dom0 | optionally set global `default_guivm` (opt-in, see below) |
 | `web-create` | dom0 | clone the front-end template, create `sys-vncweb`, ConnectTCP policy |
@@ -78,6 +78,14 @@ qvm-shutdown --wait fedora-43-xfce
 # 3. The GUI domain, its RPC policy and its lightdm credential (starts it)
 sudo qubesctl state.apply mgmt.gui-vnc.create
 
+# 3.5 The patched launcher refuses to start x11vnc until a VNC password
+#     exists. Choose it now; this is NOT the dom0 password. The command is
+#     interactive, so run it from a dom0 terminal (or from the GUI domain's
+#     terminal if qvm-run does not relay the prompt).
+qvm-run -u root sys-gui-vnc 'mkdir -p /rw/config/gui-vnc && chmod 700 /rw/config/gui-vnc'
+qvm-run -u root sys-gui-vnc 'x11vnc -storepasswd /rw/config/gui-vnc/passwd'
+qvm-run -u root sys-gui-vnc 'pkill -x x11vnc; sleep 1; nohup /usr/bin/qubes-run-x11vnc >/var/log/qubes-x11vnc.log 2>&1 &'
+
 # 4. The browser front end: template + qube + ConnectTCP policy. Same rule:
 #    install into the template, STOP it, then start the AppVM.
 sudo qubesctl state.apply mgmt.gui-vnc.web-create
@@ -114,8 +122,10 @@ Then, from any machine on `cfg.remote_debug.lan_subnet`
 http://<sys-net-physical-IP>:6080/vnc.html
 ```
 
-The first screen is the GUI domain's lightdm. Log in as `user` with your dom0
-password (see `sync_dom0_password` above). Nothing is exposed unless
+The noVNC page first asks for the **VNC password** created in step 3.5. After
+that, the GUI domain's lightdm may ask for the dom0 password (see
+`sync_dom0_password` above); if the session is already logged in, lock it
+before disconnecting. Nothing is exposed unless
 `web.network = "portforward"` and `mgmt.gui-vnc.netfw` was applied.
 
 > **Connection refused even though you are on the LAN?** Check whether your
@@ -127,7 +137,8 @@ password (see `sync_dom0_password` above). Nothing is exposed unless
 
 ## Usage
 
-- **Login:** lightdm inside the GUI domain, as the template's `user`, with your
+- **Login:** the noVNC page asks for the VNC password you set in step 3.5.
+  After that, lightdm inside the GUI domain asks for the template `user`'s
   **dom0 password** (`sync_dom0_password`). If you set that to `False`, set the
   password yourself first:
   `qvm-run -u root sys-gui-vnc 'passwd user'`.
@@ -158,7 +169,8 @@ qvm-service sys-gui-vnc              # -> lightdm, guivm, guivm-vnc: on
 cat /etc/qubes/policy.d/50-gui-sys-gui-vnc.policy
 cat /etc/qubes/policy.d/50-gui-vnc-web.policy
 
-# Inside the GUI domain: VNC listening on loopback only, lightdm up
+# Inside the GUI domain: hardened x11vnc options and a loopback-only listener
+qvm-run --pass-io -u root sys-gui-vnc 'grep OPTIONS_VNC /usr/bin/qubes-run-x11vnc'
 qvm-run --pass-io -u root sys-gui-vnc 'ss -lntp | grep 5900; systemctl status lightdm --no-pager | head -3'
 
 # Inside the front end: both units are up and websockify is bound
@@ -174,9 +186,21 @@ qvm-run --pass-io -u root sys-vncweb 'timeout 3 socat - TCP:127.0.0.1:5901 </dev
 This is the security cost of remote desktop, stated plainly:
 
 - **Anyone who reaches the VNC session and logs in controls the whole machine.**
-  The Qubes GUI-domain docs say the same. The VNC server itself is loopback-only
-  and gated by the `qubes.ConnectTCP` policy, so the real doors are the browser
-  front end (port `6080`) and the lightdm password (your dom0 password).
+  The Qubes GUI-domain docs say the same. The VNC server is loopback-only,
+  requires a VNC password (`-rfbauth /rw/config/gui-vnc/passwd`), and is gated
+  by the `qubes.ConnectTCP` policy. The VNC password is not the dom0 password
+  and is not encryption: VNC's challenge-response is weak and the session is
+  plaintext. The real doors remain the browser front end (port `6080`), the VNC
+  password, and lightdm.
+- **The desktop stays logged in after the viewer disconnects.** Lock it
+  (`xflock4`/`dm-tool lock`) or log out before closing the browser, as the
+  Qubes GUI-domain docs advise; otherwise the next viewer finds the unlocked
+  session.
+- **Off-LAN access needs a cryptographic wrapper.** The official docs call the
+  bare VNC setup suitable for test machines only and recommend a VPN (or an
+  equivalent authenticated tunnel) when the listener faces an open network.
+  Keep the DNAT restricted to `remote_debug.lan_subnet`; use an SSH tunnel/VPN
+  or add TLS to websockify before widening it.
 - **`default_guivm` moves the machine's trust boundary into a networked-adjacent
   qube.** The GUI domain has no netvm, but it does run an X session and a VNC
   server; keep it patched like a template.
@@ -192,6 +216,39 @@ This is the security cost of remote desktop, stated plainly:
   hand.
 - `admin_global_permissions` defaults to `'rwx'` to match Qubes; `'ro'` or
   `'none'` narrows what the GUI domain can ask dom0 to do.
+
+## Qubes practice
+
+The official GUI-domain documentation and the community converge on the same
+shape this module uses:
+
+*   VNC listens on `localhost:5900` inside the GUI domain; the GUI domain has
+    no NetVM and is reached through `qubes.ConnectTCP` from a separate qube.
+    ([Qubes GUI-domain docs](https://doc.qubes-os.org/en/r4.3/user/advanced-topics/gui-domain.html))
+*   The intended authentication is the display manager: log in as the earliest
+    dom0 user in the `qubes` group with the dom0 password. The desktop stays
+    logged in after the viewer disconnects, so lock or sign out first. (same
+    docs)
+*   The docs warn that anyone who can reach the VNC port can seize the whole
+    machine, a second viewer can join and may kick the first off, and the bare
+    setup is suitable only for test machines. If it faces an open network, put
+    a cryptographic wrapper such as a VPN in front. (same docs)
+*   Qusal's `sys-gui-vnc` keeps a default-deny inter-qube policy and allows
+    only the trusted client qube to reach port 5900; exposure is expected to
+    go over VPN/SSH.
+    ([qusal sys-gui-vnc](https://git.hackliberty.org/Git-Mirrors/qusal/src/branch/main/salt/sys-gui-vnc))
+*   Qubes issue [#6740](https://github.com/QubesOS/qubes-issues/issues/6740)
+    tracks the GUI-domain password/persistence design; the lightdm password is
+    not a strong remote-auth mechanism on its own.
+*   noVNC/websockify practice is to terminate TLS (`wss://`, `--cert`/`--key`)
+    or proxy it behind a TLS reverse proxy; plain HTTP is not for public
+    exposure. ([websockify](https://github.com/novnc/websockify))
+
+This module follows that model (localhost VNC, ConnectTCP, lightdm) and adds a
+VNC password as an extra gate in front of the already-logged-in GUI session.
+It deliberately does **not** widen the network: the browser front end is
+LAN-only and plain HTTP, so use an SSH tunnel/VPN or add TLS if that is not
+enough.
 
 ## Verification status
 
