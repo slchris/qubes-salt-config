@@ -73,7 +73,7 @@ Deploy (from dom0):
   file.replace:
     - name: /usr/bin/qubes-run-x11vnc
     - pattern: '^\s*OPTIONS_VNC=.*$'
-    - repl: '    OPTIONS_VNC="-display :0 -auth /var/run/lightdm/root/:0 -forever -shared -localhost -rfbauth /rw/config/gui-vnc/passwd"'
+    - repl: '    OPTIONS_VNC="-display :0 -auth /var/run/lightdm/root/:0 -forever -shared -localhost -xrandr -rfbauth /rw/config/gui-vnc/passwd"'
     - flags:
       - MULTILINE
     - require:
@@ -84,6 +84,7 @@ Deploy (from dom0):
     - name: |
         grep -q -- '-shared' /usr/bin/qubes-run-x11vnc
         grep -q -- '-localhost' /usr/bin/qubes-run-x11vnc
+        grep -q -- '-xrandr' /usr/bin/qubes-run-x11vnc
         grep -q -- '-rfbauth /rw/config/gui-vnc/passwd' /usr/bin/qubes-run-x11vnc
     - require:
       - file: "gui-vnc-template-x11vnc-options"

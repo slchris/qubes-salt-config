@@ -24,7 +24,7 @@ browser ──http/ws──▶ sys-vncweb  (noVNC + websockify, networked)
 | State | Runs in | Purpose |
 |-------|---------|---------|
 | `clone` | dom0 | install the `*-xfce` GUI-domain template from `qubes-templates-itl` |
-| `install` | that template | `qubes-vm-guivm` + XFCE + the lightdm Qubes drop-in; patches x11vnc for shared/loopback/password auth |
+| `install` | that template | `qubes-vm-guivm` + XFCE + the lightdm Qubes drop-in; patches x11vnc for shared/loopback/password auth and `-xrandr` remote resizing |
 | `create` | dom0 | create `sys-gui-vnc`, its RPC policy, and the lightdm credential |
 | `prefs` | dom0 | optionally set global `default_guivm` (opt-in, see below) |
 | `web-create` | dom0 | clone the front-end template, create `sys-vncweb`, ConnectTCP policy |
@@ -119,8 +119,13 @@ Then, from any machine on `cfg.remote_debug.lan_subnet`
 (`10.31.0.0/24` and `10.42.0.0/24` by default):
 
 ```
-http://<sys-net-physical-IP>:6080/vnc.html
+http://<sys-net-physical-IP>:6080/vnc.html?resize=remote
 ```
+
+`resize=remote` asks x11vnc (started with `-xrandr`) to resize the GUI
+domain's framebuffer to the browser viewport, so text is rendered 1:1 instead
+of being scaled up or down. If the client or driver cannot remote-resize, use
+`?resize=scale` and pick a resolution on the server with `xrandr`.
 
 The noVNC page first asks for the **VNC password** created in step 3.5. After
 that, the GUI domain's lightdm may ask for the dom0 password (see
