@@ -24,10 +24,39 @@ Deploy (from dom0):
 {%- set relay = rv.get('relay', 'mgmt-jump') -%}
 {%- set targets = rv.get('targets', []) -%}
 {%- set callers = csr.get('allowed_callers', [relay]) -%}
+{%- set grants = csr.get('service_grants', []) -%}
+{%- set grant_check = namespace(valid=True) -%}
+{%- if grants | length > 32 -%}{%- set grant_check.valid = False -%}{%- endif -%}
+{%- for grant in grants -%}
+{%- for name in [grant.get('source', ''), grant.get('target', '')] -%}
+{%- if not name or name | length > 31 or name[0] not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' -%}
+{%- set grant_check.valid = False -%}
+{%- endif -%}
+{%- for char in name -%}
+{%- if char not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-' -%}
+{%- set grant_check.valid = False -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endfor -%}
+{%- if grant.get('source') not in callers or not grant.get('services', []) -%}
+{%- set grant_check.valid = False -%}
+{%- endif -%}
+{%- for service in grant.get('services', []) -%}
+{%- if service not in ['qubesair.Exec', 'qubesair.FileCopy'] -%}
+{%- set grant_check.valid = False -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endfor -%}
 
 {% if grains['nodename'] == 'dom0' %}
 {% if csr.get('enabled', False) %}
 
+{% if not grant_check.valid %}
+"grpc-scoped-grants-invalid":
+  test.fail_without_changes:
+    - name: service_grants require an allowed caller, an exact VM name and Exec/FileCopy services.
+    - failhard: True
+{% else %}
 "grpc-csr-policy":
   file.managed:
     - name: /etc/qubes/policy.d/25-qubes-air-grpc.policy
@@ -50,6 +79,14 @@ Deploy (from dom0):
         # path. Only names and addresses cross this — no credentials.
         qubesair.RemoteEndpoints * {{ relay }} {{ console }} allow
         qubesair.RemoteEndpoints * @anyvm @anyvm deny
+        # Exact source/target/service grants for unattended validated workflows.
+        # '+' matches only an empty service argument; no wildcard arguments.
+        {%- for grant in grants %}
+        {%- for service in grant['services'] %}
+        {{ service }} + {{ grant['source'] }} {{ grant['target'] }} allow
+        {{ service }} * {{ grant['source'] }} {{ grant['target'] }} deny
+        {%- endfor %}
+        {%- endfor %}
         {%- set exec_action = csr.get('exec_action', 'ask') %}
         # A: a caller may reach ANY RemoteVM — @tag:remote-zone is set on every one
         # by qubesair.RegisterRemoteVM, so a newly provisioned qube is covered
@@ -96,3 +133,5 @@ Deploy (from dom0):
 
 {% endif %}
 {% endif %}
+
+{% endif %}{# valid scoped grants #}

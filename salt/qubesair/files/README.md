@@ -1,62 +1,40 @@
-<!--
-SPDX-FileCopyrightText: 2026 Chris Su
-SPDX-License-Identifier: MIT
--->
+<!-- SPDX-License-Identifier: MIT -->
+# Qubes Air deployment payloads
 
-# `salt/qubesair/files/`
+Console, Web and backup payloads may be staged here for a scoped deployment
+bundle or fetched from an artifact URL. Salt verifies every configured SHA256.
+Generated binaries and archives are ignored by Git; commit their provenance in
+[artifacts.json](../artifacts.json), and keep environment-specific sources in the
+local deployment manifest described in the [deployment guide](../README.md).
 
-Payloads delivered into the console qube by `qubesair.console`.
-
-## `qubes-air-console` — served from the LAN artifact store
-
-**It no longer belongs in this directory.** The binary is published to the
-artifact store alongside the agent `.deb`,
-and `cfg.qubesair.console_binary_source` points at that URL. `file.managed`
-fetches `http(s)://` sources natively and verifies `source_hash` before
-installing, so no state changed. Staging it here still works — point
-`console_binary_source` back at the `salt://` URL — but it puts a ~30MB build
-artifact in the salt tree that `scripts/setup.sh` copies to dom0 on every
-deploy.
-
-Build it from the `qubes-air` repo, then publish:
+Build Console and backup with the reviewed qubes-air source on linux/amd64 and
+the Go version declared by that source's `console/backend/go.mod`:
 
 ```sh
-# 1. Build. Runs on macOS, produces linux/amd64.
-docker run --rm --platform linux/amd64 -v "$PWD":/src -w /src/console/backend \
-    golang:1.26 sh -c 'CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
-        -trimpath -ldflags="-s -w" -o /src/dist/qubes-air-console ./cmd/server'
-shasum -a 256 dist/qubes-air-console
-
-# 2. Publish. Same login + read-back pattern as scripts/publish-agent-deb.sh,
-#    same MIRROR_USERNAME / MIRROR_PASSWORD.
+CGO_ENABLED=1 VERSION=<reviewed-version> scripts/build-release-binary.sh ./cmd/server dist/qubes-air-console
+CGO_ENABLED=1 VERSION=<reviewed-version> scripts/build-release-binary.sh ./cmd/qubes-air-backup dist/qubes-air-backup
+sha256sum dist/qubes-air-console dist/qubes-air-backup
 ```
 
-Then set both keys in the `qubesair` block of `salt/config.jinja`:
+Both programs use SQLite through cgo. Their release script verifies the embedded
+version/revision/build time. The candidate Console must support `--check-database`;
+this runs before replacing active files, and refuses unreadable or newer schemas.
+An old binary that lacks this flag cannot be deployed over an existing database.
 
-```jinja
-"console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console",
-"console_binary_sha256": "<the digest printed above>",
-```
+Build Web with the repository's frontend check/build procedure and package its
+`dist/` contents. Build the agent package with `scripts/build-agent-deb.sh`, publish
+it at a URL reachable by guests, and verify its read-back digest before applying
+the Console state. The agent URL has no environment-specific default.
 
-Three parts of that build command are load-bearing:
-
-- **`CGO_ENABLED=1`** — the console uses `mattn/go-sqlite3`, a cgo package.
-  `CGO_ENABLED=0` compiles cleanly and produces a binary that fails at runtime
-  with `unknown driver "sqlite3"`: a clean build and a console that cannot open
-  its own database, so the mistake surfaces only on the target machine.
-- **`--platform linux/amd64`** — on an Apple Silicon Mac the `golang` image is
-  arm64, and a cgo build targeting `GOARCH=amd64` there needs an x86-64 cross
-  toolchain the image does not ship. Running the amd64 image under emulation
-  makes the build native inside the container: slower, and correct.
-- **`golang:1.26`** — `console/backend/go.mod` requires go >= 1.26.0. This file
-  said 1.23, which fails immediately on the toolchain check.
-
-The digest is required either way: `console_binary_sha256` has no default and
-the state refuses to render a service around an unpinned binary.
-
-Verify what actually landed in the qube:
+Build the four qrexec helpers from that same source and record each digest:
 
 ```sh
-sha256sum /rw/config/qubesair/bin/qubes-air-console
+cd console/backend
+for helper in issue-relay-cert list-endpoints relay-call relay-bootstrap; do
+    CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -o "../../dist/$helper" "./cmd/$helper"
+done
 ```
 
+Use a native Linux build environment with the matching Go toolchain and C
+compiler. `artifacts.json` records source revision and platform for these helpers;
+`go version -m` independently reports their VCS revision and clean source tree.

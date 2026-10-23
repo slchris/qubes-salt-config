@@ -24,8 +24,9 @@ the run with the one-time command if it is not.
 It also does not mount the off-host medium. What that is (a LUKS volume, a USB
 disk attached with qvm-block, a network mount) is a deployment decision this
 state cannot make for you; the unit declares RequiresMountsFor so that a missing
-mount fails the backup loudly instead of quietly leaving the only copy on the
-machine that just lost its disk.
+mount is ordered before the backup. ExecStartPre separately requires the exact
+archive directory to be a mountpoint; RequiresMountsFor alone accepts an ordinary
+local directory and cannot prove the backup is off-host.
 
 Why the timer is not the whole story
 ------------------------------------
@@ -96,7 +97,7 @@ cost is one extra archive per boot, bounded by the same keep window.
           printf 'QUBES_AIR_BACKUP_PASSPHRASE=%s\n' "$(head -c 32 /dev/urandom | base64)" \
             | tee {{ env_file }} >/dev/null
 
-        Copy that value to the off-host medium before trusting a single archive:
+        Keep that value separately from the archive storage before trusting a backup:
         without it the archives cannot be opened, and it is not recoverable from
         them.
 
@@ -112,9 +113,9 @@ cost is one extra archive per boot, bounded by the same keep window.
     - name: |
         cfg.qubesair.backup.binary_sha256 is not set, and it has no default.
 
-        qubes-air-backup is built from the qubes-air Go source. Nothing publishes
-        it yet, so cross-compile it by hand into this repo's salt tree and pin it
-        by digest:
+        qubes-air-backup is built from the qubes-air Go source and included in
+        its release artifacts. Use a verified release or build with the current
+        repository toolchain and pin its digest:
 
           cd console/backend
           CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
@@ -125,6 +126,11 @@ cost is one extra archive per boot, bounded by the same keep window.
         Then set cfg.qubesair.backup.binary_sha256 and re-run scripts/setup.sh.
     - failhard: True
 
+{% endif %}
+
+{% if bk.get('sshfs', {}).get('enabled', False) %}
+include:
+  - qubesair.backup-mount
 {% endif %}
 
 # --- 1. The binary ------------------------------------------------------------
@@ -191,7 +197,7 @@ cost is one extra archive per boot, bounded by the same keep window.
           printf 'QUBES_AIR_BACKUP_PASSPHRASE=%s\n' "$(head -c 32 /dev/urandom | base64)" \
             > {{ env_file }} && chmod 0600 {{ env_file }}
 
-        Then copy the value to the off-host medium. Re-running this command
+        Then store the value separately from the archive storage. Re-running this command
         REPLACES the key, and every archive written before it becomes unopenable.
         EOF
         exit 1
@@ -220,6 +226,10 @@ cost is one extra archive per boot, bounded by the same keep window.
         # fails the run on purpose rather than leaving the only copy on the disk
         # the backup exists to survive.
         RequiresMountsFor={{ offhost_dir }}
+{% if bk.get('sshfs', {}).get('enabled', False) %}
+        Requires=secure-offhost.mount
+        After=secure-offhost.mount
+{% endif %}
 
         [Service]
         Type=oneshot
@@ -235,6 +245,7 @@ cost is one extra archive per boot, bounded by the same keep window.
         # systemd's unit specifiers have no date/time item — %Y is the unit file's
         # own directory, see systemd.unit(5) — so `$(date ...)` and `%Y%m%d` are
         # both wrong here.
+        ExecStartPre=/usr/bin/mountpoint -q {{ offhost_dir }}
         ExecStart={{ bin_path }} create -db {{ db_path }} -out-dir {{ offhost_dir }}
         # create and prune in ONE unit, in this order: `prune` alone would delete
         # down to `keep` with nothing new added, and a failed `create` stops the
@@ -352,12 +363,12 @@ cost is one extra archive per boot, bounded by the same keep window.
 
         Two things this state cannot do for you:
 
-        1. Copy the passphrase off-host. Without it no archive can be opened,
+        1. Keep the passphrase and original keyring separately from the archives.
+           Without them no archive can be used,
            and it cannot be recovered from the archives themselves:
 
-             # in dom0
-             qvm-run -p {{ qa.get('qube', 'qubesair-console') }} \
-               'cat {{ env_file }}' > /secure/offhost/backup-passphrase.txt
+             Store {{ env_file }} and the original Console keyring in a separate,
+             restricted recovery location, never in {{ offhost_dir }}.
 
         2. Confirm that the newest archive actually restores. Run it now rather
            than the night you need it:

@@ -7,18 +7,18 @@ SPDX-License-Identifier: MIT
 
 Builds a **dedicated template** and the **console AppVM** on it:
 
-```
-debian-13-minimal ──clone──> tpl-qubesair ──template of──> qubesair-console
-                             (sqlite3,                     (PVE token, agent CA
-                              dnsmasq, dig,                 key, qube_infra,
-                              ssh client, ...)              SQLite database)
-                                                                  │ netvm
-                                                            sys-tailscale ── sys-firewall ── sys-net ── 10.31.0.0/24
+```mermaid
+flowchart LR
+    Base[Debian minimal template] --> Template[tpl-qubesair]
+    Template --> Console[qubesair-console]
+    Console --> Firewall[sys-firewall]
+    Firewall --> Net[sys-net]
+    Console --> State[Encrypted credentials and SQLite state]
 ```
 
 The console is a self-contained Go binary: it drives provider APIs with Go's own
-HTTP/TLS stack (no terraform, no provider mirror, no registry access), and it
-execs nothing to provision.
+HTTP/TLS stack and scoped provider SSH operations (no Terraform or provider
+registry dependency).
 
 ## Why not just reuse `mgmt-jump`
 
@@ -43,6 +43,7 @@ exactly the problem this module exists to avoid.
 | `configure.sls` | `qubesair-console` | split-horizon DNS (qube networking) |
 | `console.sls` | `qubesair-console` | the console **service** — binary, unit, env, data layout (owned separately) |
 | `backup.sls` | `qubesair-console` | the database backup — binary, service, timer, one run per boot |
+| `backup-mount.sls` | template + Console | persistent SSHFS package and optional confined off-host archive mount |
 
 `configure.sls` and `console.sls` are deliberately disjoint: different state-ID
 prefixes, different files, different `rc.local` marker blocks, and **no shared
@@ -89,12 +90,13 @@ database. It is **off until you finish three steps**, and it says so rather than
 rendering a timer that backs nothing up:
 
 1. **Mount the off-host medium** somewhere and put it in `cfg.qubesair.backup.offhost_dir`.
-   The unit declares `RequiresMountsFor` it, so an unmounted medium fails the
-   backup instead of leaving the only copy on the disk the backup exists to
+   The unit declares `RequiresMountsFor` and checks the exact mountpoint before
+   creating an archive, so an unmounted medium fails the backup instead of leaving the only copy on the disk the backup exists to
    survive. Whether that is LUKS, `qvm-block`, or a network mount is your call —
    this state does not guess.
 2. **Build and pin the binary.** `qubes-air-backup` is built from the qubes-air
-   Go source and nothing publishes it yet:
+   Go source and is included in Qubes Air release artifacts. Verify its release
+   digest, or build on a matching native Linux toolchain:
 
    ```bash
    cd console/backend
@@ -106,8 +108,8 @@ rendering a timer that backs nothing up:
 
    Put the digest in `cfg.qubesair.backup.binary_sha256`; the state hard-fails
    without it, for the same reason the console binary is pinned.
-3. **Create the passphrase once, inside the console qube** — and copy it to the
-   off-host medium. It is not recoverable from the archives:
+3. **Create the passphrase once, inside the console qube** — and keep a separate protected recovery copy. Store the archive passphrase and
+   original keyring separately from the archives; neither is recoverable from them:
 
    ```bash
    # in qubesair-console
@@ -169,10 +171,10 @@ To allow another qube, add it to `ui_clients` and re-apply `qubesair.create` —
 not `@anyvm`. Every qube that can reach this port can drive the whole fleet once
 a token is pasted in on the other end.
 
-### First load: paste the API token
+### First load: sign in
 
-The page loads without a token, and every `/api/v1` call returns **401** until
-one is set. That is not a fault: `qubesair.console` generates a token on first
+The page shows the sign-in form, and protected `/api/v1` calls return **401**
+until the session is established. That is not a fault: `qubesair.console` generates a token on first
 apply and it is never transmitted anywhere.
 
 ```sh
@@ -181,9 +183,9 @@ qvm-run --pass-io -u root qubesair-console \
     'grep QUBES_AIR_API_TOKEN /rw/config/qubesair/secrets.env'
 ```
 
-Paste the value into the console's **Settings** view. It is stored in that
-browser's `localStorage` under `qubesair.apiToken` and sent as
-`Authorization: Bearer …` on every request, so it is entered once per browser.
+Use the value in the sign-in form. The server issues an HttpOnly session cookie;
+the frontend does not persist the token in localStorage. CLI clients may continue
+to authenticate with a Bearer token.
 
 The token is deliberately not injected into the page at build or deploy time:
 anything that put it where the frontend could read it automatically would also
@@ -377,3 +379,144 @@ delivered unambiguously.
 
 The console validates both lists at startup, so a typo fails the service rather
 than silently delivering an allowlist nobody can use.
+
+## Scoped production updates
+
+Production updates should use a scoped bundle, identified by an untracked
+`qubesair-deployment.json` at the bundle root. `scripts/setup.sh` then selects
+`scripts/update-qubesair.py`, which validates every file digest and configuration
+key, backs up existing files, and updates only the allowed Qubes Air paths. It
+preserves unrelated Salt files and settings. A failed write rolls back completed
+replacements; a digest, path or configuration error writes nothing. The ordinary
+full-tree setup remains for initial installation; do not use it to replace a
+customized production Salt tree.
+
+The bundle includes `scripts/setup.sh`, `scripts/update-qubesair.py`, the selected
+files under `salt/`, and this manifest shape (digests abbreviated here):
+
+```json
+{
+  "files": {"qubesair/console.sls": "<64 hex digits>"},
+  "qubesair": {
+    "console_binary_source": "salt://qubesair/files/qubes-air-console-eb753f4",
+    "console_binary_sha256": "<64 hex digits>",
+    "agent_package_url": "https://artifacts.example/qubes-air-agent_0.0.0+qaeb753f4_amd64.deb",
+    "agent_package_sha256": "<64 hex digits>",
+    "agent_package_version": "0.0.0+qaeb753f4",
+    "provision_wait_seconds": 600
+  }
+}
+```
+
+Include every selected artifact in `files`, or use an authenticated/verified
+artifact source with its SHA256. Current provenance and digests are recorded in
+[artifacts.json](artifacts.json); binaries are generated payloads, never committed.
+The default agent URL is empty deliberately: supply a guest-reachable URL for the
+pinned package. Orchestration deployment refuses an incomplete agent pin before
+changing active files. The candidate Console checks the live database read-only
+before the active binary, environment or Web content changes. Reapplication only
+restarts the service when watched deployment files changed, then checks health.
+
+Validate a staged bundle in dom0 with `sudo scripts/setup.sh --dry-run`, then run
+`sudo scripts/setup.sh`. Both operate on the existing `/srv/salt/slchris` tree.
+Keep the generated manifest private to the deployment: it contains actual
+infrastructure endpoints, but must never contain credentials or keys.
+
+### SSHFS archives and isolated recovery
+
+Set `qubesair.backup.enabled`, binary source/digest, and `backup.sshfs` with
+`enabled`, `host`, `port`, `user`, and `path`. The supported mount is
+`/secure/offhost`. Apply `qubesair.backup-mount` to the template first, then
+shut down the template to commit its updated root volume before restarting the
+Console. A still-running template can report SSHFS installed while a newly
+started AppVM continues to use its previous root snapshot. Apply
+`qubesair.backup` to the Console and verify again after an AppVM restart:
+
+```bash
+sudo qubesctl --skip-dom0 --targets=tpl-qubesair state.apply qubesair.backup-mount
+qvm-shutdown --wait tpl-qubesair
+# After confirming the Console has no active orchestration jobs:
+qvm-shutdown --wait qubesair-console
+qvm-start qubesair-console
+sudo qubesctl --skip-dom0 --targets=qubesair-console state.apply qubesair.backup
+```
+
+Inside the Console, check `command -v sshfs`, the active state of
+`secure-offhost.mount` and `qubes-air-backup.timer`, the backup service result,
+and a new archive on the remote host. A healthy Console alone does not prove backup
+availability.
+
+Provision a dedicated SSH identity at `<data_dir>/backup-ssh/id_ed25519` (0600)
+and trusted host keys at `<data_dir>/backup-ssh/known_hosts`. The NAS account must
+be restricted to a chroot containing only archives, with shell/TTY/forwarding
+disabled. Obtain its host key through an already authenticated channel; do not
+turn off host verification. `backup.env` contains the independently generated
+archive passphrase and is never replaced by Salt. Store its recovery copy and the
+original Console keyring separately from the archive host.
+
+The backup unit requires the SSHFS mount and checks `mountpoint -q` before
+creating or pruning. Test an absent mount, incorrect passphrase and existing
+restore target. Restore into a new isolated directory with orchestration disabled,
+compare the CA and revocations, decrypt the original credentials, reconcile
+provider identities read-only, and record elapsed time. Never overwrite the
+production database as part of a recovery drill.
+
+### Exact Exec/FileCopy grants
+
+`remotevm.grpc.csr.service_grants` accepts records with `source`, `target` and
+`services` (`qubesair.Exec` / `qubesair.FileCopy` only). Source must already be in
+`allowed_callers`; target must be an exact VM name. These grants accept only the
+empty qrexec argument (`+`) and precede the default prompts and denials. Invalid
+names, wildcard targets, unlisted callers and other services fail the state before
+writing policy. Guest service/program/path allowlists still apply.
+
+A scoped manifest may update grants and the pinned RPC artifacts listed below,
+never the broad `exec_action` or `filecopy_action`. Apply `mgmt.remotevm.grpc-policy` in dom0
+and test the actual qrexec path. Remove the exact grant when its test target is
+retired. Destructive cleanup requires confirmation of that target's resource IDs.
+
+### Pinned qrexec helpers
+
+The same reviewed Air source supplies `issue-relay-cert`, `list-endpoints`,
+`relay-call` and `relay-bootstrap`. Their source paths and SHA256 values live in
+`remotevm.grpc.csr`; the scoped installer accepts only complete source/digest
+pairs for these four tools, alongside exact `service_grants`. It cannot change
+`exec_action`, `filecopy_action`, the relay name, or the allowed callers.
+
+Apply `mgmt.remotevm.grpc-policy` in dom0, `mgmt.remotevm.grpc-console` on the
+Console, then `mgmt.remotevm.grpc-csr-relay` on the configured relay. Console
+helpers live in root-owned `/rw/config/qubesair-rpc`; relay executable code lives
+in root-owned `/rw/config/qubesair-relay-runtime`, separate from its user-owned
+identity directory. Boot scripts restore their qrexec links after root-volume
+reset. Relay application checks its client certificate and endpoint refresh.
+
+Endpoint refresh maps each bare Console Qube name to `remote-<name>`, matching
+RemoteVM registration. It rejects a failed request or invalid response before
+writing any endpoint. A successful empty response is valid when no Qubes run.
+An explicit service grant accepts the empty service argument only; nonempty
+arguments for that source/target/service are denied without a prompt.
+
+The deployed GrpcProxy handler removes exactly one `remote-` addressing prefix
+before TLS target verification; its source revision and digest are recorded
+separately from the compiled binaries in `artifacts.json`. Original Qube names
+that themselves start with `remote-` retain that prefix.
+
+### Acceptance and remaining limits
+
+The 2026-10-23 acceptance used the pinned artifacts, repeated Console application
+without restarting its unchanged process, then restarted the Console AppVM.
+After committing the updated template volume by shutting it down, the archive
+mount, timer, RPC helpers and Console survived restart. A boot backup and a
+controlled transient timer both created archives on the separate archive host;
+the latest archive restored with the original keyring and CA. Full qrexec
+Exec/FileCopy positive and negative cases passed under one temporary exact grant,
+which was removed after the approved test objects were purged.
+
+This is branch acceptance, not a published release. The relay itself was not
+rebooted through its sole management connection. Endpoint refresh updates current
+entries but does not remove retired QubesDB entries; after confirming the exact
+retired object, remove its endpoint cache and any Console-generated identity YAML
+left by purge. Provider network eligibility must be checked before choosing a
+node; the current scheduler can select one without the zone's bridge. Detailed
+results and limits are in the Air repository's
+[production closure record](https://github.com/slchris/qubes-air/blob/codex/production-closure/docs/reviews/2026-10-23-production-closure.md).

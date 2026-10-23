@@ -18,6 +18,8 @@
 # =====================================================================
 
 set -euo pipefail
+# 下面的正则与 ${#} 按字节/ASCII 解释, 不随调用方的 locale 变化, 与 agent (Go, 按字节) 一致。
+export LC_ALL=C
 
 log() { echo "qubesair.GrpcProxy: $*" >&2; }
 
@@ -28,13 +30,15 @@ if [[ -z "$arg" ]]; then
     exit 1
 fi
 # dom0 rewrites as transport_rpc+<target>+<service>+<原参数>; with no original
-# argument that leaves a TRAILING '+', so take the service as the SECOND field
-# rather than "everything after the first +" — otherwise it becomes "Ping+" and
-# the agent rejects it. Any real trailing argument is dropped: the gRPC call
-# carries its body on stdin, not as a qrexec service argument.
+# argument that leaves a TRAILING '+'. Strip exactly that one trailing '+' and keep
+# the rest INCLUDING any real argument: "Ping+" -> "Ping" (agent would reject "Ping+"),
+# but "StartApp+galculator" stays intact so services that take a qrexec argument
+# (qubes.StartApp needs the app id) actually receive it. The bare service name is kept
+# separately for validation and per-service timeout.
 target="${arg%%+*}"      # 第一个 + 之前
-rest="${arg#*+}"         # 第一个 + 之后 (可能形如 "service+" 或 "service+arg")
-service="${rest%%+*}"    # 第二个字段, 丢掉改写附加的空/多余参数
+rest="${arg#*+}"         # 第一个 + 之后: "service" / "service+" / "service+arg"
+svcarg="${rest%+}"       # 服务名(+参数), 去掉改写附加的一个空 '+'
+service="${svcarg%%+*}"  # 裸服务名, 供校验与超时判断
 
 if [[ -z "$target" || -z "$service" || "$target" == "$arg" ]]; then
     log "参数格式错误, 期望 'target+service[+arg]', 实得: '$arg'"
@@ -48,8 +52,20 @@ if [[ ! "$target" =~ ^remote-[a-zA-Z0-9._-]+$ ]]; then
     log "拒绝: '$target' 不是 remote-* 名"
     exit 126
 fi
+# dom0 uses remote-<qube> as an addressing shell. The agent's certificate and
+# service target use the original Qube name; remove exactly one prefix while
+# retaining the local name for the QubesDB lookup below.
+remote_name="${target#remote-}"
 if [[ ! "$service" =~ ^[a-zA-Z][a-zA-Z0-9._+-]*$ ]]; then
     log "拒绝: 非法服务名 '$service'"
+    exit 126
+fi
+# 服务参数按 agent 的 validServiceName (internal/agent/invoker.go) 校验: 只允许
+# [A-Za-z0-9._+-]、不含 ".."、服务名连参数最多 128 字节; 首字母须为字母是上面服务名
+# 检查本来的要求, 不是 agent 的规则。agent 本来也会拒绝; 在这里先拒绝, 非法参数就
+# 不会进入 relay-call 的 argv, 也不会为它建立一次到远端的连接。
+if [[ ! "$svcarg" =~ ^[a-zA-Z][a-zA-Z0-9._+-]*$ || "$svcarg" == *..* || ${#svcarg} -gt 128 ]]; then
+    log "拒绝: 非法服务参数 '$svcarg'"
     exit 126
 fi
 
@@ -80,7 +96,7 @@ if [[ -r "$RELAY_DIR/relay.crt" && -r "$RELAY_DIR/relay.key" && -r "$RELAY_DIR/c
     fi
     exec /usr/local/bin/relay-call -timeout "$tmo" \
         -cert "$RELAY_DIR/relay.crt" -key "$RELAY_DIR/relay.key" -ca "$RELAY_DIR/ca.crt" \
-        -addr "$endpoint" "$target" "$service"
+        -addr "$endpoint" "$remote_name" "$svcarg"
 fi
 
 # ---- 3b. mint 模式回退: 本 qube 是 console, 现签 + 从库解析端点 ----
@@ -89,7 +105,7 @@ if [[ -r "$CONSOLE_DIR/secrets.env" ]]; then
     # shellcheck disable=SC1091
     . "$CONSOLE_DIR/secrets.env"
     set +a
-    exec /usr/local/bin/relay-call -timeout "$tmo" -db "$CONSOLE_DIR/qubes-air.db" "$target" "$service"
+    exec /usr/local/bin/relay-call -timeout "$tmo" -db "$CONSOLE_DIR/qubes-air.db" "$remote_name" "$svcarg"
 fi
 
 log "既无 $RELAY_DIR 下的下发证书, 也无 $CONSOLE_DIR/secrets.env —— 本服务未正确部署"

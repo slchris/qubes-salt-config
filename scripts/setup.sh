@@ -60,6 +60,15 @@ if [ "$(id -u)" -ne 0 ]; then
     die "This script must be run as root (use sudo)"
 fi
 
+# Scoped upgrade bundles contain only Qubes Air files plus a validated nonsecret
+# overlay. Never erase the existing Salt tree or replace unrelated user config.
+if [ -f "$PROJECT_DIR/qubesair-deployment.json" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+        exec python3 "$SCRIPT_DIR/update-qubesair.py" --check
+    fi
+    exec python3 "$SCRIPT_DIR/update-qubesair.py"
+fi
+
 # Project name (used for directory naming)
 PROJECT="slchris"
 

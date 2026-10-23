@@ -1,0 +1,8 @@
+{# SPDX-License-Identifier: MIT #}
+{%- from 'config.jinja' import cfg with context -%}
+{%- set qa = cfg.get('qubesair', {}) -%}
+base:
+  {{ qa.get('template', 'tpl-qubesair') }}:
+    - qubesair.backup-mount
+  {{ qa.get('qube', 'qubesair-console') }}:
+    - qubesair.backup-mount

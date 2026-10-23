@@ -27,8 +27,9 @@ Deploy (from dom0):
 {%- set rv = cfg.remotevm -%}
 {%- set csr = rv.get('grpc', {}).get('csr', {}) -%}
 {%- set relay_dir = csr.get('relay_dir', '/rw/config/qubesair-relay') -%}
-{%- set bin_dir = relay_dir ~ '/bin' -%}
-{%- set sysd_dir = relay_dir ~ '/systemd' -%}
+{%- set runtime_dir = '/rw/config/qubesair-relay-runtime' -%}
+{%- set bin_dir = runtime_dir ~ '/bin' -%}
+{%- set sysd_dir = runtime_dir ~ '/systemd' -%}
 {%- set console = csr.get('console_qube', 'qubesair-console') -%}
 
 {% if grains['nodename'] != 'dom0' %}
@@ -55,6 +56,27 @@ Deploy (from dom0):
     - makedirs: True
 
 # --- binaries + handler, all on /rw (persistent) ----------------------------
+# rc.local executes boot.sh as root: its ancestors must not be user-writable.
+# Keep runtime code separate from relay_dir, where user owns its private key.
+"grpc-csr-relay-runtime-dir":
+  file.directory:
+    - name: {{ runtime_dir }}
+    - user: root
+    - group: root
+    - mode: '0755'
+    - makedirs: True
+    - require_in:
+      - file: "grpc-csr-relay-call-bin"
+      - file: "grpc-csr-relay-bootstrap-bin"
+      - file: "grpc-csr-relay-handler"
+      - file: "grpc-csr-relay-connecttcp"
+      - file: "grpc-csr-relay-renew-service"
+      - file: "grpc-csr-relay-renew-timer"
+      - file: "grpc-csr-relay-refresh-endpoints"
+      - file: "grpc-csr-relay-endpoints-service"
+      - file: "grpc-csr-relay-endpoints-timer"
+      - file: "grpc-csr-relay-boot-script"
+
 "grpc-csr-relay-call-bin":
   file.managed:
     - name: {{ bin_dir }}/relay-call
@@ -148,15 +170,33 @@ Deploy (from dom0):
     - contents: |
         #!/bin/bash
         # SPDX-License-Identifier: MIT — managed by mgmt.remotevm.grpc-csr-relay
-        set -uo pipefail
-        eps="$(qrexec-client-vm {{ console }} qubesair.RemoteEndpoints 2>/dev/null || true)"
-        [ -n "$eps" ] || { echo "refresh-endpoints: console returned nothing" >&2; exit 0; }
-        printf '%s\n' "$eps" | while read -r name ep _; do
+        set -euo pipefail
+        if ! eps="$(qrexec-client-vm {{ console }} qubesair.RemoteEndpoints)"; then
+            echo "refresh-endpoints: console request failed" >&2
+            exit 1
+        fi
+        valid_endpoint() {
+            local ep="$1" octet
+            [[ "$ep" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3}):([0-9]{1,5})$ ]] || return 1
+            for octet in "${BASH_REMATCH[@]:1:4}"; do
+                (( 10#$octet <= 255 )) || return 1
+            done
+            (( 10#${BASH_REMATCH[5]} >= 1 && 10#${BASH_REMATCH[5]} <= 65535 ))
+        }
+        names=() endpoints=()
+        # list-endpoints emits the bare Qube name. dom0 addresses it using
+        # RemoteVMLocalName: always prepend remote-, even for remote-* names.
+        # Validate the complete response before changing any QubesDB entry.
+        while read -r name ep extra; do
             [ -n "$name" ] || continue
-            # Strict whitelist: these values steer a dial, so never trust them raw.
-            [[ "$name" =~ ^remote-[a-zA-Z0-9._-]+$ ]] || continue
-            [[ "$ep" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}:[0-9]{1,5}$ ]] || continue
-            qubesdb-write "/remote-endpoint/$name" "$ep"
+            if [[ ! "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,23}$ || -n "$extra" ]] || ! valid_endpoint "$ep"; then
+                echo "refresh-endpoints: invalid endpoint record" >&2
+                exit 1
+            fi
+            names+=( "remote-$name" ) endpoints+=( "$ep" )
+        done <<< "$eps"
+        for i in "${!names[@]}"; do
+            qubesdb-write "/remote-endpoint/${names[$i]}" "${endpoints[$i]}"
         done
 
 "grpc-csr-relay-endpoints-service":
@@ -202,7 +242,7 @@ Deploy (from dom0):
 # relay-bootstrap here means the relay always comes up with a fresh certificate.
 "grpc-csr-relay-boot-script":
   file.managed:
-    - name: {{ relay_dir }}/boot.sh
+    - name: {{ runtime_dir }}/boot.sh
     - makedirs: True
     - mode: '0755'
     - user: root
@@ -253,7 +293,7 @@ Deploy (from dom0):
     - name: /rw/config/rc.local
     - marker_start: "# >>> qubesair grpc-csr-relay >>>"
     - marker_end: "# <<< qubesair grpc-csr-relay <<<"
-    - content: "{{ relay_dir }}/boot.sh || true"
+    - content: "{{ runtime_dir }}/boot.sh || true"
     - append_if_not_found: True
     - require:
       - file: "grpc-csr-relay-rc-local-exists"
@@ -262,7 +302,7 @@ Deploy (from dom0):
 # waiting for a reboot.
 "grpc-csr-relay-activate-now":
   cmd.run:
-    - name: {{ relay_dir }}/boot.sh
+    - name: {{ runtime_dir }}/boot.sh
     - runas: root
     - require:
       - file: "grpc-csr-relay-call-bin"
@@ -275,6 +315,18 @@ Deploy (from dom0):
       - file: "grpc-csr-relay-endpoints-service"
       - file: "grpc-csr-relay-endpoints-timer"
       - file: "grpc-csr-relay-boot-script"
+
+"grpc-csr-relay-ready":
+  cmd.run:
+    - name: |
+        set -e
+        test -s {{ relay_dir }}/relay.key
+        openssl verify -purpose sslclient -CAfile {{ relay_dir }}/ca.crt {{ relay_dir }}/relay.crt
+        openssl x509 -in {{ relay_dir }}/relay.crt -noout -checkend 60
+        {{ bin_dir }}/refresh-endpoints.sh
+    - runas: user
+    - require:
+      - cmd: "grpc-csr-relay-activate-now"
 
 {% endif %}
 {% endif %}

@@ -59,3 +59,16 @@ jobs:
           python-version: "3.x"
       - name: Check every state .sls has a matching .top
         run: python3 scripts/check_top_pairing.py
+
+  deployment-contracts:
+    name: Qubes Air deployment contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install renderer
+        run: pip install jinja2 pyyaml
+      - name: Check deployment ordering, refusal and rollback
+        run: python3 -m unittest discover -s tests -v
