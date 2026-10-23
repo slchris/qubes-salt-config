@@ -44,7 +44,8 @@ class DeploymentTests(unittest.TestCase):
         self.assertTrue(gate['failhard'])
         self.assertEqual(gate['runas'], 'user')
         required = gate['require_in']
-        for name in ('binary', 'env', 'preflight', 'unit', 'web-archive'):
+        for name in ('binary', 'env', 'preflight', 'unit', 'web-archive',
+                     'ingress-helper', 'ingress-config', 'ingress-hook'):
             self.assertIn({'file': 'qubesair-console-' + name}, required)
         path = pathlib.Path(self.tmp.name)
         (path / 'bin').mkdir()
@@ -73,6 +74,20 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn({'service': 'qubesair-console-service'}, health['require'])
         env = args(states['qubesair-console-env'], 'file.managed')['contents']
         self.assertIn('QUBES_AIR_ORCHESTRATOR_PROVISION_WAIT_SECONDS=600', env)
+
+    def test_console_ingress_survives_firewall_reload_and_is_opt_in(self):
+        states = render('qubesair/console.sls', self.qa)
+        self.assertIn('qubesair.console-ingress', states['include'])
+        for enabled in (False, True):
+            cfg = {**self.qa, 'allow_gateway_ingress': enabled, 'listen': '0.0.0.0:8080'}
+            states = render('qubesair/console-ingress.sls', cfg)
+            config = json.loads(args(states['qubesair-console-ingress-config'], 'file.managed')['contents'])
+            self.assertEqual(config, {'enabled': enabled, 'qube': 'qubesair-console', 'listen': '0.0.0.0:8080'})
+            hook = args(states['qubesair-console-ingress-hook'], 'file.blockreplace')
+            self.assertEqual(hook['name'], '/rw/config/qubes-firewall-user-script')
+            self.assertIn('/rw/config/qubesair-ingress/apply.py', hook['content'])
+            self.assertNotIn('|| true', hook['content'])
+            self.assertNotIn('service.running', states['qubesair-console-ingress-apply'])
 
     def test_backup_refuses_local_directory_before_create_and_prune(self):
         states = render('qubesair/backup.sls', self.qa)

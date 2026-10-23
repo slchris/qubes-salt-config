@@ -140,6 +140,9 @@ Deploy (from dom0), after the console qube exists and is running:
 
 {% else %}
 
+include:
+  - qubesair.console-ingress
+
 # --- 1. Persistent directories ----------------------------------------------
 # Modes are part of the design, not incidental:
 #   agent-identity/  0700 — rendered cloud-init documents containing one-time
@@ -255,6 +258,12 @@ Deploy (from dom0), after the console qube exists and is running:
       - file: "qubesair-console-env"
       - file: "qubesair-console-preflight"
       - file: "qubesair-console-unit"
+      - file: "qubesair-console-ingress-directory"
+      - file: "qubesair-console-ingress-helper"
+      - file: "qubesair-console-ingress-config"
+      - file: "qubesair-console-ingress-firewall-file"
+      - file: "qubesair-console-ingress-hook"
+      - cmd: "qubesair-console-ingress-apply"
 {% if web_source and web_sha %}
       - file: "qubesair-console-web-archive"
 {% endif %}

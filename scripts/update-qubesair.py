@@ -19,7 +19,8 @@ import shutil
 import stat
 import tempfile
 
-STATES = {'qubesair/console.sls', 'qubesair/backup.sls',
+STATES = {'qubesair/console.sls', 'qubesair/console-ingress.sls',
+          'qubesair/console-ingress.top', 'qubesair/backup.sls',
           'qubesair/backup-mount.sls', 'qubesair/backup-mount.top',
           'qubesair/install.sls', 'mgmt/remotevm/grpc-policy.sls',
           'mgmt/remotevm/grpc-console.sls', 'mgmt/remotevm/grpc-csr-relay.sls',
@@ -29,7 +30,7 @@ STATES = {'qubesair/console.sls', 'qubesair/backup.sls',
 RPC_ARTIFACTS = {'issue_bin', 'list_endpoints', 'relay_call', 'relay_bootstrap'}
 KEYS = {'console_binary_source', 'console_binary_sha256', 'console_web_source',
         'console_web_sha256', 'agent_package_url', 'agent_package_sha256',
-        'agent_package_version', 'provision_wait_seconds', 'backup'}
+        'agent_package_version', 'provision_wait_seconds', 'backup', 'allow_gateway_ingress'}
 BACKUP_KEYS = {'enabled', 'binary_source', 'binary_sha256', 'offhost_dir',
                'keep', 'schedule', 'run_at_boot', 'sshfs'}
 SAFE_PATH = re.compile(r'(?:/[A-Za-z0-9_.-]+)+')
@@ -42,7 +43,7 @@ def check_value(key, value):
         check_fields(value, BACKUP_KEYS)
     elif key == 'sshfs':
         check_fields(value, {'enabled', 'host', 'port', 'user', 'path'})
-    elif key in {'enabled', 'run_at_boot'}:
+    elif key in {'enabled', 'run_at_boot', 'allow_gateway_ingress'}:
         if type(value) is not bool:
             raise ValueError('expected boolean: ' + key)
     elif key in {'keep', 'provision_wait_seconds', 'port'}:
