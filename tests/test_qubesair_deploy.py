@@ -106,12 +106,25 @@ class DeploymentTests(unittest.TestCase):
         cfg = jinja2.Environment().from_string((ROOT / 'salt/config.jinja').read_text()).module.cfg
         qa = cfg['qubesair']
         record = json.loads((ROOT / 'salt/qubesair/artifacts.json').read_text())
+        artifacts = {}
+        for build in record['builds']:
+            self.assertRegex(build['source_revision'], r'^[a-f0-9]{40}$')
+            self.assertEqual(build['platform'], 'linux/amd64')
+            for name, digest in build['artifacts'].items():
+                self.assertNotIn(name, artifacts)
+                self.assertRegex(digest, r'^[a-f0-9]{64}$')
+                artifacts[name] = (digest, build['version'])
         for source, digest in [('console_binary_source', 'console_binary_sha256'),
                                ('console_web_source', 'console_web_sha256')]:
-            self.assertEqual(record['artifacts'][qa[source].rsplit('/', 1)[-1]], qa[digest])
+            self.assertEqual(artifacts[qa[source].rsplit('/', 1)[-1]][0], qa[digest])
         backup = qa['backup']
-        self.assertEqual(record['artifacts'][backup['binary_source'].rsplit('/', 1)[-1]], backup['binary_sha256'])
-        self.assertEqual(record['version'], qa['agent_package_version'])
+        self.assertEqual(artifacts[backup['binary_source'].rsplit('/', 1)[-1]][0], backup['binary_sha256'])
+        agent = 'qubes-air-agent_' + qa['agent_package_version'] + '_amd64.deb'
+        self.assertEqual(artifacts[agent], (qa['agent_package_sha256'], qa['agent_package_version']))
+        csr = cfg['remotevm']['grpc']['csr']
+        for prefix in ('issue_bin', 'list_endpoints', 'relay_call', 'relay_bootstrap'):
+            self.assertEqual(artifacts[csr[prefix + '_source'].rsplit('/', 1)[-1]][0],
+                             csr[prefix + '_sha256'])
         states = render('qubesair/console.sls', qa)
         self.assertIn('qubesair-console-agent-pin-required', states)
         self.assertNotIn('qubesair-console-binary', states)
