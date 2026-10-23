@@ -1,18 +1,32 @@
 {
-  "source_revision": "eb753f4281e43ab3c637337d25670b44c1547d91",
-  "version": "0.0.0+qaeb753f4",
-  "go_version": "1.26.10",
-  "platform": "linux/amd64",
-  "artifacts": {
-    "qubes-air-console-eb753f4": "996d5f57da81db95b86a6560b43707ce431a1a3cbfa32e14ae12335805676c8d",
-    "qubes-air-backup-eb753f4": "e526615df9ebf6473e676f6247ffe2d2e6838e885a12421a90c8ddbab2639078",
-    "qubes-air-console-web-eb753f4.tar.gz": "3bf6acfa36458497216f34e12a0426b7c4249db68a6a38fdf75ea20f0ddd8809",
-    "qubes-air-agent_0.0.0+qaeb753f4_amd64.deb": "51905328dae0f65c9516a8f2ef4face742f90532621ded21d63f924a982d9c0a",
-    "issue-relay-cert-eb753f4": "ab8567cd2b09f1973439e6157cb92878e8d55738f1d1a4a7464de97b6172c5ad",
-    "list-endpoints-eb753f4": "1b5030765225be59e4ac5461f0b067eb026b82c9111d539e8acf6f838de8bae8",
-    "relay-call-eb753f4": "5ab32769325402d0ddef027e4f69fdc2185f8d3b3b873d7fe5f42981314df6e6",
-    "relay-bootstrap-eb753f4": "21db0bb299da58b45ab7ed810c9952ae8d33884a578e338aa24cf760dfe464b6"
-  },
+  "builds": [
+    {
+      "source_revision": "eb753f4281e43ab3c637337d25670b44c1547d91",
+      "version": "0.0.0+qaeb753f4",
+      "go_version": "1.26.10",
+      "platform": "linux/amd64",
+      "artifacts": {
+        "qubes-air-console-eb753f4": "996d5f57da81db95b86a6560b43707ce431a1a3cbfa32e14ae12335805676c8d",
+        "qubes-air-backup-eb753f4": "e526615df9ebf6473e676f6247ffe2d2e6838e885a12421a90c8ddbab2639078",
+        "qubes-air-console-web-eb753f4.tar.gz": "3bf6acfa36458497216f34e12a0426b7c4249db68a6a38fdf75ea20f0ddd8809",
+        "qubes-air-agent_0.0.0+qaeb753f4_amd64.deb": "51905328dae0f65c9516a8f2ef4face742f90532621ded21d63f924a982d9c0a",
+        "issue-relay-cert-eb753f4": "ab8567cd2b09f1973439e6157cb92878e8d55738f1d1a4a7464de97b6172c5ad",
+        "list-endpoints-eb753f4": "1b5030765225be59e4ac5461f0b067eb026b82c9111d539e8acf6f838de8bae8",
+        "relay-call-eb753f4": "5ab32769325402d0ddef027e4f69fdc2185f8d3b3b873d7fe5f42981314df6e6",
+        "relay-bootstrap-eb753f4": "21db0bb299da58b45ab7ed810c9952ae8d33884a578e338aa24cf760dfe464b6"
+      }
+    },
+    {
+      "source_revision": "06cfff3781d43f02783436f5d521b3029c5030f5",
+      "version": "0.0.0+qa06cfff3",
+      "go_version": "1.26.10",
+      "platform": "linux/amd64",
+      "artifacts": {
+        "qubes-air-console-06cfff3": "90cce94fd8376bee339544188d56ec17b04398514dc0c7dec8e49e3921fd3672",
+        "list-endpoints-06cfff3": "0d896e573ae6183bccec6bf0860a269092120399cefda1f5452ccd1ee773318c"
+      }
+    }
+  ],
   "transport_handler": {
     "source_revision": "44554092e786d7fb55a6205b0c445256227ce7a7",
     "path": "relay/transport/qubesair.GrpcProxy",

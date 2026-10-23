@@ -36,5 +36,10 @@ done
 ```
 
 Use a native Linux build environment with the matching Go toolchain and C
-compiler. `artifacts.json` records source revision and platform for these helpers;
+compiler. `artifacts.json` groups artifacts by the source revision that built them;
 `go version -m` independently reports their VCS revision and clean source tree.
+An upgrade that retains unchanged Web, agent, backup or Relay binaries keeps their
+original build record. The Console revision does not describe those retained files.
+The current Console and endpoint lister use `06cfff3`, which includes version-1
+endpoint snapshots and verified retirement; their pins must be upgraded together
+with the Relay and dom0 states described in the deployment checklist.
