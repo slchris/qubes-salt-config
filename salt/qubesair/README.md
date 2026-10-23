@@ -529,10 +529,11 @@ writing any endpoint. A successful empty response is valid when no Qubes run.
 An explicit service grant accepts the empty service argument only; nonempty
 arguments for that source/target/service are denied without a prompt.
 
-The deployed GrpcProxy handler removes exactly one `remote-` addressing prefix
-before TLS target verification; its source revision and digest are recorded
-separately from the compiled binaries in `artifacts.json`. Original Qube names
-that themselves start with `remote-` retain that prefix.
+The deployed GrpcProxy and ConnectTCP handlers remove exactly one `remote-`
+addressing prefix before TLS target verification while retaining the local name
+for the QubesDB lookup. Original Qube names that themselves start with `remote-`
+retain that prefix. Handler provenance is separate from compiled binary pins
+in `artifacts.json`; changing this mapping does not widen GUI port permissions.
 
 ### Acceptance and remaining limits
 

@@ -31,5 +31,10 @@
     "source_revision": "44554092e786d7fb55a6205b0c445256227ce7a7",
     "path": "relay/transport/qubesair.GrpcProxy",
     "sha256": "36f4e2e17c36acb63a0845990b4a4a8251ca6aabc7f3dd7d296c38f236c244d5"
+  },
+  "connecttcp_handler": {
+    "source_revision": "42b87ac9a29f3b3cc769c33808ec329ab210f70e",
+    "path": "relay/transport/qubesair.ConnectTCP",
+    "sha256": "0d3fd2b8d42c35dc92c3f6075b8dbf4b7e74ef983907df8ac8c41673146c451e"
   }
 }
