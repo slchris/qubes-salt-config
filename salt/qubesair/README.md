@@ -422,6 +422,39 @@ Validate a staged bundle in dom0 with `sudo scripts/setup.sh --dry-run`, then ru
 Keep the generated manifest private to the deployment: it contains actual
 infrastructure endpoints, but must never contain credentials or keys.
 
+### Console gateway ingress across AppVM restarts
+
+An agent's signed revocation URL must remain reachable after the Console AppVM
+restarts. A successful loopback `/health` check does not verify that network
+path. Qubes recreates its base firewall at boot, discarding manually added
+`custom-input` rules while the Console can still be listening normally.
+
+For a Console intentionally reached through its Qubes upstream gateway, set
+`qubesair.allow_gateway_ingress: True` in the private deployment configuration
+(or the scoped overlay's `qubesair` object). It defaults to `False`. The Console
+must listen on an IPv4 address and a port of at least 1024. `qubesair.console`
+includes `qubesair.console-ingress`, which persists a root-owned helper/config
+and blocks in `/rw/config/rc.local` and `/rw/config/qubes-firewall-user-script`.
+An ordinary Console AppVM does not run `qubes-firewall.service`, so `rc.local`
+is required to restore ingress on boot. The other hook covers firewall reloads
+on a network-provider Qube. Both restore exactly the configured TCP port from
+the current `/qubes-gateway` address and share the same lock.
+
+The helper verifies the exact Qube name, validates its fixed configuration,
+serializes reloads with a persistent lock, and atomically reconciles only its
+reserved comment in `ip qubes custom-input`. It verifies the resulting rule;
+invalid input, command failure, timeout, or failed readback is an error. Reapply
+leaves a matching rule unchanged. Setting the flag to `False` removes only this
+helper's rules. The Console process is not restarted by ingress changes, and
+candidate database preflight gates these changes during a full Console apply.
+
+This is an upstream-gateway trust boundary: after SNAT, the Console cannot
+distinguish original clients. Upstream forwarding must enforce the intended
+source subnets. This state does not create or persist upstream NAT rules, expose
+IPv6 ingress, or weaken API authentication or signed revocation verification.
+After deployment, test the revocation URL from an agent and repeat after a
+Console restart; do not infer reachability from loopback health or Salt success.
+
 ### SSHFS archives and isolated recovery
 
 Set `qubesair.backup.enabled`, binary source/digest, and `backup.sshfs` with

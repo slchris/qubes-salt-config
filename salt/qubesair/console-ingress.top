@@ -1,0 +1,5 @@
+{# SPDX-License-Identifier: MIT #}
+{%- from 'config.jinja' import cfg with context -%}
+base:
+  '{{ cfg.get("qubesair", {}).get("qube", "qubesair-console") }}':
+    - qubesair.console-ingress

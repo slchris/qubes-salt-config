@@ -51,7 +51,8 @@ class UpdateTests(unittest.TestCase):
         for key, value in [('unknown', 'x'), ('console_binary_sha256', 'bad'),
                            ('console_binary_source', 'salt://qubesair/files/../other'),
                            ('provision_wait_seconds', 0), ('backup', {'offhost_dir': '/tmp/../etc'}),
-                           ('backup', {'sshfs': {'host': 'nas;id'}})]:
+                           ('backup', {'sshfs': {'host': 'nas;id'}}),
+                           ('allow_gateway_ingress', 'true'), ('allow_gateway_ingress', 1)]:
             with self.subTest(key=key, value=value):
                 self.manifest['qubesair'] = {key: value}
                 self.save_manifest()
