@@ -25,6 +25,16 @@
         "qubes-air-console-06cfff3": "90cce94fd8376bee339544188d56ec17b04398514dc0c7dec8e49e3921fd3672",
         "list-endpoints-06cfff3": "0d896e573ae6183bccec6bf0860a269092120399cefda1f5452ccd1ee773318c"
       }
+    },
+    {
+      "source_revision": "2b621289d113af4dedc2bd50029b7f3e1a4909c2",
+      "version": "0.0.0+qa2b62128",
+      "go_version": "1.26.10",
+      "platform": "linux/amd64",
+      "artifacts": {
+        "qubes-air-console-2b62128": "6f387a38df66dfe48f045036414e0ac391d8287d48d9fd6bc8715f82396fbd7a",
+        "relay-call-2b62128": "daa16fe8bf0ce22ce1a058a7f987d3529ca2cac118ec320ff0bfda44c5df47af"
+      }
     }
   ],
   "transport_handler": {
