@@ -82,7 +82,11 @@ def matches(rule, gateway, port):
             return False
     state = expr[2].get('match', {}) if isinstance(expr[2], dict) else {}
     states = state.get('right')
-    return (state.get('op') == 'in' and state.get('left') == {'ct': {'key': 'state'}}
+    if state.get('op') == '==' and isinstance(states, dict) and set(states) == {'set'}:
+        states = states['set']
+    elif state.get('op') != 'in':
+        return False
+    return (state.get('left') == {'ct': {'key': 'state'}}
             and isinstance(states, list) and all(isinstance(s, str) for s in states)
             and sorted(states) == ['established', 'new', 'related'])
 

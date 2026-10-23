@@ -22,7 +22,7 @@ def rule(gateway='192.0.2.1', port=8080, handle=9):
             'handle': handle, 'comment': ingress.TAG,
             'expr': [{'match': {'op': '==', 'left': {'payload': {'protocol': 'ip', 'field': 'saddr'}}, 'right': gateway}},
                      {'match': {'op': '==', 'left': {'payload': {'protocol': 'tcp', 'field': 'dport'}}, 'right': port}},
-                     {'match': {'op': 'in', 'left': {'ct': {'key': 'state'}}, 'right': ['established', 'related', 'new']}},
+                     {'match': {'op': '==', 'left': {'ct': {'key': 'state'}}, 'right': {'set': ['established', 'related', 'new']}}},
                      {'accept': None}]}
 
 
@@ -153,6 +153,20 @@ class IngressTests(unittest.TestCase):
         self.runtime.rules = [drift]
         self.assertTrue(ingress.apply(self.config, self.runtime))
         self.assertEqual(self.runtime.rules, [rule()])
+
+    def test_native_state_bitmask_and_explicit_set_are_both_exact(self):
+        # nft 1.1.3 on the actual host emits `in` + array for a bitmask and
+        # `==` + {set: ...} for the helper's explicit set syntax.
+        mask = rule()
+        mask['expr'][2]['match'].update(op='in', right=['new', 'related', 'established'])
+        for existing in (rule(), mask):
+            runtime = Runtime(); runtime.rules = [existing]
+            self.assertFalse(ingress.apply(self.config, runtime))
+            self.assertFalse(runtime.writes)
+        for right in ({'set': ['new', 'established']}, {'set': ['new', 'related', 1]},
+                      {'set': ['new', 'related', 'established'], 'extra': True}):
+            altered = rule(); altered['expr'][2]['match']['right'] = right
+            self.assertFalse(ingress.matches(altered, '192.0.2.1', 8080))
 
     def test_lock_serializes_reloads_and_is_reusable_after_exit(self):
         with tempfile.TemporaryDirectory() as directory:
