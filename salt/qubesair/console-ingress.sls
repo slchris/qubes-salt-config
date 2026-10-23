@@ -61,5 +61,32 @@
     - stateful: True
     - require:
       - file: "qubesair-console-ingress-hook"
+      - file: "qubesair-console-ingress-boot-hook"
+
+# Ordinary AppVMs do not start qubes-firewall.service. Their root firewall is
+# reset before rc.local; the network-provider reload hook above is insufficient
+# for the Console's actual boot path. Keep both entry points serialized.
+"qubesair-console-ingress-boot-file":
+  file.managed:
+    - name: /rw/config/rc.local
+    - user: root
+    - group: root
+    - mode: '0755'
+    - replace: False
+    - contents: |
+        #!/bin/sh
+
+"qubesair-console-ingress-boot-hook":
+  file.blockreplace:
+    - name: /rw/config/rc.local
+    - marker_start: "# >>> qubesair console ingress >>>"
+    - marker_end: "# <<< qubesair console ingress <<<"
+    - append_if_not_found: True
+    - content: |
+        /rw/config/qubesair-ingress/apply.py
+    - require:
+      - file: "qubesair-console-ingress-boot-file"
+      - file: "qubesair-console-ingress-helper"
+      - file: "qubesair-console-ingress-config"
 
 {% endif %}

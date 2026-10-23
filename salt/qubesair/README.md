@@ -434,8 +434,11 @@ For a Console intentionally reached through its Qubes upstream gateway, set
 (or the scoped overlay's `qubesair` object). It defaults to `False`. The Console
 must listen on an IPv4 address and a port of at least 1024. `qubesair.console`
 includes `qubesair.console-ingress`, which persists a root-owned helper/config
-and a block in `/rw/config/qubes-firewall-user-script`. It restores exactly the
-configured TCP port from the current `/qubes-gateway` address on firewall reload.
+and blocks in `/rw/config/rc.local` and `/rw/config/qubes-firewall-user-script`.
+An ordinary Console AppVM does not run `qubes-firewall.service`, so `rc.local`
+is required to restore ingress on boot. The other hook covers firewall reloads
+on a network-provider Qube. Both restore exactly the configured TCP port from
+the current `/qubes-gateway` address and share the same lock.
 
 The helper verifies the exact Qube name, validates its fixed configuration,
 serializes reloads with a persistent lock, and atomically reconciles only its

@@ -93,6 +93,10 @@ class DeploymentTests(unittest.TestCase):
             command = args(states['qubesair-console-ingress-apply'], 'cmd.run')
             self.assertNotIn('python_shell', command)
             self.assertEqual(command['name'], '/rw/config/qubesair-ingress/apply.py')
+            boot = args(states['qubesair-console-ingress-boot-hook'], 'file.blockreplace')
+            self.assertEqual(boot['name'], '/rw/config/rc.local')
+            self.assertEqual(boot['content'].strip(), '/rw/config/qubesair-ingress/apply.py')
+            self.assertIn({'file': 'qubesair-console-ingress-boot-hook'}, command['require'])
 
     def test_backup_refuses_local_directory_before_create_and_prune(self):
         states = render('qubesair/backup.sls', self.qa)

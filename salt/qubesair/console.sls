@@ -263,6 +263,8 @@ include:
       - file: "qubesair-console-ingress-config"
       - file: "qubesair-console-ingress-firewall-file"
       - file: "qubesair-console-ingress-hook"
+      - file: "qubesair-console-ingress-boot-file"
+      - file: "qubesair-console-ingress-boot-hook"
       - cmd: "qubesair-console-ingress-apply"
 {% if web_source and web_sha %}
       - file: "qubesair-console-web-archive"
