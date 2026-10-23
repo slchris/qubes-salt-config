@@ -88,6 +88,11 @@ class DeploymentTests(unittest.TestCase):
             self.assertIn('/rw/config/qubesair-ingress/apply.py', hook['content'])
             self.assertNotIn('|| true', hook['content'])
             self.assertNotIn('service.running', states['qubesair-console-ingress-apply'])
+            # Salt's cmd.run state supplies python_shell itself; passing it as
+            # state kwargs raises duplicate-keyword before the helper executes.
+            command = args(states['qubesair-console-ingress-apply'], 'cmd.run')
+            self.assertNotIn('python_shell', command)
+            self.assertEqual(command['name'], '/rw/config/qubesair-ingress/apply.py')
 
     def test_backup_refuses_local_directory_before_create_and_prune(self):
         states = render('qubesair/backup.sls', self.qa)

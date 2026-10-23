@@ -58,7 +58,6 @@
 "qubesair-console-ingress-apply":
   cmd.run:
     - name: /rw/config/qubesair-ingress/apply.py
-    - python_shell: False
     - stateful: True
     - require:
       - file: "qubesair-console-ingress-hook"
