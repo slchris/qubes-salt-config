@@ -1,0 +1,158 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: MIT
+"""Reconcile the dedicated Air endpoint cache from one complete Console snapshot."""
+import fcntl
+import hashlib
+import ipaddress
+import os
+import re
+import selectors
+import signal
+import stat
+import subprocess
+import sys
+import time
+
+CONSOLE = {{ console | tojson }}
+LOCK_PATH = {{ (runtime_dir ~ '/endpoints.lock') | tojson }}
+MAX_BYTES = 1024 * 1024
+MAX_ENTRIES = 10000
+PREFIX = '/remote-endpoint/'
+NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9._-]{0,23}', re.ASCII)
+KEY = re.compile(r'/remote-endpoint/remote-[A-Za-z0-9][A-Za-z0-9._-]{0,23}', re.ASCII)
+
+
+def remaining(deadline):
+    seconds = deadline - time.monotonic()
+    if seconds <= 0:
+        raise TimeoutError('endpoint reconciliation timed out')
+    return seconds
+
+
+def bounded_read(stream, deadline, limit):
+    data = bytearray()
+    with selectors.DefaultSelector() as selector:
+        selector.register(stream, selectors.EVENT_READ)
+        while True:
+            if not selector.select(remaining(deadline)):
+                raise TimeoutError('endpoint input timed out')
+            chunk = os.read(stream.fileno(), min(65536, limit + 1 - len(data)))
+            if not chunk:
+                return bytes(data)
+            data.extend(chunk)
+            if len(data) > limit:
+                raise ValueError('endpoint input exceeds size limit')
+
+
+def command(args, deadline, limit=MAX_BYTES):
+    # No shell; all arguments are fixed commands or validated record fields.
+    with subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                          stderr=subprocess.DEVNULL, start_new_session=True) as proc:
+        try:
+            result = bounded_read(proc.stdout, deadline, limit)
+            if proc.wait(timeout=remaining(deadline)) != 0:
+                raise RuntimeError(args[0] + ' failed')
+            return result
+        finally:
+            if proc.poll() is None:
+                os.killpg(proc.pid, signal.SIGKILL)
+                proc.wait()
+
+
+def parse_snapshot(payload):
+    if len(payload) > MAX_BYTES or not payload.endswith(b'\n'):
+        raise ValueError('incomplete or oversized endpoint snapshot')
+    lines = payload.splitlines(keepends=True)
+    if len(lines) < 2 or lines[0] != b'QUBES-AIR-ENDPOINTS 1\n':
+        raise ValueError('unsupported endpoint snapshot')
+    trailer = re.fullmatch(rb'END (0|[1-9][0-9]{0,4}) ([0-9a-f]{64})\n', lines[-1])
+    records = b''.join(lines[1:-1])
+    if (trailer is None or int(trailer[1]) != len(lines) - 2 or
+            len(lines) - 2 > MAX_ENTRIES or
+            trailer[2].decode('ascii') != hashlib.sha256(records).hexdigest()):
+        raise ValueError('endpoint snapshot count or digest mismatch')
+    endpoints = {}
+    for raw in lines[1:-1]:
+        line = raw.decode('ascii')
+        record = re.fullmatch(r'([^ ]+) ([0-9.]+):([1-9][0-9]{0,4})\n', line, re.ASCII)
+        if record is None or not NAME.fullmatch(record[1]):
+            raise ValueError('invalid endpoint record')
+        name, address, port = record.groups()
+        ipaddress.IPv4Address(address)
+        key = PREFIX + 'remote-' + name
+        if int(port) > 65535 or key in endpoints:
+            raise ValueError('invalid port or duplicate endpoint')
+        endpoints[key] = address + ':' + port
+    return endpoints
+
+
+def owned_keys(deadline):
+    raw = command(['qubesdb-list', '-f', PREFIX], deadline)
+    keys = raw.decode('ascii').splitlines()
+    if len(keys) > MAX_ENTRIES:
+        raise ValueError('endpoint cache exceeds entry limit')
+    # The dedicated exact key grammar is the deletion boundary. Other keys,
+    # nested paths and arbitrary QubesDB namespaces are never removed.
+    return {key for key in keys if KEY.fullmatch(key)}
+
+
+def apply_snapshot(endpoints, absent, deadline):
+    if absent and PREFIX + absent in endpoints:
+        raise ValueError('retiring endpoint is still present in Console snapshot')
+    stale = owned_keys(deadline) - endpoints.keys()
+    for key, value in sorted(endpoints.items()):
+        command(['qubesdb-write', key, value], deadline, 4096)
+    for key in sorted(stale):
+        command(['qubesdb-rm', key], deadline, 4096)
+    if owned_keys(deadline) - endpoints.keys():
+        raise RuntimeError('retired endpoints remain after reconciliation')
+
+
+def reconcile(absent, deadline):
+    # Salt pre-creates this file in a root-owned directory. The user can lock
+    # it but cannot replace it; the same inode survives process restarts.
+    fd = os.open(LOCK_PATH, os.O_RDWR | os.O_NOFOLLOW)
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise ValueError('endpoint lock is not a regular file')
+        while True:
+            remaining(deadline)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                time.sleep(min(0.05, remaining(deadline)))
+        # Fetch AFTER taking the lock: a timer cannot replay a pre-purge view
+        # after an explicit cleanup has completed.
+        payload = command(['qrexec-client-vm', CONSOLE, 'qubesair.RemoteEndpoints'], deadline)
+        endpoints = parse_snapshot(payload)
+        apply_snapshot(endpoints, absent, deadline)
+    finally:
+        os.close(fd)
+
+
+def main():
+    deadline = time.monotonic() + 45
+    absent = None
+    if os.path.basename(sys.argv[0]) == 'qubesair.ForgetEndpoint':
+        if os.environ.get('QREXEC_REMOTE_DOMAIN') != 'dom0' or any(sys.argv[1:]):
+            raise ValueError('endpoint cleanup requires dom0 and no service argument')
+        raw = bounded_read(sys.stdin.buffer, deadline, 128)
+        local = raw.decode('ascii').removesuffix('\n')
+        if raw != (local + '\n').encode('ascii') or not KEY.fullmatch(PREFIX + local):
+            raise ValueError('invalid endpoint cleanup request')
+        absent = local
+    elif len(sys.argv) != 1:
+        raise ValueError('endpoint refresh accepts no arguments')
+    reconcile(absent, deadline)
+    if absent:
+        print('OK ' + absent)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (OSError, ValueError, RuntimeError, TimeoutError, subprocess.TimeoutExpired):
+        # Never echo untrusted response data (or a subprocess's stderr) to qrexec.
+        print('FAILED endpoint reconciliation; retry or inspect Console/Relay state', file=sys.stderr)
+        sys.exit(1)

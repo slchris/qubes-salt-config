@@ -41,6 +41,15 @@ class PolicyTests(unittest.TestCase):
                 self.assertIn('grpc-scoped-grants-invalid', states)
                 self.assertNotIn('grpc-csr-policy', states)
 
+    def test_endpoint_cleanup_only_allows_dom0_without_argument(self):
+        states = policy([])
+        text = next(item['contents'] for item in states['grpc-csr-policy']['file.managed']
+                    if 'contents' in item)
+        lines = [line.strip() for line in text.splitlines()
+                 if line.strip().startswith('qubesair.ForgetEndpoint ')]
+        self.assertEqual(lines, ['qubesair.ForgetEndpoint + dom0 mgmt-jump allow',
+                                 'qubesair.ForgetEndpoint * @anyvm @anyvm deny'])
+
     def test_no_grants_retains_prompt(self):
         states = policy([])
         text = next(item['contents'] for item in states['grpc-csr-policy']['file.managed']

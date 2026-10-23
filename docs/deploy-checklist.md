@@ -185,3 +185,43 @@ dom0 'qubesctl state.apply templates.mcp.create'
 **To deploy NEW code changes:** you must repeat steps 2–3 (package + setup.sh)
 locally — remote cannot run setup.sh. Applying states with new code is remote
 only after the files are on disk.
+
+
+## Qubes Air endpoint retirement upgrade (2026-10-23)
+
+Deploy the paired Air and Salt changes together. Air publishes a complete version-1
+endpoint snapshot with a record count and SHA-256 trailer, using a read-only SQLite
+connection. Relay refuses malformed, truncated, oversized or older unframed output;
+a successful empty snapshot removes only exact Air endpoint keys.
+
+1. Stop `qubesair-relay-endpoints.timer` and `qubesair-relay-endpoints.service` in the
+   Relay before replacing the old refresh implementation. This drains an old worker
+   that does not know the new serialization lock; it does not stop Relay transport.
+2. Install the reviewed Console and `list-endpoints` artifacts with their pinned
+   digests using the existing Qubes Air deployment overlay.
+3. Apply `mgmt.remotevm.grpc-csr-relay` to the configured Relay. The state installs
+   the root-owned Python helper, persistent lock inode, boot link for
+   `qubesair.ForgetEndpoint`, and removes the obsolete `refresh-endpoints.sh`.
+4. Apply `mgmt.remotevm.register` and `mgmt.remotevm.grpc-policy` in dom0. The existing
+   registration service now validates the RemoteVM class, exact remote/relay/transport
+   binding and management tag before removal, then invokes the fixed cleanup RPC
+   using `qvm-run --service`. That option selects an RPC rather than a shell command
+   ([Qubes reference](https://doc.qubes-os.org/projects/core-admin-client/en/latest/manpages/qvm-run.html)).
+5. Confirm the endpoint timer is active, a complete refresh succeeds, and repeat the
+   states to verify idempotence. Run a separately confirmed test object's lifecycle,
+   then verify provider resources, RemoteVM, Console identity YAML and Relay key all
+   disappear. Preserve existing unrelated objects.
+
+The RPC accepts only dom0, no service argument, and one exact `remote-<name>` line.
+It shares the timer's lock and fetches the snapshot after acquiring it. The whole
+reconciliation is bounded to 45 seconds; the dom0 call has a 60-second bound and a
+129-byte response cap. Reconciliation failures are retryable, including when the
+RemoteVM has already been removed. The Console requires an exact retirement
+acknowledgement; an older service's generic success cannot claim cache cleanup.
+A deployment with CSR caching disabled explicitly acknowledges that condition.
+
+The dedicated `/remote-endpoint/remote-*` key namespace belongs to Air; other names,
+nested paths and other namespaces are retained. Out-of-band writers do not share the
+lock. Console identity ownership markers are public metadata in a trusted directory;
+unknown or unmarked historical files require an ownership review rather than glob
+removal. These changes do not erase external snapshots or backups.

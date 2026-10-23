@@ -79,6 +79,9 @@ Deploy (from dom0):
         # path. Only names and addresses cross this — no credentials.
         qubesair.RemoteEndpoints * {{ relay }} {{ console }} allow
         qubesair.RemoteEndpoints * @anyvm @anyvm deny
+        # Only dom0's scoped deregistration service may request synchronous cleanup.
+        qubesair.ForgetEndpoint + dom0 {{ relay }} allow
+        qubesair.ForgetEndpoint * @anyvm @anyvm deny
         # Exact source/target/service grants for unattended validated workflows.
         # '+' matches only an empty service argument; no wildcard arguments.
         {%- for grant in grants %}

@@ -162,42 +162,34 @@ Deploy (from dom0):
 # Runs as `user`: qubesdb-write works unprivileged, and this touches no key.
 "grpc-csr-relay-refresh-endpoints":
   file.managed:
-    - name: {{ bin_dir }}/refresh-endpoints.sh
+    - name: {{ bin_dir }}/refresh-endpoints.py
     - makedirs: True
     - mode: '0755'
     - user: root
     - group: root
-    - contents: |
-        #!/bin/bash
-        # SPDX-License-Identifier: MIT — managed by mgmt.remotevm.grpc-csr-relay
-        set -euo pipefail
-        if ! eps="$(qrexec-client-vm {{ console }} qubesair.RemoteEndpoints)"; then
-            echo "refresh-endpoints: console request failed" >&2
-            exit 1
-        fi
-        valid_endpoint() {
-            local ep="$1" octet
-            [[ "$ep" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3}):([0-9]{1,5})$ ]] || return 1
-            for octet in "${BASH_REMATCH[@]:1:4}"; do
-                (( 10#$octet <= 255 )) || return 1
-            done
-            (( 10#${BASH_REMATCH[5]} >= 1 && 10#${BASH_REMATCH[5]} <= 65535 ))
-        }
-        names=() endpoints=()
-        # list-endpoints emits the bare Qube name. dom0 addresses it using
-        # RemoteVMLocalName: always prepend remote-, even for remote-* names.
-        # Validate the complete response before changing any QubesDB entry.
-        while read -r name ep extra; do
-            [ -n "$name" ] || continue
-            if [[ ! "$name" =~ ^[a-zA-Z0-9][a-zA-Z0-9._-]{0,23}$ || -n "$extra" ]] || ! valid_endpoint "$ep"; then
-                echo "refresh-endpoints: invalid endpoint record" >&2
-                exit 1
-            fi
-            names+=( "remote-$name" ) endpoints+=( "$ep" )
-        done <<< "$eps"
-        for i in "${!names[@]}"; do
-            qubesdb-write "/remote-endpoint/${names[$i]}" "${endpoints[$i]}"
-        done
+    - source: salt://mgmt/remotevm/files/refresh-endpoints.py.jinja
+    - template: jinja
+    - context:
+        console: {{ console }}
+        runtime_dir: {{ runtime_dir }}
+    - require:
+      - file: "grpc-csr-relay-endpoints-lock"
+
+# A persistent inode in a root-owned directory: user may lock but not replace it.
+"grpc-csr-relay-endpoints-lock":
+  file.managed:
+    - name: {{ runtime_dir }}/endpoints.lock
+    - user: user
+    - group: user
+    - mode: '0600'
+    - contents: ''
+    - replace: False
+    - require:
+      - file: "grpc-csr-relay-runtime-dir"
+
+"grpc-csr-relay-obsolete-refresh":
+  file.absent:
+    - name: {{ bin_dir }}/refresh-endpoints.sh
 
 "grpc-csr-relay-endpoints-service":
   file.managed:
@@ -215,7 +207,7 @@ Deploy (from dom0):
         [Service]
         Type=oneshot
         User=user
-        ExecStart={{ bin_dir }}/refresh-endpoints.sh
+        ExecStart={{ bin_dir }}/refresh-endpoints.py
 
 "grpc-csr-relay-endpoints-timer":
   file.managed:
@@ -255,6 +247,7 @@ Deploy (from dom0):
         ln -sf {{ bin_dir }}/relay-bootstrap   /usr/local/bin/relay-bootstrap
         ln -sf {{ bin_dir }}/qubesair.GrpcProxy /etc/qubes-rpc/qubesair.GrpcProxy
         ln -sf {{ bin_dir }}/qubesair.ConnectTCP /etc/qubes-rpc/qubesair.ConnectTCP
+        ln -sf {{ bin_dir }}/refresh-endpoints.py /etc/qubes-rpc/qubesair.ForgetEndpoint
         ln -sf {{ sysd_dir }}/qubesair-relay-renew.service     /etc/systemd/system/qubesair-relay-renew.service
         ln -sf {{ sysd_dir }}/qubesair-relay-renew.timer       /etc/systemd/system/qubesair-relay-renew.timer
         ln -sf {{ sysd_dir }}/qubesair-relay-endpoints.service /etc/systemd/system/qubesair-relay-endpoints.service
@@ -268,7 +261,7 @@ Deploy (from dom0):
         runuser -u user -- {{ bin_dir }}/relay-bootstrap -console {{ console }} -dir {{ relay_dir }} || \
           echo "qubesair relay: bootstrap deferred to timer" >&2
         # Pull the endpoint map now so a reboot does not wait for the timer.
-        runuser -u user -- {{ bin_dir }}/refresh-endpoints.sh || \
+        runuser -u user -- {{ bin_dir }}/refresh-endpoints.py || \
           echo "qubesair relay: endpoint refresh deferred to timer" >&2
 
 # Ensure rc.local exists (with a shebang) WITHOUT clobbering any existing
@@ -323,7 +316,7 @@ Deploy (from dom0):
         test -s {{ relay_dir }}/relay.key
         openssl verify -purpose sslclient -CAfile {{ relay_dir }}/ca.crt {{ relay_dir }}/relay.crt
         openssl x509 -in {{ relay_dir }}/relay.crt -noout -checkend 60
-        {{ bin_dir }}/refresh-endpoints.sh
+        {{ bin_dir }}/refresh-endpoints.py
     - runas: user
     - require:
       - cmd: "grpc-csr-relay-activate-now"

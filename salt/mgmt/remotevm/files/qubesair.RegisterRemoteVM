@@ -28,24 +28,36 @@
 # All output is on STDOUT (qrexec relays stdout, not stderr), so the caller sees
 # what happened.
 
-set -u
+set -uo pipefail
+export LC_ALL=C
+if (( $# > 1 )) || [ -n "${1:-}" ]; then
+    echo "register: service arguments are not accepted"; exit 1
+fi
 
 # Filled in from config.jinja by the salt state that ships this file.
 DEFAULT_RELAY='{{ relay }}'
 DEFAULT_TRANSPORT='{{ transport }}'
+CLEANUP_ENDPOINTS='{{ "true" if cleanup_endpoints else "false" }}'
 
+# {% raw %}
 # A RemoteVM this channel may manage. Scoped to the console's naming so a bug or
 # a compromised console cannot name sys-net, dom0, a template, or the relay. Keep
 # in step with the console's qube naming (QubeService / provider resource records).
-NAME_RE='^remote-[a-zA-Z0-9._-]+$'
+NAME_RE='^remote-[a-zA-Z0-9][a-zA-Z0-9._-]{0,23}$'
 # The remote_name is the qube's own name on the far side; looser, but still no
 # shell metacharacters or whitespace.
-REMOTE_NAME_RE='^[a-zA-Z0-9._-]+$'
+REMOTE_NAME_RE='^[a-zA-Z0-9][a-zA-Z0-9._-]{0,23}$'
 RELAY_RE='^[a-zA-Z0-9._-]+$'
 # transport_rpc is an RPC service name, e.g. qubesair.SSHProxy.
 TRANSPORT_RE='^[a-zA-Z][a-zA-Z0-9._-]+$'
 
-read -r verb name a3 a4 || { echo "register: empty request"; exit 1; }
+# One bounded request; no trailing line or ignored argument can change a target.
+IFS= read -r -t 10 -n 257 request || { echo "register: empty or incomplete request"; exit 1; }
+if (( ${#request} > 256 )) || IFS= read -r -t 1 -n 1 extra; then
+    echo "register: oversized or multiple requests"; exit 1
+fi
+read -r verb name a3 a4 extra <<< "$request"
+[ -z "$extra" ] || { echo "register: extra arguments"; exit 1; }
 
 check_name() {
     if [[ ! "$1" =~ $NAME_RE ]]; then
@@ -101,19 +113,46 @@ register)
 
 deregister)
     check_name "$name"
-    if ! qvm-check --quiet -- "$name" 2>/dev/null; then
-        echo "deregister: '$name' does not exist (already gone)"; exit 0
+    [ -z "$a3$a4" ] || { echo "deregister: extra arguments"; exit 1; }
+    # A failed inventory is not evidence of absence. Validate the VM class and
+    # the exact remote/relay binding before removing any addressing shell.
+    if ! inventory="$(qvm-ls --raw-data --fields NAME,CLASS 2>/dev/null)"; then
+        echo "deregister: FAILED to inspect inventory"; exit 1
     fi
-    # A RemoteVM has no disk and is not running, so removal is just the metadata.
-    if ! out="$(qvm-remove -f -- "$name" 2>&1)"; then
-        echo "deregister: FAILED:"; printf '%s\n' "$out" | sed 's/^/  /'; exit 1
+    klass="$(awk -F'|' -v n="$name" '$1 == n { print $2 }' <<< "$inventory")"
+    if [ -n "$klass" ]; then
+        if [ "$klass" != RemoteVM ] ||
+           ! remote="$(qvm-prefs -- "$name" remote_name 2>/dev/null)" ||
+           ! relay="$(qvm-prefs -- "$name" relayvm 2>/dev/null)" ||
+           ! transport="$(qvm-prefs -- "$name" transport_rpc 2>/dev/null)" ||
+           [ "$remote" != "${name#remote-}" ] || [ "$relay" != "$DEFAULT_RELAY" ] ||
+           [ "$transport" != "$DEFAULT_TRANSPORT" ] ||
+           ! qvm-tags -- "$name" list remote-zone >/dev/null 2>&1; then
+            echo "deregister: REFUSED — RemoteVM ownership/binding mismatch"; exit 126
+        fi
+        if ! qvm-remove -f -- "$name" >/dev/null 2>&1; then
+            echo "deregister: FAILED to remove RemoteVM"; exit 1
+        fi
     fi
-    echo "deregister: DONE — removed RemoteVM $name"
+    # Retry this even when the shell was already removed by an earlier attempt.
+    # Console clears the endpoint before requesting deregistration. Relay then
+    # validates a fresh complete snapshot under the same lock as its timer.
+    endpoint_state=disabled
+    if [ "$CLEANUP_ENDPOINTS" = true ]; then
+        if ! reply="$(printf '%s\n' "$name" | timeout 60 qvm-run --pass-io --service -u user \
+                     -- "$DEFAULT_RELAY" qubesair.ForgetEndpoint 2>/dev/null | head -c 129)" ||
+           [ "$reply" != "OK $name" ]; then
+            echo "deregister: FAILED — Relay endpoint cleanup incomplete; retry"; exit 1
+        fi
+        endpoint_state=verified
+    fi
+    echo "OK RETIRED $name relay=$endpoint_state"
     exit 0
     ;;
 
 status)
     check_name "$name"
+    [ -z "$a3$a4" ] || { echo "status: extra arguments"; exit 1; }
     if ! qvm-check --quiet -- "$name" 2>/dev/null; then
         echo "status: '$name' not registered"; exit 0
     fi
@@ -136,3 +175,5 @@ status)
     exit 1
     ;;
 esac
+
+# {% endraw %}

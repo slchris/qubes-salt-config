@@ -60,6 +60,21 @@ class UpdateTests(unittest.TestCase):
                 self.assertEqual((self.target / 'config.jinja').read_text(), self.config)
                 self.assertFalse((self.target / 'qubesair').exists())
 
+    def test_cleanup_overlay_accepts_only_the_exact_new_helpers(self):
+        for name in ('mgmt/remotevm/register.sls', 'mgmt/remotevm/files/qubesair.RegisterRemoteVM',
+                     'mgmt/remotevm/files/refresh-endpoints.py.jinja'):
+            path = self.source / 'salt' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('scoped helper fixture')
+            self.manifest['files'][name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        self.save_manifest()
+        planned = updater.prepare(self.source, self.target)
+        self.assertIn(self.target / 'mgmt/remotevm/files/refresh-endpoints.py.jinja', planned)
+        self.manifest['files']['mgmt/remotevm/files/arbitrary-helper'] = 'a' * 64
+        self.save_manifest()
+        with self.assertRaises(ValueError):
+            updater.prepare(self.source, self.target)
+
     def test_digest_and_path_rejection(self):
         for name, digest in [('qubesair/console.sls', '0' * 64),
                              ('../outside', 'a' * 64), ('mgmt/remote-debug/configure.sls', 'a' * 64)]:
