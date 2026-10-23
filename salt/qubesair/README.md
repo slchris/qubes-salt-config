@@ -534,6 +534,9 @@ addressing prefix before TLS target verification while retaining the local name
 for the QubesDB lookup. Original Qube names that themselves start with `remote-`
 retain that prefix. Handler provenance is separate from compiled binary pins
 in `artifacts.json`; changing this mapping does not widen GUI port permissions.
+Include `mgmt/remotevm/files/qubesair.ConnectTCP` and its digest in the scoped
+deployment manifest when updating it; a successful apply alone cannot prove
+the bundle actually delivered the new handler. Verify its runtime digest.
 
 ### Acceptance and remaining limits
 
