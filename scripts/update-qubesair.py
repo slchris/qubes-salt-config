@@ -23,7 +23,9 @@ STATES = {'qubesair/console.sls', 'qubesair/backup.sls',
           'qubesair/backup-mount.sls', 'qubesair/backup-mount.top',
           'qubesair/install.sls', 'mgmt/remotevm/grpc-policy.sls',
           'mgmt/remotevm/grpc-console.sls', 'mgmt/remotevm/grpc-csr-relay.sls',
-          'mgmt/remotevm/files/qubesair.GrpcProxy'}
+          'mgmt/remotevm/files/qubesair.GrpcProxy', 'mgmt/remotevm/register.sls',
+          'mgmt/remotevm/files/qubesair.RegisterRemoteVM',
+          'mgmt/remotevm/files/refresh-endpoints.py.jinja'}
 RPC_ARTIFACTS = {'issue_bin', 'list_endpoints', 'relay_call', 'relay_bootstrap'}
 KEYS = {'console_binary_source', 'console_binary_sha256', 'console_web_source',
         'console_web_sha256', 'agent_package_url', 'agent_package_sha256',

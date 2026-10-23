@@ -47,6 +47,7 @@ Deploy (from dom0):
     - context:
         relay: {{ relay }}
         transport: {{ transport }}
+        cleanup_endpoints: {{ rv.get('grpc', {}).get('csr', {}).get('enabled', False) }}
     - mode: '0755'
     - user: root
     - group: root
