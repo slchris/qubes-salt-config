@@ -28,3 +28,8 @@ venv/
 *.swo
 *~
 .DS_Store
+
+# Scoped local deployment overlays contain environment-specific endpoints.
+/qubesair-deployment.json
+/salt/qubesair/files/qubes-air-console-*
+/salt/qubesair/files/qubes-air-backup-*

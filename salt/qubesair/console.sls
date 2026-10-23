@@ -73,6 +73,7 @@ Deploy (from dom0), after the console qube exists and is running:
 
 {%- set bin_dir = data_dir ~ '/bin' -%}
 {%- set bin_path = bin_dir ~ '/qubes-air-console' -%}
+{%- set candidate_path = bin_path ~ '.candidate' -%}
 {%- set home_dir = data_dir ~ '/home' -%}
 {%- set env_file = data_dir ~ '/console.env' -%}
 {%- set secret_file = data_dir ~ '/secrets.env' -%}
@@ -98,8 +99,7 @@ Deploy (from dom0), after the console qube exists and is running:
 {%- set cors = ['http://' ~ listen] -%}
 {%- endif -%}
 
-{#- The console binary has no key in config.jinja yet: it is the one payload
-    this state delivers that is neither a package nor a template artifact. -#}
+{#- Every candidate is pinned before it is executed or installed. -#}
 {%- set bin_source = qa.get('console_binary_source', 'salt://qubesair/files/qubes-air-console') -%}
 {%- set bin_sha = qa.get('console_binary_sha256', '') -%}
 
@@ -114,60 +114,36 @@ Deploy (from dom0), after the console qube exists and is running:
 {% if grains['nodename'] != 'dom0' %}
 {% if qa.get('enabled', False) %}
 
-{#- There is no CI publishing the console binary, so the digest is the ONLY
-    thing distinguishing the reviewed build from whatever happens to sit at that
-    path. Refuse to render a service around an unverified binary rather than
-    shipping a state that reads as complete. -#}
+{#- A source without a digest cannot identify the reviewed candidate. -#}
 {% if not bin_sha %}
-
 "qubesair-console-binary-sha-required":
   test.fail_without_changes:
     - name: |
-        cfg.qubesair.console_binary_sha256 is not set, and it has no default.
+        cfg.qubesair.console_binary_sha256 is required.
 
-        Unlike a package, the console binary is built from the qubes-air Go
-        source. Nothing publishes it, so it is cross-compiled by hand into this
-        repo's salt tree and pinned by digest — otherwise "the console is
-        deployed" says nothing
-        about WHAT is deployed.
+        Use a verified qubes-air release or build with the toolchain declared
+        in console/backend/go.mod. On a native linux/amd64 build host:
 
-        On your workstation, in the qubes-air repo:
+          VERSION=<reviewed-version> scripts/build-release-binary.sh ./cmd/server dist/qubes-air-console
+          sha256sum dist/qubes-air-console
 
-          docker run --rm --platform linux/amd64 -v "$PWD":/src \
-              -w /src/console/backend golang:1.26 \
-              sh -c 'CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build \
-                  -trimpath -ldflags="-s -w" -o /src/dist/qubes-air-console ./cmd/server'
-          shasum -a 256 dist/qubes-air-console
+        CGO_ENABLED=1 is required by the SQLite driver. Record the digest and
+        source in the scoped deployment manifest; see salt/qubesair/README.md.
+        Never install a candidate solely because a URL has the expected name.
+    - failhard: True
 
-        Three parts of that are load-bearing:
-          - CGO_ENABLED=1: the console uses mattn/go-sqlite3, a cgo package.
-            CGO_ENABLED=0 compiles cleanly and produces a binary that fails at
-            runtime with 'unknown driver "sqlite3"' — a clean build and a
-            console that cannot open its own database.
-          - --platform linux/amd64: on an Apple Silicon Mac the golang image is
-            arm64 and a cgo build for GOARCH=amd64 needs an x86-64 cross
-            toolchain it does not ship. Emulating amd64 makes it native inside
-            the container.
-          - golang:1.26: console/backend/go.mod requires go >= 1.26.0.
-
-        Publish it to the artifact store (same login + read-back pattern as
-        scripts/publish-agent-deb.sh), then add BOTH keys to the qubesair block
-        in salt/config.jinja:
-
-          "console_binary_source": "http://10.31.0.2/local/qubes-air-tools/qubes-air-console",
-          "console_binary_sha256": "<the digest printed above>",
-
-        and re-run scripts/setup.sh before applying this state again.
-        Staging the binary at salt://qubesair/files/qubes-air-console still
-        works if you prefer — see salt/qubesair/files/README.md.
+{% elif orch and not (qa.get('agent_package_url', '') and qa.get('agent_package_sha256', '') and qa.get('agent_package_version', '')) %}
+"qubesair-console-agent-pin-required":
+  test.fail_without_changes:
+    - name: Orchestration requires a reachable agent_package_url and its pinned SHA256/version. Set these through the scoped deployment manifest.
     - failhard: True
 
 {% else %}
 
 # --- 1. Persistent directories ----------------------------------------------
 # Modes are part of the design, not incidental:
-#   agent-identity/  0700 — rendered cloud-init documents containing agent
-#                    PRIVATE KEYS. The console creates it 0700 itself
+#   agent-identity/  0700 — rendered cloud-init documents containing one-time
+#                    bootstrap tokens, never private keys. The console creates it 0700 itself
 #                    (service/cloudinit.go), but it is declared here too so the
 #                    mode is reviewable in the state and stays correct if the Go
 #                    side ever changes.
@@ -239,23 +215,50 @@ Deploy (from dom0), after the console qube exists and is running:
     - require:
       - file: "qubesair-console-data-dir"
 
-# --- 2. The console binary ---------------------------------------------------
-# It arrives from this repo's salt tree over the qrexec channel qubesctl already
-# uses — no download, no artifact server. The operator cross-compiles it (recipe
-# in the failure message above), drops it at
-# salt/qubesair/files/qubes-air-console, and runs scripts/setup.sh.
-#
-# source_hash makes salt verify the digest before installing and fail the run on
-# a mismatch, so "the right binary is deployed" is enforced rather than assumed.
-# The file is NOT committed — it is a ~30MB build artifact — so a fresh clone
-# rebuilds it, and the digest in config.jinja is what proves the rebuild matches
-# what was reviewed.
-#
-# root-owned so a bug in the console cannot rewrite the binary it is executing.
-# Note the honest limit of that: data_dir must be writable by the service (the
-# database lives in it), so a determined process running as {{ svc_user }} could
-# still replace the bin directory. This is a guard against accident, not a
-# containment boundary.
+# --- 2. Verify and stage before replacing active files -----------------------
+# Salt verifies the candidate digest before executing its read-only database
+# check. Every active deployment file depends on that check. Source may be
+# salt:// or an artifact URL; its transport does not replace the digest check.
+# Root ownership prevents accidental writes, not containment: data_dir itself
+# belongs to the service user because it contains the database.
+"qubesair-console-candidate":
+  file.managed:
+    - name: {{ candidate_path }}
+    - source: {{ bin_source }}
+    - source_hash: sha256={{ bin_sha }}
+    - user: root
+    - group: root
+    - mode: '0755'
+    - require:
+      - file: "qubesair-console-bin-dir"
+
+# Always check the live WAL before replacing any active deployment files.
+# A missing database is a first install; an unreadable or incompatible one is
+# a failed deployment. No config, CA or orchestration is loaded by this flag.
+"qubesair-console-database-preflight":
+  cmd.run:
+    - name: |
+        set -eu
+        if [ -e '{{ db_path }}' ] || [ -L '{{ db_path }}' ]; then
+            '{{ candidate_path }}' --check-database '{{ db_path }}'
+        else
+            '{{ candidate_path }}' --version
+        fi
+        printf "\nchanged=no comment='Candidate database preflight passed'\n"
+    - runas: {{ svc_user }}
+    - stateful: True
+    - failhard: True
+    - require:
+      - file: "qubesair-console-candidate"
+    - require_in:
+      - file: "qubesair-console-binary"
+      - file: "qubesair-console-env"
+      - file: "qubesair-console-preflight"
+      - file: "qubesair-console-unit"
+{% if web_source and web_sha %}
+      - file: "qubesair-console-web-archive"
+{% endif %}
+
 "qubesair-console-binary":
   file.managed:
     - name: {{ bin_path }}
@@ -268,8 +271,8 @@ Deploy (from dom0), after the console qube exists and is running:
       - file: "qubesair-console-bin-dir"
 
 {% if web_source and not web_sha %}
-# Refuse rather than deliver an unverified UI. The page holds the operator's API
-# token in localStorage and issues every fleet-mutating call, so "some HTML from
+# Refuse rather than deliver an unverified UI. The page handles login credentials
+# and issues every fleet-mutating call, so "some HTML from
 # somewhere" is not a lesser problem here than an unpinned binary.
 "qubesair-console-web-sha-required":
   test.fail_without_changes:
@@ -347,6 +350,7 @@ Deploy (from dom0), after the console qube exists and is running:
         QUBES_AIR_PORT={{ listen_port }}
         QUBES_AIR_DATABASE_DSN={{ db_path }}
         QUBES_AIR_CORS_ORIGINS={{ cors | join(',') }}
+        QUBES_AIR_ORCHESTRATOR_PROVISION_WAIT_SECONDS={{ qa.get('provision_wait_seconds', 600) }}
         QUBES_AIR_ORCHESTRATOR_ENABLED={{ 'true' if orch else 'false' }}
         QUBES_AIR_AGENT_IDENTITY_DIR={{ identity_dir }}
         QUBES_AIR_AGENT_LISTEN={{ qa.get('agent_listen', '0.0.0.0:8443') }}
@@ -791,16 +795,33 @@ Deploy (from dom0), after the console qube exists and is running:
 # On failure it dumps status and the journal, because the operator's next
 # question is always "why", and the answer is a log line the console already
 # printed.
+"qubesair-console-service":
+  service.running:
+    - name: qubes-air-console
+    - watch:
+      - file: "qubesair-console-binary"
+      - file: "qubesair-console-env"
+      - file: "qubesair-console-preflight"
+      - file: "qubesair-console-unit"
+    - require:
+      - file: "qubesair-console-identity-dir"
+      - file: "qubesair-console-home-dir"
+      - cmd: "qubesair-console-secrets"
+      - cmd: "qubesair-console-unit-activate"
+      - cmd: "qubesair-console-rc-local-shebang"
+{% if web_source and web_sha %}
+      - cmd: "qubesair-console-web-unpack"
+{% endif %}
+
 "qubesair-console-start":
   cmd.run:
     - name: |
         set -e
-        systemctl restart qubes-air-console
-        for i in $(seq 1 30); do
+        for _ in $(seq 1 30); do
             if python3 -c "import urllib.request,sys; \
                 sys.exit(0 if urllib.request.urlopen('http://{{ listen }}/health', timeout=3).status == 200 else 1)" \
                 2>/dev/null; then
-                echo "qubes-air-console is serving on {{ listen }}"
+                printf "\nchanged=no comment='qubes-air-console is healthy'\n"
                 exit 0
             fi
             # A unit that has already given up will never answer; stop waiting
@@ -815,7 +836,9 @@ Deploy (from dom0), after the console qube exists and is running:
         journalctl -u qubes-air-console --no-pager -n 60 >&2 || true
         exit 1
     - runas: root
+    - stateful: True
     - require:
+      - service: "qubesair-console-service"
       - file: "qubesair-console-binary"
       - file: "qubesair-console-env"
       - file: "qubesair-console-preflight"
