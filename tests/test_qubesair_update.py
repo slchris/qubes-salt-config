@@ -85,6 +85,21 @@ class UpdateTests(unittest.TestCase):
                 updater.install(self.source, self.target, self.backups)
         self.assertEqual((self.target / 'config.jinja').read_text(), self.config)
 
+    def test_connecttcp_overlay_delivers_the_exact_digest_checked_handler(self):
+        name = 'mgmt/remotevm/files/qubesair.ConnectTCP'
+        path = self.source / 'salt' / name
+        path.parent.mkdir(parents=True)
+        payload = b'ConnectTCP identity mapping fixture\n'
+        path.write_bytes(payload)
+        self.manifest['files'][name] = hashlib.sha256(payload).hexdigest()
+        self.save_manifest()
+        updater.install(self.source, self.target, self.backups)
+        self.assertEqual((self.target / name).read_bytes(), payload)
+        path.write_bytes(b'unapproved change')
+        with self.assertRaisesRegex(ValueError, 'digest mismatch'):
+            updater.install(self.source, self.target, self.backups)
+        self.assertEqual((self.target / name).read_bytes(), payload)
+
     def test_symlink_destination_is_refused(self):
         (self.target / 'qubesair').symlink_to(self.source / 'salt/qubesair', target_is_directory=True)
         with self.assertRaises(ValueError):

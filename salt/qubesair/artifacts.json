@@ -25,11 +25,26 @@
         "qubes-air-console-06cfff3": "90cce94fd8376bee339544188d56ec17b04398514dc0c7dec8e49e3921fd3672",
         "list-endpoints-06cfff3": "0d896e573ae6183bccec6bf0860a269092120399cefda1f5452ccd1ee773318c"
       }
+    },
+    {
+      "source_revision": "2b621289d113af4dedc2bd50029b7f3e1a4909c2",
+      "version": "0.0.0+qa2b62128",
+      "go_version": "1.26.10",
+      "platform": "linux/amd64",
+      "artifacts": {
+        "qubes-air-console-2b62128": "6f387a38df66dfe48f045036414e0ac391d8287d48d9fd6bc8715f82396fbd7a",
+        "relay-call-2b62128": "daa16fe8bf0ce22ce1a058a7f987d3529ca2cac118ec320ff0bfda44c5df47af"
+      }
     }
   ],
   "transport_handler": {
     "source_revision": "44554092e786d7fb55a6205b0c445256227ce7a7",
     "path": "relay/transport/qubesair.GrpcProxy",
     "sha256": "36f4e2e17c36acb63a0845990b4a4a8251ca6aabc7f3dd7d296c38f236c244d5"
+  },
+  "connecttcp_handler": {
+    "source_revision": "42b87ac9a29f3b3cc769c33808ec329ab210f70e",
+    "path": "relay/transport/qubesair.ConnectTCP",
+    "sha256": "0d3fd2b8d42c35dc92c3f6075b8dbf4b7e74ef983907df8ac8c41673146c451e"
   }
 }

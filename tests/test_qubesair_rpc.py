@@ -100,6 +100,37 @@ class RPCTests(unittest.TestCase):
                          'qubesair.Exec+' + 'x' * 128):
                 self.assertEqual(call('remote-qa+' + wire).returncode, 126)
 
+    def test_connecttcp_keeps_lookup_name_and_strips_one_agent_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = root / 'relay-call'
+            fake.write_text('#!/bin/sh\nfor arg do printf "%s\\n" "$arg"; done\n')
+            fake.chmod(0o755)
+            qdb = root / 'qubesdb-read'
+            qdb.write_text('#!/bin/sh\nprintf "%s\\n" "$1" > "$QA_LOOKUP"\nprintf "192.0.2.1:8443\\n"\n')
+            qdb.chmod(0o755)
+            handler = root / 'handler'
+            source = (ROOT / 'salt/mgmt/remotevm/files/qubesair.ConnectTCP').read_text()
+            handler.write_text(source.replace('/usr/local/bin/relay-call', str(fake)))
+            (root / 'relay.crt').touch()
+            lookup = root / 'lookup'
+            env = {**os.environ, 'PATH': tmp + ':' + os.environ['PATH'],
+                   'QUBES_AIR_RELAY_DIR': tmp, 'QA_LOOKUP': str(lookup)}
+            for local, agent in [('remote-qa', 'qa'), ('remote-remote-qa', 'remote-qa')]:
+                with self.subTest(local=local):
+                    result = subprocess.run(['bash', str(handler), local + '+10000'],
+                                            env=env, text=True, capture_output=True, timeout=5)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(lookup.read_text().strip(), '/remote-endpoint/' + local)
+                    self.assertEqual(result.stdout.splitlines()[-2:], [agent, '10000'])
+            for bad in ('remote-+10000', 'qa+10000', 'remote-qa+22', 'remote-qa+10000+extra'):
+                lookup.unlink(missing_ok=True)
+                result = subprocess.run(['bash', str(handler), bad], env=env,
+                                        text=True, capture_output=True, timeout=5)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(result.stdout, '')
+                self.assertFalse(lookup.exists())
+
 
 
 if __name__ == '__main__':

@@ -25,6 +25,7 @@ STATES = {'qubesair/console.sls', 'qubesair/console-ingress.sls',
           'qubesair/install.sls', 'mgmt/remotevm/grpc-policy.sls',
           'mgmt/remotevm/grpc-console.sls', 'mgmt/remotevm/grpc-csr-relay.sls',
           'mgmt/remotevm/files/qubesair.GrpcProxy', 'mgmt/remotevm/register.sls',
+          'mgmt/remotevm/files/qubesair.ConnectTCP',
           'mgmt/remotevm/files/qubesair.RegisterRemoteVM',
           'mgmt/remotevm/files/refresh-endpoints.py.jinja'}
 RPC_ARTIFACTS = {'issue_bin', 'list_endpoints', 'relay_call', 'relay_bootstrap'}
