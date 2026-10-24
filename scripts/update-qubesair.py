@@ -26,6 +26,7 @@ STATES = {'qubesair/console.sls', 'qubesair/console-ingress.sls',
           'mgmt/remotevm/grpc-console.sls', 'mgmt/remotevm/grpc-csr-relay.sls',
           'mgmt/remotevm/files/qubesair.GrpcProxy', 'mgmt/remotevm/register.sls',
           'mgmt/remotevm/files/qubesair.ConnectTCP',
+          'mgmt/remotevm/files/qubesair.ConnectDesktop',
           'mgmt/remotevm/files/qubesair.RegisterRemoteVM',
           'mgmt/remotevm/files/refresh-endpoints.py.jinja'}
 RPC_ARTIFACTS = {'issue_bin', 'list_endpoints', 'relay_call', 'relay_bootstrap'}
@@ -94,7 +95,8 @@ def check_remote_patch(patch):
     if not isinstance(patch, dict) or set(patch) != {'grpc'} or not isinstance(patch['grpc'], dict) or set(patch['grpc']) != {'csr'}:
         raise ValueError('only scoped grants and pinned RPC artifacts may be updated')
     csr = patch['grpc']['csr']
-    allowed = {'service_grants'} | {p + suffix for p in RPC_ARTIFACTS for suffix in ('_source', '_sha256')}
+    allowed = {'service_grants', 'desktop_grants'} | {
+        p + suffix for p in RPC_ARTIFACTS for suffix in ('_source', '_sha256')}
     if not isinstance(csr, dict) or set(csr) - allowed:
         raise ValueError('only scoped grants and pinned RPC artifacts may be updated')
     for prefix in RPC_ARTIFACTS:
@@ -116,6 +118,30 @@ def check_remote_patch(patch):
         services = grant['services']
         if not isinstance(services, list) or not services or set(services) - {'qubesair.Exec', 'qubesair.FileCopy'}:
             raise ValueError('scoped grants only permit Exec/FileCopy')
+    check_desktop_grants(csr.get('desktop_grants', []))
+
+
+def check_desktop_grants(grants):
+    if not isinstance(grants, list) or len(grants) > 32:
+        raise ValueError('invalid desktop grants')
+    for grant in grants:
+        if not isinstance(grant, dict) or set(grant) != {'source', 'target'}:
+            raise ValueError('invalid desktop grant keys')
+        for name in (grant['source'], grant['target']):
+            if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z][A-Za-z0-9_.-]{0,30}', name):
+                raise ValueError('desktop grants require exact VM names')
+        if not grant['target'].startswith('remote-') or len(grant['target']) <= 7:
+            raise ValueError('desktop grants require a nonempty remote-* target')
+
+
+def check_desktop_callers(remote):
+    csr = remote.get('grpc', {}).get('csr', {})
+    grants = csr.get('desktop_grants', [])
+    if not grants:
+        return
+    callers = csr.get('allowed_callers', [remote.get('relay', 'mgmt-jump')])
+    if not isinstance(callers, list) or any(grant['source'] not in callers for grant in grants):
+        raise ValueError('desktop grant source is not an existing allowed caller')
 
 
 def patch_config(text, patch, remote=None):
@@ -141,6 +167,8 @@ def patch_config(text, patch, remote=None):
         if not isinstance(values.get(section), dict):
             raise ValueError('configuration shape changed: ' + section)
         merged = merge(values[section], changes)
+        if section == 'remotevm' and 'desktop_grants' in changes['grpc']['csr']:
+            check_desktop_callers(merged)
         node = next(v for k, v in zip(tree.keys, tree.values) if ast.literal_eval(k) == section)
         begin = sum(map(len, lines[:node.lineno - 1])) + node.col_offset
         finish = sum(map(len, lines[:node.end_lineno - 1])) + node.end_col_offset

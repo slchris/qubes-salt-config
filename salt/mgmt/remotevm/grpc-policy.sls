@@ -11,7 +11,8 @@ SSHProxy policy (30-*) so these allows win over its deny fallbacks. Three groups
   - A: a caller may reach each RemoteVM, which triggers dom0's transport rewrite.
   - B: the rewritten qubesair.GrpcProxy call may land on the relay.
 
-Remove the file (or mgmt.remotevm.teardown) to revert.
+To revoke desktop access, remove its grants and reapply this state. Retain the
+explicit deny: removing this policy file may expose later fallback rules.
 
 Deploy (from dom0):
   sudo qubesctl state.apply mgmt.remotevm.grpc-policy
@@ -88,7 +89,7 @@ Deploy (from dom0):
     - group: root
     - contents: |
         # SPDX-License-Identifier: MIT
-        # Managed by mgmt.remotevm.grpc-policy. Remove to revert.
+        # Managed by mgmt.remotevm.grpc-policy. Reapply empty grants to revoke.
         # Sorts before 30-*.policy so these allows win over the SSHProxy denies.
 
         # The relay may ask the console to sign its client CSR. The console pins
