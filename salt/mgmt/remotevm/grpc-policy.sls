@@ -25,6 +25,24 @@ Deploy (from dom0):
 {%- set targets = rv.get('targets', []) -%}
 {%- set callers = csr.get('allowed_callers', [relay]) -%}
 {%- set grants = csr.get('service_grants', []) -%}
+{%- set desktop_grants = csr.get('desktop_grants', []) -%}
+{%- set desktop_check = namespace(valid=True) -%}
+{%- if desktop_grants | length > 32 -%}{%- set desktop_check.valid = False -%}{%- endif -%}
+{%- for grant in desktop_grants -%}
+{%- for name in [grant.get('source', ''), grant.get('target', '')] -%}
+{%- if not name or name | length > 31 or name[0] not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' -%}
+{%- set desktop_check.valid = False -%}
+{%- endif -%}
+{%- for char in name -%}
+{%- if char not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-' -%}
+{%- set desktop_check.valid = False -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endfor -%}
+{%- if grant.get('source') not in callers or not grant.get('target', '').startswith('remote-') or grant.get('target', '') | length <= 7 -%}
+{%- set desktop_check.valid = False -%}
+{%- endif -%}
+{%- endfor -%}
 {%- set grant_check = namespace(valid=True) -%}
 {%- if grants | length > 32 -%}{%- set grant_check.valid = False -%}{%- endif -%}
 {%- for grant in grants -%}
@@ -51,7 +69,12 @@ Deploy (from dom0):
 {% if grains['nodename'] == 'dom0' %}
 {% if csr.get('enabled', False) %}
 
-{% if not grant_check.valid %}
+{% if not desktop_check.valid %}
+"grpc-desktop-grants-invalid":
+  test.fail_without_changes:
+    - name: desktop_grants require an allowed caller and an exact remote-* VM name (at most 32 grants).
+    - failhard: True
+{% elif not grant_check.valid %}
 "grpc-scoped-grants-invalid":
   test.fail_without_changes:
     - name: service_grants require an allowed caller, an exact VM name and Exec/FileCopy services.
@@ -117,7 +140,13 @@ Deploy (from dom0):
         # Any other service to a RemoteVM is denied by default.
         * * @anyvm @tag:remote-zone deny
 
-        # C (GUI / streaming): a raw TCP tunnel is opened DIRECTLY on the relay
+        # Fixed authenticated desktop stream: match the exact service argument
+        # (the local RemoteVM name). No default grant and no port/path selector.
+        {%- for grant in desktop_grants %}
+        qubesair.ConnectDesktop +{{ grant['target'] }} {{ grant['source'] }} {{ relay }} allow
+        {%- endfor %}
+        qubesair.ConnectDesktop * @anyvm @anyvm deny
+        # C (other GUI / streaming): a raw TCP tunnel is opened DIRECTLY on the relay
         # (the RemoteVM rewrite only carries buffered RPC via GrpcProxy). The relay
         # handler restricts the destination to a known RemoteVM's GUI ports.
         {%- for c in callers %}

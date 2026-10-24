@@ -118,6 +118,17 @@ Deploy (from dom0):
     - group: root
     - mode: '0755'
 
+# Fixed Xpra Unix stream via the agent's mTLS channel. Policy grants are
+# separate and empty by default; installing the handler grants no access.
+"grpc-csr-relay-connectdesktop":
+  file.managed:
+    - name: {{ bin_dir }}/qubesair.ConnectDesktop
+    - source: salt://mgmt/remotevm/files/qubesair.ConnectDesktop
+    - makedirs: True
+    - user: root
+    - group: root
+    - mode: '0755'
+
 # --- renewal timer (units live on /rw, linked into place by boot.sh) ---------
 "grpc-csr-relay-renew-service":
   file.managed:
@@ -247,6 +258,7 @@ Deploy (from dom0):
         ln -sf {{ bin_dir }}/relay-bootstrap   /usr/local/bin/relay-bootstrap
         ln -sf {{ bin_dir }}/qubesair.GrpcProxy /etc/qubes-rpc/qubesair.GrpcProxy
         ln -sf {{ bin_dir }}/qubesair.ConnectTCP /etc/qubes-rpc/qubesair.ConnectTCP
+        ln -sf {{ bin_dir }}/qubesair.ConnectDesktop /etc/qubes-rpc/qubesair.ConnectDesktop
         ln -sf {{ bin_dir }}/refresh-endpoints.py /etc/qubes-rpc/qubesair.ForgetEndpoint
         ln -sf {{ sysd_dir }}/qubesair-relay-renew.service     /etc/systemd/system/qubesair-relay-renew.service
         ln -sf {{ sysd_dir }}/qubesair-relay-renew.timer       /etc/systemd/system/qubesair-relay-renew.timer
@@ -302,6 +314,7 @@ Deploy (from dom0):
       - file: "grpc-csr-relay-bootstrap-bin"
       - file: "grpc-csr-relay-handler"
       - file: "grpc-csr-relay-connecttcp"
+      - file: "grpc-csr-relay-connectdesktop"
       - file: "grpc-csr-relay-renew-service"
       - file: "grpc-csr-relay-renew-timer"
       - file: "grpc-csr-relay-refresh-endpoints"
