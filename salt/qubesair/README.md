@@ -44,6 +44,12 @@ exactly the problem this module exists to avoid.
 | `console.sls` | `qubesair-console` | the console **service** — binary, unit, env, data layout (owned separately) |
 | `backup.sls` | `qubesair-console` | the database backup — binary, service, timer, one run per boot |
 | `backup-mount.sls` | template + Console | persistent SSHFS package and optional confined off-host archive mount |
+| `artifact-fetch.sls` | Console + Relay | root-owned helper and directories for bounded, digest-verified HTTPS staging |
+| `artifact-prefetch.sls` | Console + Relay | prepare only each target's enabled artifacts before a Salt preview |
+
+HTTPS artifacts use [bounded downloads](../../docs/qubesair-bounded-downloads.md).
+Prepare their verified cache before `test=True`; normal applies also stage an
+empty cache before replacing active files.
 
 `configure.sls` and `console.sls` are deliberately disjoint: different state-ID
 prefixes, different files, different `rc.local` marker blocks, and **no shared

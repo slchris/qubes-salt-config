@@ -1,0 +1,37 @@
+{# SPDX-License-Identifier: MIT #}
+{% macro local_source(kind, source) -%}
+{{ source if source.startswith('salt://') else '/rw/config/qubesair-artifacts/cache/' ~ kind }}
+{%- endmacro %}
+
+{% macro stage(kind, source, digest, consumers) %}
+{% if not source.startswith('salt://') %}
+"qubesair-artifact-request-{{ kind }}":
+  file.managed:
+    - name: /rw/config/qubesair-artifacts/requests/{{ kind }}.json
+    - user: root
+    - group: root
+    - mode: '0644'
+    - contents: |
+        {{ {'url': source, 'sha256': digest} | tojson }}
+    - require:
+      - file: "qubesair-artifact-requests"
+
+"qubesair-artifact-fetch-{{ kind }}":
+  cmd.run:
+    - name: /usr/bin/python3 /rw/config/qubesair-artifacts/fetch.py {{ kind }}
+    - runas: root
+    - timeout: 250
+    - stateful: True
+    - failhard: True
+    - require:
+      - file: "qubesair-artifact-helper"
+      - file: "qubesair-artifact-cache"
+      - file: "qubesair-artifact-request-{{ kind }}"
+{% if consumers %}
+    - require_in:
+{% for consumer in consumers %}
+      - file: "{{ consumer }}"
+{% endfor %}
+{% endif %}
+{% endif %}
+{% endmacro %}

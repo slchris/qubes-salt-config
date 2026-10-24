@@ -24,6 +24,7 @@ Deploy (from dom0):
 #}
 
 {%- from 'config.jinja' import cfg with context -%}
+{%- from 'qubesair/macros/artifacts.jinja' import local_source, stage -%}
 {%- set rv = cfg.remotevm -%}
 {%- set csr = rv.get('grpc', {}).get('csr', {}) -%}
 {%- set relay_dir = csr.get('relay_dir', '/rw/config/qubesair-relay') -%}
@@ -42,6 +43,9 @@ Deploy (from dom0):
         empty. Publish the binaries and pin their digests before applying.
     - failhard: True
 {% else %}
+
+include:
+  - qubesair.artifact-fetch
 
 # The identity directory is USER-owned: the qrexec transport service runs as
 # `user` (Qubes default), so relay-bootstrap runs as `user` and writes relay.key
@@ -77,10 +81,12 @@ Deploy (from dom0):
       - file: "grpc-csr-relay-endpoints-timer"
       - file: "grpc-csr-relay-boot-script"
 
+{{ stage('relay-call', csr.relay_call_source, csr.relay_call_sha256, ['grpc-csr-relay-call-bin']) }}
+
 "grpc-csr-relay-call-bin":
   file.managed:
     - name: {{ bin_dir }}/relay-call
-    - source: {{ csr.relay_call_source }}
+    - source: {{ local_source('relay-call', csr.relay_call_source) }}
     - source_hash: sha256={{ csr.relay_call_sha256 }}
     - makedirs: True
     - dir_mode: '0755'
@@ -88,10 +94,12 @@ Deploy (from dom0):
     - group: root
     - mode: '0755'
 
+{{ stage('relay-bootstrap', csr.relay_bootstrap_source, csr.relay_bootstrap_sha256, ['grpc-csr-relay-bootstrap-bin']) }}
+
 "grpc-csr-relay-bootstrap-bin":
   file.managed:
     - name: {{ bin_dir }}/relay-bootstrap
-    - source: {{ csr.relay_bootstrap_source }}
+    - source: {{ local_source('relay-bootstrap', csr.relay_bootstrap_source) }}
     - source_hash: sha256={{ csr.relay_bootstrap_sha256 }}
     - makedirs: True
     - user: root

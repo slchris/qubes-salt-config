@@ -44,6 +44,8 @@ scoped updater preserves omitted fields. Apply the normal Console and Relay
 states, then compare the running Console identity and deployed file hashes.
 The v0.2.0 rollout encountered Salt SSH download stalls requiring manual
 prefetch; this pin update does not fix or claim to validate download retries.
+The subsequent [bounded download stage](qubesair-bounded-downloads.md) addresses
+failure budgets and retry behavior while preserving these release pins.
 
 `desktop_grants` remains empty. Pinning the release does not establish a
 production desktop session, a full disaster takeover or provider lifecycle

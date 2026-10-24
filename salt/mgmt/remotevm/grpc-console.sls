@@ -20,6 +20,7 @@ Deploy (from dom0):
 #}
 
 {%- from 'config.jinja' import cfg with context -%}
+{%- from 'qubesair/macros/artifacts.jinja' import local_source, stage -%}
 {%- set csr = cfg.remotevm.get('grpc', {}).get('csr', {}) -%}
 {%- set runtime_dir = '/rw/config/qubesair-rpc' -%}
 
@@ -34,6 +35,9 @@ Deploy (from dom0):
     - failhard: True
 {% else %}
 
+include:
+  - qubesair.artifact-fetch
+
 # Runtime code is root-owned and outside the console's user-owned data tree.
 "grpc-console-runtime-dir":
   file.directory:
@@ -46,10 +50,12 @@ Deploy (from dom0):
 # The issuer signs with the console CA, so like the console binary it is
 # root-owned: a process running as the service user must not be able to rewrite
 # the tool that wields the CA.
+{{ stage('issuer', csr.issue_bin_source, csr.issue_bin_sha256, ['grpc-console-issue-bin']) }}
+
 "grpc-console-issue-bin":
   file.managed:
     - name: {{ runtime_dir }}/issue-relay-cert
-    - source: {{ csr.issue_bin_source }}
+    - source: {{ local_source('issuer', csr.issue_bin_source) }}
     - source_hash: sha256={{ csr.issue_bin_sha256 }}
     - user: root
     - group: root
@@ -70,10 +76,12 @@ Deploy (from dom0):
 # Endpoint lister for the relay to pull (path b, endpoint delivery). It reads
 # only qube names + addresses from the database — no CA, no secrets — so unlike
 # the issuer it is not privileged beyond database read.
+{{ stage('endpoints', csr.list_endpoints_source, csr.list_endpoints_sha256, ['grpc-console-list-endpoints-bin']) }}
+
 "grpc-console-list-endpoints-bin":
   file.managed:
     - name: {{ runtime_dir }}/list-endpoints
-    - source: {{ csr.list_endpoints_source }}
+    - source: {{ local_source('endpoints', csr.list_endpoints_source) }}
     - source_hash: sha256={{ csr.get('list_endpoints_sha256', '') }}
     - user: root
     - group: root
