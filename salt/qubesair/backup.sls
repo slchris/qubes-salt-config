@@ -40,6 +40,7 @@ cost is one extra archive per boot, bounded by the same keep window.
 #}
 
 {%- from 'config.jinja' import cfg with context -%}
+{%- from 'qubesair/macros/artifacts.jinja' import local_source, stage -%}
 
 {%- set qa = cfg.get('qubesair', {}) -%}
 {%- set bk = qa.get('backup', {}) -%}
@@ -128,8 +129,9 @@ cost is one extra archive per boot, bounded by the same keep window.
 
 {% endif %}
 
-{% if bk.get('sshfs', {}).get('enabled', False) %}
 include:
+  - qubesair.artifact-fetch
+{% if bk.get('sshfs', {}).get('enabled', False) %}
   - qubesair.backup-mount
 {% endif %}
 
@@ -156,10 +158,12 @@ include:
     - require:
       - file: "qubesair-backup-data-dir"
 
+{{ stage('backup', bin_source, bin_sha, ['qubesair-backup-binary']) }}
+
 "qubesair-backup-binary":
   file.managed:
     - name: {{ bin_path }}
-    - source: {{ bin_source }}
+    - source: {{ local_source('backup', bin_source) }}
     - source_hash: sha256={{ bin_sha }}
     - user: root
     - group: root

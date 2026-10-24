@@ -78,6 +78,28 @@ class UpdateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             updater.prepare(self.source, self.target)
 
+    def test_artifact_overlay_is_digest_checked_and_has_no_arbitrary_macro_path(self):
+        names = ('qubesair/artifact-fetch.sls', 'qubesair/artifact-fetch.top',
+                 'qubesair/artifact-prefetch.sls', 'qubesair/artifact-prefetch.top',
+                 'qubesair/macros/artifacts.jinja', 'qubesair/files/fetch-artifact.py')
+        for name in names:
+            path = self.source / 'salt' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = (SCRIPT.parent.parent / 'salt' / name).read_bytes()
+            path.write_bytes(payload)
+            self.manifest['files'][name] = hashlib.sha256(payload).hexdigest()
+        self.save_manifest()
+        updater.install(self.source, self.target, self.backups)
+        for name in names:
+            self.assertEqual((self.source / 'salt' / name).read_bytes(), (self.target / name).read_bytes())
+        (self.source / 'salt/qubesair/files/fetch-artifact.py').write_text('tampered')
+        with self.assertRaisesRegex(ValueError, 'digest mismatch'):
+            updater.install(self.source, self.target, self.backups)
+        self.manifest['files'] = {'qubesair/macros/arbitrary.jinja': 'a' * 64}
+        self.save_manifest()
+        with self.assertRaisesRegex(ValueError, 'unsupported deployment file'):
+            updater.prepare(self.source, self.target)
+
     def test_digest_and_path_rejection(self):
         for name, digest in [('qubesair/console.sls', '0' * 64),
                              ('../outside', 'a' * 64), ('mgmt/remote-debug/configure.sls', 'a' * 64)]:

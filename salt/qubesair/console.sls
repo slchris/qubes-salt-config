@@ -49,6 +49,7 @@ Deploy (from dom0), after the console qube exists and is running:
 #}
 
 {%- from 'config.jinja' import cfg with context -%}
+{%- from 'qubesair/macros/artifacts.jinja' import local_source, stage -%}
 
 {#- config.jinja is owned by the qubesair template/create states; read through
     .get() so a missing block yields the actionable notification at the bottom
@@ -142,6 +143,7 @@ Deploy (from dom0), after the console qube exists and is running:
 
 include:
   - qubesair.console-ingress
+  - qubesair.artifact-fetch
 
 # --- 1. Persistent directories ----------------------------------------------
 # Modes are part of the design, not incidental:
@@ -224,10 +226,12 @@ include:
 # salt:// or an artifact URL; its transport does not replace the digest check.
 # Root ownership prevents accidental writes, not containment: data_dir itself
 # belongs to the service user because it contains the database.
+{{ stage('console', bin_source, bin_sha, ['qubesair-console-candidate', 'qubesair-console-binary']) }}
+
 "qubesair-console-candidate":
   file.managed:
     - name: {{ candidate_path }}
-    - source: {{ bin_source }}
+    - source: {{ local_source('console', bin_source) }}
     - source_hash: sha256={{ bin_sha }}
     - user: root
     - group: root
@@ -273,7 +277,7 @@ include:
 "qubesair-console-binary":
   file.managed:
     - name: {{ bin_path }}
-    - source: {{ bin_source }}
+    - source: {{ local_source('console', bin_source) }}
     - source_hash: sha256={{ bin_sha }}
     - user: root
     - group: root
@@ -312,10 +316,12 @@ include:
 # would accumulate stale bundles that nothing ever serves and nothing removes.
 # Unpacking into an emptied directory keeps what is on disk equal to what was
 # built.
+{{ stage('web', web_source, web_sha, ['qubesair-console-web-archive']) }}
+
 "qubesair-console-web-archive":
   file.managed:
     - name: {{ data_dir }}/web.tar.gz
-    - source: {{ web_source }}
+    - source: {{ local_source('web', web_source) }}
     - source_hash: sha256={{ web_sha }}
     - user: root
     - group: root

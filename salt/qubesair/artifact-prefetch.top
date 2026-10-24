@@ -1,0 +1,7 @@
+{# SPDX-License-Identifier: MIT #}
+{%- from 'config.jinja' import cfg with context -%}
+base:
+  '{{ cfg.get("qubesair", {}).get("qube", "qubesair-console") }}':
+    - qubesair.artifact-prefetch
+  '{{ cfg.get("remotevm", {}).get("relay", "mgmt-jump") }}':
+    - qubesair.artifact-prefetch
