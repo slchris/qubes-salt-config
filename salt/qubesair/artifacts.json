@@ -1,50 +1,50 @@
 {
+  "release": {
+    "tag": "v0.2.0",
+    "url": "https://github.com/slchris/qubes-air/releases/tag/v0.2.0",
+    "source_revision": "232b280cc395fe64cb48e2e3206ad776256d404e",
+    "workflow_run": "https://github.com/slchris/qubes-air/actions/runs/40098108139",
+    "sha256sums": "7f51c815d93011bda5085e8af1e08174b054b7b5d7753b7f19683fe736db104c"
+  },
   "builds": [
     {
-      "source_revision": "eb753f4281e43ab3c637337d25670b44c1547d91",
-      "version": "0.0.0+qaeb753f4",
+      "source_revision": "232b280cc395fe64cb48e2e3206ad776256d404e",
+      "version": "v0.2.0",
       "go_version": "1.26.10",
       "platform": "linux/amd64",
       "artifacts": {
-        "qubes-air-console-eb753f4": "996d5f57da81db95b86a6560b43707ce431a1a3cbfa32e14ae12335805676c8d",
-        "qubes-air-backup-eb753f4": "e526615df9ebf6473e676f6247ffe2d2e6838e885a12421a90c8ddbab2639078",
-        "qubes-air-console-web-eb753f4.tar.gz": "3bf6acfa36458497216f34e12a0426b7c4249db68a6a38fdf75ea20f0ddd8809",
-        "qubes-air-agent_0.0.0+qaeb753f4_amd64.deb": "51905328dae0f65c9516a8f2ef4face742f90532621ded21d63f924a982d9c0a",
-        "issue-relay-cert-eb753f4": "ab8567cd2b09f1973439e6157cb92878e8d55738f1d1a4a7464de97b6172c5ad",
-        "list-endpoints-eb753f4": "1b5030765225be59e4ac5461f0b067eb026b82c9111d539e8acf6f838de8bae8",
-        "relay-call-eb753f4": "5ab32769325402d0ddef027e4f69fdc2185f8d3b3b873d7fe5f42981314df6e6",
-        "relay-bootstrap-eb753f4": "21db0bb299da58b45ab7ed810c9952ae8d33884a578e338aa24cf760dfe464b6"
+        "qubes-air-console": "1eb48309e52fd1111762cd351b31a5e9241b408af0bd8fee078683b4c0c978bb",
+        "qubes-air-backup": "9e0c0d19f4c05ee0668def106f63802bab8e9603190f5d1184457367ffdadf8e",
+        "qubes-air-console-web.tar.gz": "7d350a56e0f1d02efce6cd43438328d989730cbfb3a5458da531808c4538a610",
+        "relay-call": "b401f545ec776681281a9beb0a1b383b7daed9243934b0737eb60f841896eb03",
+        "relay-bootstrap": "9e8b8c9b3f39184bf7a0a9d9d4b3e591be8e38cae35f4d78f39d4af7fe667f9e",
+        "issue-relay-cert": "64bb350a7e50f7a5efc762bd40bea04759383c8203e3842317fa97979f7fd8b7",
+        "list-endpoints": "08634cc06e967a0e5e5868964c2c2e126b103bc207b1e21f06887df694c41549"
       }
     },
     {
-      "source_revision": "06cfff3781d43f02783436f5d521b3029c5030f5",
-      "version": "0.0.0+qa06cfff3",
+      "source_revision": "232b280cc395fe64cb48e2e3206ad776256d404e",
+      "version": "0.2.0",
       "go_version": "1.26.10",
       "platform": "linux/amd64",
       "artifacts": {
-        "qubes-air-console-06cfff3": "90cce94fd8376bee339544188d56ec17b04398514dc0c7dec8e49e3921fd3672",
-        "list-endpoints-06cfff3": "0d896e573ae6183bccec6bf0860a269092120399cefda1f5452ccd1ee773318c"
-      }
-    },
-    {
-      "source_revision": "2b621289d113af4dedc2bd50029b7f3e1a4909c2",
-      "version": "0.0.0+qa2b62128",
-      "go_version": "1.26.10",
-      "platform": "linux/amd64",
-      "artifacts": {
-        "qubes-air-console-2b62128": "6f387a38df66dfe48f045036414e0ac391d8287d48d9fd6bc8715f82396fbd7a",
-        "relay-call-2b62128": "daa16fe8bf0ce22ce1a058a7f987d3529ca2cac118ec320ff0bfda44c5df47af"
+        "qubes-air-agent_0.2.0_amd64.deb": "3542642f9c7c1077e19aead1271816b4321b1db38f5c70648e32d28f94bb407f"
       }
     }
   ],
   "transport_handler": {
-    "source_revision": "44554092e786d7fb55a6205b0c445256227ce7a7",
+    "source_revision": "232b280cc395fe64cb48e2e3206ad776256d404e",
     "path": "relay/transport/qubesair.GrpcProxy",
     "sha256": "36f4e2e17c36acb63a0845990b4a4a8251ca6aabc7f3dd7d296c38f236c244d5"
   },
   "connecttcp_handler": {
-    "source_revision": "42b87ac9a29f3b3cc769c33808ec329ab210f70e",
+    "source_revision": "232b280cc395fe64cb48e2e3206ad776256d404e",
     "path": "relay/transport/qubesair.ConnectTCP",
-    "sha256": "0d3fd2b8d42c35dc92c3f6075b8dbf4b7e74ef983907df8ac8c41673146c451e"
+    "sha256": "ab3670e116bb1f1dbc24e7a27eab942eaa25d489df945fb5d0ba5fe2142e2632"
+  },
+  "desktop_handler": {
+    "source_revision": "232b280cc395fe64cb48e2e3206ad776256d404e",
+    "path": "relay/transport/qubesair.ConnectDesktop",
+    "sha256": "b385dc0f3ddc83a57bcd47b04fb8134d80cb10c65ad7a2e589af6b9ee4503b8d"
   }
 }
