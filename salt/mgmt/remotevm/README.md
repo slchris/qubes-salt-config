@@ -1,5 +1,11 @@
 # mgmt.remotevm
 
+For the current Qubes Air direct-agent desktop stream, use the existing
+`grpc-csr-relay` and `grpc-policy` states with explicit target grants. See
+[fixed desktop deployment](../../../docs/qubesair-desktop.md) for its prerequisites,
+default deny, persistence, rollback and validation scope. The desktop uses the
+agent's authenticated Unix stream; TCP 10005 is refused.
+
 Register **RemoteVMs** (Qubes Air, R4.3+) — remote qubes reachable through a
 relay qube over SSH — aligning with the official RemoteVM primitive
 (`relayvm` / `transport_rpc` / `remote_name`) instead of a bespoke tunnel.
