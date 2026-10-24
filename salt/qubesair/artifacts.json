@@ -1,49 +1,49 @@
 {
   "release": {
-    "tag": "v0.2.2",
-    "url": "https://github.com/slchris/qubes-air/releases/tag/v0.2.2",
-    "source_revision": "85aff42b110d3911699c5a5472e3ba7b61863ec9",
-    "workflow_run": "https://github.com/slchris/qubes-air/actions/runs/40123911570",
-    "sha256sums": "72d90a49e6439862e7ca90b6afa35320c70a0e025ba48623309b5e8510457a62"
+    "tag": "v0.2.3",
+    "url": "https://github.com/slchris/qubes-air/releases/tag/v0.2.3",
+    "source_revision": "0fc61e9ad4730206cdd8d3601bdfb81443b935a3",
+    "workflow_run": "https://github.com/slchris/qubes-air/actions/runs/40128827573",
+    "sha256sums": "800a0a5b2cbf15459ad96b7eec4ff48a0ff0a07048316b9ed7f15db1c78693f0"
   },
   "builds": [
     {
-      "source_revision": "85aff42b110d3911699c5a5472e3ba7b61863ec9",
-      "version": "v0.2.2",
+      "source_revision": "0fc61e9ad4730206cdd8d3601bdfb81443b935a3",
+      "version": "v0.2.3",
       "go_version": "1.26.10",
       "platform": "linux/amd64",
       "artifacts": {
-        "qubes-air-console": "c722c8cb049732308be03897c3e02472aea6e6bc0729d3c49e88d6d43ac49f6c",
-        "qubes-air-backup": "43ed14ba4b43f302897d79daa49a0706c65de35c5cf7232a197dcda971a318be",
-        "qubes-air-console-web.tar.gz": "b1e1ae61c8bfb8b44d05a73235407b4302caf55824c2d8ca95236356908e4db6",
-        "relay-call": "b7e5312e8b3fbf30526246b51db1c85bdffe1c4beeb964fe9dac9021b20e6906",
-        "relay-bootstrap": "d3fb9addc39c9a4d7f0114d1f4924c8e1bd3bbc0856edfde7d14069f5a15f50d",
-        "issue-relay-cert": "ee186a76e8eb66162b1722a82baac24d9c3130e252116fdc88100860dd5043cc",
-        "list-endpoints": "c186033f456120de68c46182ed5f50842eaaacb40d47865c74a9ff978ea8f3ef"
+        "qubes-air-console": "8bbca4d7274a6dfb5b70e4cf5127e2e1d07c54ef8f4bb7f3d171fb7177d9f5ca",
+        "qubes-air-backup": "84295c5c607215c35286853edc4dabc2cbf75a1abee29be80c4f4f92a3d0442b",
+        "qubes-air-console-web.tar.gz": "6e2d33f4f624e1c503f3c4b27bc16bdcd9036b1d590dbb76782003165c3347c6",
+        "relay-call": "54110a19ad34bb1c65f732df296d6ef1665ca5e8be5061347807277a4747b388",
+        "relay-bootstrap": "5fb8b61a7c6d885df0a6dffe2295ce8470106efe061278491e5f9215c358292d",
+        "issue-relay-cert": "2950ed5e085b00f94abf2076f605bd035d5d59382ec5bab9b4c87022141c8591",
+        "list-endpoints": "0e367ab3d6c3b642630c629fec2cfea82d55345b663a8ecb5edf93aec3d75ac6"
       }
     },
     {
-      "source_revision": "85aff42b110d3911699c5a5472e3ba7b61863ec9",
-      "version": "0.2.2",
+      "source_revision": "0fc61e9ad4730206cdd8d3601bdfb81443b935a3",
+      "version": "0.2.3",
       "go_version": "1.26.10",
       "platform": "linux/amd64",
       "artifacts": {
-        "qubes-air-agent_0.2.2_amd64.deb": "50d8dc563b1ceddc5b891f955d208af614814a94a0e20fbf447f0a5608b35ca0"
+        "qubes-air-agent_0.2.3_amd64.deb": "ed0faadd37eb3d2d78c42b860876f0a56913a2ae385ae4aa393b38f2664661cf"
       }
     }
   ],
   "transport_handler": {
-    "source_revision": "85aff42b110d3911699c5a5472e3ba7b61863ec9",
+    "source_revision": "0fc61e9ad4730206cdd8d3601bdfb81443b935a3",
     "path": "relay/transport/qubesair.GrpcProxy",
     "sha256": "36f4e2e17c36acb63a0845990b4a4a8251ca6aabc7f3dd7d296c38f236c244d5"
   },
   "connecttcp_handler": {
-    "source_revision": "85aff42b110d3911699c5a5472e3ba7b61863ec9",
+    "source_revision": "0fc61e9ad4730206cdd8d3601bdfb81443b935a3",
     "path": "relay/transport/qubesair.ConnectTCP",
     "sha256": "ab3670e116bb1f1dbc24e7a27eab942eaa25d489df945fb5d0ba5fe2142e2632"
   },
   "desktop_handler": {
-    "source_revision": "85aff42b110d3911699c5a5472e3ba7b61863ec9",
+    "source_revision": "0fc61e9ad4730206cdd8d3601bdfb81443b935a3",
     "path": "relay/transport/qubesair.ConnectDesktop",
     "sha256": "b385dc0f3ddc83a57bcd47b04fb8134d80cb10c65ad7a2e589af6b9ee4503b8d"
   }
