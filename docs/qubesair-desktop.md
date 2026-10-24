@@ -110,3 +110,29 @@ Validation on 2026-10-24: all 65 deployment tests, all 231 Salt state/top lint
 checks, strict YAML lint, changed-handler ShellCheck, top pairing, and the 14
 real-parser cases passed. Both handlers match the merged Air source. No
 production desktop grant or remote image was deployed during these checks.
+
+## Scoped deployment overlay
+
+The [scoped updater](../scripts/update-qubesair.py) accepts the exact
+`mgmt/remotevm/files/qubesair.ConnectDesktop` handler path and
+`remotevm.grpc.csr.desktop_grants` in a Qubes Air deployment overlay. It verifies
+the handler digest, exact source/target names, at most 32 grants, and membership
+in the existing `allowed_callers` before replacing any target file.
+The overlay cannot add callers or change general policy actions. Invalid input
+must leave every target file unchanged; applying an empty list revokes future
+requests when the policy state is reapplied. Existing streams still need separate
+closure, and the explicit policy deny must remain installed.
+
+The manifest's `remotevm` patch uses the same configuration shape as above.
+Omitting `desktop_grants` preserves existing grants; an explicit `[]` replaces
+them with an empty list. If `allowed_callers` is absent, the effective caller is
+the configured relay, matching policy rendering. The existing backup and rollback
+mechanism covers the handler and configuration together. Applying an overlay
+updates Salt sources; apply the relay and policy states to activate the change.
+
+The missing handler path and grant key were reproduced before this update. All
+72 deployment tests now pass, including installation, idempotence, explicit
+revocation, digest tampering, wildcard/injection/malformed input, caller scope,
+size boundaries and rollback after an injected write failure. All 231 Salt
+state/top lint checks, strict YAML lint, top pairing and diff checks passed.
+These tests use temporary deployment roots and do not mutate production policy.
