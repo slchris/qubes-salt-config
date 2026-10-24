@@ -46,11 +46,11 @@ This uses Qubes' [exact service argument policy](https://doc.qubes-os.org/en/r4.
 The dom0 administrator remains trusted; this policy is not an isolation boundary
 against administrative calls.
 
-Prepare and SHA256-pin a current Air `relay-call` artifact before enabling a
-grant. The copies of both handlers in this change match Air commit
-`72e41bf4c1b9219eca836af039bd2f06a9977394`. Existing binary source/hash configuration
-is preserved. Preview and then apply the relay state and policy through the
-existing authority:
+The defaults now SHA256-pin the published [v0.2.0 artifacts](qubesair-release-v0.2.0.md),
+including a `relay-call` that supports this route. Existing private deployments
+must update their pins before enabling a grant. Both handlers match Air commit
+`232b280cc395fe64cb48e2e3206ad776256d404e`. Preview and then apply the relay state and
+policy through the existing authority:
 
 ```bash
 sudo qubesctl --skip-dom0 --targets=<relay> state.apply mgmt.remotevm.grpc-csr-relay test=True

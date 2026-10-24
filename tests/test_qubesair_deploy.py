@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 """Render deployment contracts and execute their failure gates locally."""
 import copy
+import hashlib
 import json
 import pathlib
 import subprocess
@@ -150,8 +151,47 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual(artifacts[csr[prefix + '_source'].rsplit('/', 1)[-1]][0],
                              csr[prefix + '_sha256'])
         states = render('qubesair/console.sls', qa)
+        self.assertNotIn('qubesair-console-agent-pin-required', states)
+        self.assertIn('qubesair-console-binary', states)
+        missing_url = {**qa, 'agent_package_url': ''}
+        states = render('qubesair/console.sls', missing_url)
         self.assertIn('qubesair-console-agent-pin-required', states)
         self.assertNotIn('qubesair-console-binary', states)
+
+    def test_release_urls_match_provenance_and_keep_desktop_opt_in(self):
+        cfg = jinja2.Environment().from_string((ROOT / 'salt/config.jinja').read_text()).module.cfg
+        record = json.loads((ROOT / 'salt/qubesair/artifacts.json').read_text())
+        release = record['release']
+        self.assertRegex(release['tag'], r'^v[0-9]+\.[0-9]+\.[0-9]+$')
+        self.assertRegex(release['source_revision'], r'^[a-f0-9]{40}$')
+        self.assertRegex(release['sha256sums'], r'^[a-f0-9]{64}$')
+        base = 'https://github.com/slchris/qubes-air/releases/download/' + release['tag'] + '/'
+        qa, csr = cfg['qubesair'], cfg['remotevm']['grpc']['csr']
+        sources = [(qa, 'console_binary_source', 'qubes-air-console'),
+                   (qa, 'console_web_source', 'qubes-air-console-web.tar.gz'),
+                   (qa, 'agent_package_url', 'qubes-air-agent_' + release['tag'][1:] + '_amd64.deb'),
+                   (qa['backup'], 'binary_source', 'qubes-air-backup')]
+        for prefix, artifact in [('issue_bin', 'issue-relay-cert'), ('list_endpoints', 'list-endpoints'),
+                                 ('relay_call', 'relay-call'), ('relay_bootstrap', 'relay-bootstrap')]:
+            sources.append((csr, prefix + '_source', artifact))
+        for values, key, artifact in sources:
+            with self.subTest(key=key):
+                self.assertEqual(values[key], base + artifact)
+        self.assertEqual(csr['desktop_grants'], [])
+        for build in record['builds']:
+            self.assertEqual(build['source_revision'], release['source_revision'])
+
+    def test_transport_handler_provenance_matches_current_files(self):
+        record = json.loads((ROOT / 'salt/qubesair/artifacts.json').read_text())
+        for entry, name in [('transport_handler', 'qubesair.GrpcProxy'),
+                            ('connecttcp_handler', 'qubesair.ConnectTCP'),
+                            ('desktop_handler', 'qubesair.ConnectDesktop')]:
+            with self.subTest(name=name):
+                handler = record[entry]
+                payload = (ROOT / 'salt/mgmt/remotevm/files' / name).read_bytes()
+                self.assertEqual(handler['sha256'], hashlib.sha256(payload).hexdigest())
+                self.assertEqual(handler['path'], 'relay/transport/' + name)
+                self.assertEqual(handler['source_revision'], record['release']['source_revision'])
 
     def test_unpinned_binary_fails_closed(self):
         cfg = copy.deepcopy(self.qa)
