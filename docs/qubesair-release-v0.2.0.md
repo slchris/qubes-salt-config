@@ -1,6 +1,9 @@
 # Qubes Air v0.2.0 artifact pins
 
-The default configuration now fetches all eight Qubes Air payloads from the
+This record describes the v0.2.0 pin update. Current defaults are documented in
+the [v0.2.1 record](qubesair-release-v0.2.1.md).
+
+The v0.2.0 configuration fetched all eight Qubes Air payloads from the
 [v0.2.0 release](https://github.com/slchris/qubes-air/releases/tag/v0.2.0), with
 explicit SHA256 pins. The source is signed tag `v0.2.0` at
 `232b280cc395fe64cb48e2e3206ad776256d404e`.

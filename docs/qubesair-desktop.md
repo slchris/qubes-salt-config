@@ -46,10 +46,10 @@ This uses Qubes' [exact service argument policy](https://doc.qubes-os.org/en/r4.
 The dom0 administrator remains trusted; this policy is not an isolation boundary
 against administrative calls.
 
-The defaults now SHA256-pin the published [v0.2.0 artifacts](qubesair-release-v0.2.0.md),
+The defaults now SHA256-pin the published [v0.2.1 artifacts](qubesair-release-v0.2.1.md),
 including a `relay-call` that supports this route. Existing private deployments
 must update their pins before enabling a grant. Both handlers match Air commit
-`232b280cc395fe64cb48e2e3206ad776256d404e`. Preview and then apply the relay state and
+`9095f59d3dcb86e183b864dc7d2398c95b8a497d`. Preview and then apply the relay state and
 policy through the existing authority:
 
 ```bash
