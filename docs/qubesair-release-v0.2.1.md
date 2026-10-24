@@ -1,5 +1,8 @@
 # Qubes Air v0.2.1 artifact pins
 
+The current defaults use [v0.2.2](qubesair-release-v0.2.2.md). This record retains
+the v0.2.1 installer and artifact verification evidence.
+
 Fresh guests could not install the v0.2.0 agent from its GitHub release URL:
 the generated installer did not follow redirects, and `dpkg -i` could not
 resolve dependencies missing from the base image. The
