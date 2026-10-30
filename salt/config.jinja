@@ -403,6 +403,29 @@ project_nets — one entry per project-network gateway. The key becomes
   tpl-project-net), label, netvm, memory, maxmem. "project-net" preserves the
   original sys-project-net. Adding a key is all the Salt side needs; the other
   end (BWG peer/subnet/table) lives in the homelab repo.
+
+agents.build.netvm — NetVM of the agent-build AppVM. Chrome, Claude Desktop,
+  Claude Code and the npm agents are downloaded here, not by a template.
+  Point it at a project-net gateway whose WireGuard tunnel is up, and keep
+  it off the project exit (sys-project-net) so a compromised build qube
+  cannot see project traffic. Changing it requires agent-build to be stopped.
+agents.updates_proxy.templates — TemplateVMs whose apt updates are redirected
+  to agents.build.netvm. Templates stay netvm-less; qubes.UpdatesProxy is the
+  path. The gateway needs tinyproxy from templates.project-net.install and
+  the service enabled by agents.updates-proxy. A down tunnel fail-closes
+  these template builds the same way it fail-closes downstream traffic.
+agents.exits — timezone and locale of a project-net gateway's WireGuard
+  exit. agents.exit reads each agent qube's netvm and stores the matching
+  entry as vm-config.timezone and vm-config.locale. The values below were
+  read from the live exits (Los Angeles, US). When a tunnel's exit city
+  changes, update that gateway's entry; this is the exit, not the
+  operator's physical timezone. Agent qubes here are for Claude on that
+  US exit: no zh_CN locale, no China-exit gateway, and no fcitx5.
+agents.template.timezone — fallback zone in the tpl-agents image (UTC).
+  An AppVM does not keep it. qubes-agents-exit.service applies the exit
+  feature at boot, after Qubes has copied dom0's zone in.
+agents.template.locale — locale generated in the image. The boot service
+  selects the exit's locale for the session.
 -#}
 
 {%- set cfg = {
@@ -640,7 +663,7 @@ project_nets — one entry per project-network gateway. The key becomes
       "template": "tpl-agent-build",
       "qube": "agent-build",
       "label": "orange",
-      "netvm": "sys-firewall",
+      "netvm": "sys-bwg-net",
       "vcpus": 2,
       "memory": 2000,
       "maxmem": 6000,
@@ -648,6 +671,14 @@ project_nets — one entry per project-network gateway. The key becomes
       "workspace": "/home/user/agent-build",
       "bundle_dir": "/home/user/agent-bundles",
     },
+    "updates_proxy": {
+      "templates": ["tpl-agent-build", "tpl-agents", "tpl-ai"],
+    },
+    "exits": {
+      "sys-bwg-mullvad": {"timezone": "America/Los_Angeles", "locale": "en_US.UTF-8"},
+      "sys-bwg-net": {"timezone": "America/Los_Angeles", "locale": "en_US.UTF-8"},
+    },
+    "qubes": ["mvtest", "slchris-project"],
     "template": {
       "source": "debian-minimal",
       "name": "tpl-agents",
@@ -655,6 +686,8 @@ project_nets — one entry per project-network gateway. The key becomes
       "vcpus": 4,
       "memory": 400,
       "maxmem": 8000,
+      "timezone": "UTC",
+      "locale": "en_US.UTF-8",
     },
   },
 } -%}

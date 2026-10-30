@@ -11,11 +11,12 @@ Create the agent build qubes.
                    and writes a self-contained bundle. It holds no credentials
                    and is not backed up: a bundle is reproducible from the lock.
 
-The build NetVM is cfg.agents.build.netvm. It defaults to sys-firewall so the
-pipeline works before the BWG/VPN gateways exist; point it at sys-bwg-net to
-send downloads through BWG, or at a dedicated sys-build-net, and keep it
-separate from project exits so a compromised build qube cannot observe
-project traffic.
+The build NetVM is cfg.agents.build.netvm (sys-bwg-net). Downloads leave
+through that project-net gateway, not through sys-firewall and not through
+the project exit. A compromised build qube then cannot observe project
+traffic. The gateway's WireGuard tunnel has to be up; project-net is
+fail-closed, so a down tunnel drops the download instead of falling back
+to clearnet.
 
 Changing netvm requires the qube to be stopped: qvm.prefs will fail on a
 running AppVM. Stop agent-build before changing cfg.agents.build.netvm.

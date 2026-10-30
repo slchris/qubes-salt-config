@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Apply the agent AppVM menu whitelist after creating/updating an agent qube:
+#   sudo qubesctl state.apply agents.prefs
+
+base:
+  'dom0':
+    - match: nodegroup
+    - agents.prefs

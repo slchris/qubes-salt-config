@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Bind agent qubes to their VPN exit's timezone and locale:
+#   sudo qubesctl state.apply agents.exit
+
+base:
+  'dom0':
+    - match: nodegroup
+    - agents.exit

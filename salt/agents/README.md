@@ -17,8 +17,9 @@ into a single template (`tpl-agents`). Project AppVMs are created from that
 template and only hold their own credentials and code.
 
 ```
-sys-<build-exit>  (Mullvad WireGuard / AnyTLS, later)
-  └─ agent-build        downloads + builds the pinned bundle
+sys-bwg-net           project-net gateway; build exit, not the project exit
+  ├─ agent-build      downloads the pinned bundle (its netvm)
+  └─ UpdatesProxy     apt for tpl-agent-build, tpl-agents, tpl-ai
         │  sha256-verified stream over qrexec
         ▼
 tpl-agents              netvm=none; /opt/agents-bundle + /usr/local/bin wrappers
@@ -92,17 +93,113 @@ The bundle now carries roughly 400 MB of GUI `.deb` files in addition to the
 agent artifacts; `agent-build:private` is already 20G, and the template root
 volume must have room for the installed applications (~1–2 GB).
 
+### Chrome, OAuth and the default browser
+
+Chrome, VS Code and Claude Desktop are in `tpl-agents`. Two Qubes-specific
+details make OAuth/browser login fail even when Chrome is installed:
+
+1. **AppVMs created before the bundle have an old root snapshot.** They see
+   `claude` but not Chrome/VS Code until they are restarted from the updated
+   template. Stop and start the AppVM (not just the app); `agents.template.
+   verify` checks the template, not the AppVM.
+2. **Qubes points `xdg-open` at `qvm-open-in-dvm.desktop` in the user's
+   `mimeapps.list`.** That overrides the template's Chrome default, so
+   `xdg-open`/OAuth opens a DispVM. Apply `agents.configure` to the AppVM to
+   set Chrome as the default for `http`, `https` and `text/html`.
+
+```sh
+sudo qubesctl --skip-dom0 --targets=proj-foo state.apply agents.configure
+```
+
+The app menu has a second Qubes quirk: a TemplateBasedVM keeps its own
+`menu-items` feature from creation, so an older AppVM shows only Terminal/Start
+even after it is restarted from the new template. Add the AppVM name to
+`cfg.agents.qubes` and run `sudo qubesctl state.apply agents.prefs` (dom0);
+new AppVMs inherit the template's default menu and do not need it.
+
+### Timezone and locale follow the VPN exit
+
+Qubes copies dom0's timezone into each AppVM at boot (`/qubes-timezone`).
+That is what a running agent qube was using (`America/Atka`). The zone that
+matches the session is the NetVM's WireGuard exit, stored in
+`cfg.agents.exits`. `agents.exit` reads the qube's live netvm and writes
+`vm-config.timezone` and `vm-config.locale`. It also sets `anon-timezone`,
+so dom0's zone is not pushed into the qube. `qubes-agents-exit.service` in
+`tpl-agents` applies the two features after `qubes-early-vm-config`.
+
+Both live gateways exit in Los Angeles:
+
+```jinja
+"exits": {
+  "sys-bwg-mullvad": {"timezone": "America/Los_Angeles", "locale": "en_US.UTF-8"},
+  "sys-bwg-net": {"timezone": "America/Los_Angeles", "locale": "en_US.UTF-8"},
+},
+```
+
+`tpl-agents` itself stays on UTC and generates every locale named in
+`exits`. When a gateway's exit city changes, edit that entry and re-apply.
+A netvm with no entry fails the state.
+
+```sh
+sudo qubesctl state.apply agents.exit
+qvm-shutdown --wait proj-foo && qvm-start proj-foo
+```
+
+`agents.configure` runs the same script once, for a qube that is already up.
+
+### Locale
+
+These qubes log into Claude. Their locale and timezone follow the US
+WireGuard exit (`en_US.UTF-8`, `America/Los_Angeles` on the current
+gateways). This stack does not define a `zh_CN` locale or a China exit.
+`tpl-agents` does not install `fcitx5`, and it does not install CJK fonts
+(`fonts-noto-cjk`, `fonts-noto-cjk-extra`, WenQuanYi, AR PL).
+`fonts-liberation` stays. Pages that need the removed faces will not
+render those glyphs.
+
+### WebRTC and audio
+
+Chrome's WebRTC stack is bundled, but a minimal template has no audio daemon.
+`tpl-agents` now installs `pulseaudio-qubes` (+ `pulseaudio-utils`,
+`pavucontrol`). The **AppVM's** `audiovm` pref must also be set; the older
+project-qube example set it to `""` (no sound). Use the default dom0 audio VM,
+or `sys-audio` if you have one:
+
+```sh
+qvm-prefs proj-foo audiovm dom0
+```
+
+For camera/video, attach the webcam from `sys-usb` to the agent qube (for
+example `qvm-usb attach proj-foo sys-usb:...`). Screen sharing via
+`getDisplayMedia` is limited by Qubes' GUI isolation; treat it as unsupported
+unless tested on your setup. The `agents.configure` state cannot set Qubes
+prefs from inside the AppVM, so `audiovm` is a dom0 step.
+
 If a foreign download is slow, stage the exact artifact on the LAN artifact
 store (`10.31.0.2`) and point the lock's `url` at that path. The `sha256`
 stays the same, so the build still verifies the pinned bytes; only the
 transport changes. This is especially useful for the ~113 MB Claude Code
 `.deb`, which has no China mirror.
 
+### WebRTC IP handling
+
+`tpl-agents` installs a Chrome managed policy at
+`/etc/opt/chrome/policies/managed/webrtc.json`. It sets `WebRtcIPHandling`
+to `disable_non_proxied_udp`. On this qube Chrome then gathers no ICE
+candidates, so a STUN lookup cannot publish the VPN exit address. A page
+that treats any numeric ICE address as a leak stays quiet. Browser video
+calls that need a direct UDP path will not connect. Chrome reads the
+policy at startup, so reopen it after the AppVM restarts onto the new
+template root.
+
 ## Install order
 
-The build qube has a netvm (`cfg.agents.build.netvm`, default `sys-firewall`).
-Set it to a dedicated build exit when one exists; changing netvm requires the
-qube to be stopped.
+The build qube's netvm is `cfg.agents.build.netvm` (`sys-bwg-net`). That
+gateway is also the updates proxy for `tpl-agent-build`, `tpl-agents` and
+`tpl-ai`. Templates themselves stay without a netvm. Changing the build
+netvm requires `agent-build` to be stopped. The gateway's WireGuard tunnel
+has to be up first: project-net is fail-closed, and a down tunnel drops
+both the bundle download and those templates' apt.
 
 `agents.build.create` also grows `agent-build:private` to 20G
 (`cfg.agents.build.private_size`). The default 2G is not enough for the Node
@@ -114,10 +211,17 @@ you rename them in `config.jinja`, update the matching `.top` targets (or use
 `qubesctl --targets=` directly).
 
 ```sh
+# 0. Updates proxy on the build gateway. tinyproxy is installed into
+#    tpl-project-net; restart the gateway so the running qube sees it.
+sudo qubesctl --skip-dom0 --targets=tpl-project-net \
+  state.apply templates.project-net.install
+qvm-shutdown --wait sys-bwg-net && qvm-start sys-bwg-net
+sudo qubesctl state.apply agents.updates-proxy
+
 # 1. Build template + qube
 sudo qubesctl state.apply agents.build.create
 
-# 2. Toolchain in tpl-agent-build
+# 2. Toolchain in tpl-agent-build (apt leaves through sys-bwg-net)
 sudo qubesctl --skip-dom0 --targets=tpl-agent-build \
   state.apply agents.build.install
 
@@ -148,28 +252,72 @@ Create a project qube:
 
 ```sh
 qvm-create --template tpl-agents --label blue proj-foo
-qvm-prefs proj-foo netvm sys-foo-net   # the project's exit
+qvm-prefs proj-foo netvm sys-foo-net   # the project's exit; must be in cfg.agents.exits
 qvm-prefs proj-foo memory 800
 qvm-prefs proj-foo maxmem 8000
-qvm-prefs proj-foo audiovm ""
+qvm-prefs proj-foo audiovm dom0        # WebRTC audio; sys-audio if you have one
+sudo qubesctl state.apply agents.exit  # zone + locale from that netvm, before first start
 qvm-start proj-foo
+sudo qubesctl --skip-dom0 --targets=proj-foo state.apply agents.configure
 ```
+
+`agents.exit` binds the qube's timezone and locale to its netvm's VPN exit.
+`agents.configure` applies that binding once and points the default browser
+at Chrome (Qubes otherwise defaults `xdg-open` to `qvm-open-in-dvm`).
 
 ## Update
 
+Two different things get updated, and both leave through `sys-bwg-net`.
+
+**Pinned applications** — Chrome, Claude Desktop, Claude Code, and the npm
+agents. Versions live only in `lock.yml`. Resolve the new version and digest
+with the commands at the top of this file, edit the lock, then:
+
 ```sh
-# edit lock.yml, then:
 sudo qubesctl --skip-dom0 --targets=agent-build \
   state.apply agents.build.configure      # refresh lock.json/scripts
-sudo qubesctl state.apply agents.build.run
+sudo qubesctl state.apply agents.build.run    # download via agent-build's netvm
 sudo qubesctl state.apply agents.deliver
 sudo qubesctl --skip-dom0 --targets=tpl-agents \
   state.apply agents.template.verify
-qvm-shutdown --wait tpl-agents            # AppVMs pick it up on next start
+qvm-shutdown --wait tpl-agents
+# each AppVM keeps its old root until it is restarted
+qvm-shutdown --wait mvtest
 ```
 
+`agents.build.run` downloads in `agent-build`. That qube's netvm is the VPN
+gateway, so the `.deb` and npm tarballs do not go out `sys-firewall`.
 `agents.deliver` is idempotent: it compares the bundle sha256 already recorded
 in `tpl-agents` and exits if it matches.
+
+**Debian packages** inside `tpl-agent-build`, `tpl-agents` and `tpl-ai`
+(library dependencies and the toolchain). `tpl-agents` does not install
+`fcitx5` or CJK fonts, and it writes the Chrome WebRTC policy described
+above. `tpl-agents` also installs
+`xfce4-terminal` and selects it as `x-terminal-emulator`, which is what
+`qubes-run-terminal` launches. Re-apply the install state.
+Apt uses the updates proxy, which `agents.updates-proxy` sends to the same
+gateway:
+
+```sh
+sudo qubesctl --skip-dom0 --targets=tpl-agents \
+  state.apply agents.template.install
+sudo qubesctl --skip-dom0 --targets=tpl-agent-build \
+  state.apply agents.build.install
+sudo qubesctl --skip-dom0 --targets=tpl-ai \
+  state.apply templates.ai.install
+qvm-shutdown --wait tpl-agents tpl-agent-build tpl-ai
+```
+
+`templates.ai.install` is how `claude-desktop` on `tpl-ai` moves; that apt
+repo is `downloads.claude.ai`, and it now uses the VPN proxy instead of
+`sys-firewall`. The `ai` qube still has no Chrome. Login stays on an AppVM
+built from `tpl-agents` (`mvtest`), where Chrome is already the default
+browser.
+
+Do not update these programs from inside an AppVM. The template owns the
+binaries; an AppVM copy goes away on the next restart, or shadows the
+template one. See the next section.
 
 ## Self-update is disabled
 
