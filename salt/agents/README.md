@@ -19,7 +19,7 @@ template and only hold their own credentials and code.
 ```
 sys-bwg-net           project-net gateway; build exit, not the project exit
   ├─ agent-build      downloads the pinned bundle (its netvm)
-  └─ UpdatesProxy     apt for tpl-agent-build, tpl-agents, tpl-ai
+  └─ UpdatesProxy     apt for tpl-agent-build and tpl-agents
         │  sha256-verified stream over qrexec
         ▼
 tpl-agents              netvm=none; /opt/agents-bundle + /usr/local/bin wrappers
@@ -195,8 +195,8 @@ template root.
 ## Install order
 
 The build qube's netvm is `cfg.agents.build.netvm` (`sys-bwg-net`). That
-gateway is also the updates proxy for `tpl-agent-build`, `tpl-agents` and
-`tpl-ai`. Templates themselves stay without a netvm. Changing the build
+gateway is also the updates proxy for `tpl-agent-build` and `tpl-agents`.
+Templates themselves stay without a netvm. Changing the build
 netvm requires `agent-build` to be stopped. The gateway's WireGuard tunnel
 has to be up first: project-net is fail-closed, and a down tunnel drops
 both the bundle download and those templates' apt.
@@ -290,30 +290,26 @@ gateway, so the `.deb` and npm tarballs do not go out `sys-firewall`.
 `agents.deliver` is idempotent: it compares the bundle sha256 already recorded
 in `tpl-agents` and exits if it matches.
 
-**Debian packages** inside `tpl-agent-build`, `tpl-agents` and `tpl-ai`
-(library dependencies and the toolchain). `tpl-agents` does not install
-`fcitx5` or CJK fonts, and it writes the Chrome WebRTC policy described
-above. `tpl-agents` also installs
-`xfce4-terminal` and selects it as `x-terminal-emulator`, which is what
-`qubes-run-terminal` launches. Re-apply the install state.
-Apt uses the updates proxy, which `agents.updates-proxy` sends to the same
-gateway:
+**Debian packages** inside `tpl-agent-build` and `tpl-agents` (library
+dependencies and the toolchain). `tpl-agents` does not install `fcitx5` or
+CJK fonts, and it writes the Chrome WebRTC policy described above.
+`tpl-agents` also installs `xfce4-terminal` and selects it as
+`x-terminal-emulator`, which is what `qubes-run-terminal` launches.
+Re-apply the install state. Apt uses the updates proxy, which
+`agents.updates-proxy` sends to the same gateway. The old `tpl-ai` and
+`tpl-mcp` templates are not part of this stack; remove any leftover qubes
+with `templates.retire-ai-mcp`.
 
 ```sh
 sudo qubesctl --skip-dom0 --targets=tpl-agents \
   state.apply agents.template.install
 sudo qubesctl --skip-dom0 --targets=tpl-agent-build \
   state.apply agents.build.install
-sudo qubesctl --skip-dom0 --targets=tpl-ai \
-  state.apply templates.ai.install
-qvm-shutdown --wait tpl-agents tpl-agent-build tpl-ai
+qvm-shutdown --wait tpl-agents tpl-agent-build
 ```
 
-`templates.ai.install` is how `claude-desktop` on `tpl-ai` moves; that apt
-repo is `downloads.claude.ai`, and it now uses the VPN proxy instead of
-`sys-firewall`. The `ai` qube still has no Chrome. Login stays on an AppVM
-built from `tpl-agents` (`mvtest`), where Chrome is already the default
-browser.
+Login stays on an AppVM built from `tpl-agents` (`mvtest`,
+`slchris-project`), where Chrome is already the default browser.
 
 Do not update these programs from inside an AppVM. The template owns the
 binaries; an AppVM copy goes away on the next restart, or shadows the

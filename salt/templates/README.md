@@ -42,9 +42,10 @@ Before using any template, ensure:
 | [tools](tools/) | Office/Productivity | tpl-tools, dvm-tools, work |
 | [gpg](gpg/) | GPG key management (offline) | tpl-gpg, gpg |
 | [vault](vault/) | Password management (offline) | tpl-vault, vault |
-| [mcp](mcp/) | MCP server & AI app development | tpl-mcp, dvm-mcp, mcp |
 | [project-net](project-net/) | Per-project WireGuard gateway (fail-closed) | tpl-project-net, sys-project-net |
-| [ai](ai/) | Claude Desktop + agents behind project VPN | tpl-ai, dvm-ai, ai |
+
+Claude login is [agents](../agents/) (`tpl-agents`). `templates.retire-ai-mcp`
+removes the old `tpl-ai` and `tpl-mcp` qubes.
 
 ### Fedora-based (fedora-43)
 

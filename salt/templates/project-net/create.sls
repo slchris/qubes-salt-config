@@ -7,7 +7,7 @@ Create the per-project WireGuard gateway qubes (tpl-project-net, sys-project-net
 sys-project-net is a ProxyVM (provides-network) that carries ONE project's
 traffic through a WireGuard tunnel — Mullvad or any provider/peer that hands
 out a standard wg-quick conf. Attach the project's qubes with
-`qvm-prefs <qube> netvm sys-project-net` (templates.ai does this in salt).
+`qvm-prefs <qube> netvm sys-project-net`.
 
 Need another isolated project network? Add a key to cfg.project_nets in
 config.jinja. The key becomes sys-<key>; every gateway shares tpl-project-net

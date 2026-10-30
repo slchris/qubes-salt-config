@@ -176,7 +176,7 @@ ssh -p 2333 user@<sys-net-ip> "echo '<qubesctl or qvm command>' | qrexec-client-
 
 # interactive (after adding the dom0() helper on the jump qube)
 ssh -p 2333 user@<sys-net-ip>
-dom0 'qubesctl state.apply templates.mcp.create'
+dom0 'qubesctl state.apply templates.dev.create'
 ```
 
 **Whitelist note:** the channel allows single commands only — **no shell pipes**

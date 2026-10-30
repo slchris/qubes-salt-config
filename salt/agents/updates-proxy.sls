@@ -6,8 +6,8 @@ Send apt for the agent templates out through the build NetVM.
 
 Templates have no netvm. Their apt uses qubes.UpdatesProxy, which otherwise
 lands on the global updatevm (sys-firewall). This state redirects only the
-templates named in cfg.agents.updates_proxy.templates — tpl-agent-build,
-tpl-agents and tpl-ai — to cfg.agents.build.netvm.
+templates named in cfg.agents.updates_proxy.templates — tpl-agent-build
+and tpl-agents — to cfg.agents.build.netvm.
 
 The gateway must already exist, and its template must contain tinyproxy
 (templates.project-net.install). A running gateway does not see a package
