@@ -355,7 +355,6 @@ console.
                 that composites every window must not also face the network.
   memory/maxmem/vcpus  sizing. The GUI domain is the memory consumer here, not
                 dom0 — it holds every qube's compositing buffers.
-  vnc_port      where the VNC server inside the GUI domain listens (localhost).
   autostart     start the GUI domain at boot.
   default_guivm True on this machine: mgmt.gui-vnc.prefs sets the global
                 `default_guivm` to the GUI domain, so every qube renders there
@@ -376,7 +375,7 @@ console.
   admin_global_permissions  'rwx' | 'ro' | 'none' — Admin API grant appended to
                 the GUI domain's policy includes. 'rwx' matches the Qubes
                 default for a GuiVM.
-  web           the browser front end (noVNC + websockify) in its own qube:
+  web           the browser front end (KasmVNC over qrexec) in its own qube:
     enabled       deploy the front end at all.
     template_source  salt directory to clone the front-end template from.
     template      cloned template name (default tpl-gui-vnc-web).
@@ -385,14 +384,31 @@ console.
                   sys-net -> sys-firewall -> this qube and assumes exactly that
                   chain. This module is LAN-only by design (see the README); it
                   does not expose the VNC session over a VPN.
-    listen        websockify bind address:port. 0.0.0.0:6080 is reached only via
-                  the DNAT, which is source-filtered to remote_debug.lan_subnet.
-    target_port   loopback port websockify forwards to; a socat listener there
-                  bridges to the GUI domain's VNC over qrexec.
+    listen        socat bind address:port. 0.0.0.0:6080 is reached only via the
+                  DNAT, which is source-filtered to remote_debug.lan_subnet.
+    kasm_port     loopback port KasmVNC serves HTTPS on inside the GUI domain;
+                  the front end tunnels this port over qubes.ConnectTCP.
     network       only 'portforward' is implemented: ext_port on sys-net's
                   physical LAN IP, DNAT'd to this qube. Any other value installs
                   no rules and exposes nothing.
-    ext_port      the LAN port mapped to websockify.
+    ext_port      the LAN port mapped to the front end's socat listener.
+  kasmvnc       pinned KasmVNC server package installed in the GUI-domain
+                template. KasmVNC is not in the Fedora repos, so the template
+                downloads this exact RPM and verifies the digest before dnf
+                resolves its dependencies. Bump version/url/sha256 together.
+    version       RPM version-release (`rpm -q --qf '%{VERSION}-%{RELEASE}'`).
+    url           upstream release asset.
+    sha256        SHA-256 of that asset.
+  updater_bridge
+                install a narrow qrexec bridge so the GUI domain's Qubes
+                Update app can call the dom0-only qubes-vm-update CLI
+                (QubesOS/qubes-issues#8934; the VM repos do not ship it). The
+                bridge accepts only the updater's own flags, never a shell.
+                Off by default because it lets the GUI domain trigger updates,
+                including dom0; enable it only after reviewing
+                salt/mgmt/gui-vnc/updater-bridge.sls. To enable, set True and
+                apply BOTH mgmt.gui-vnc.updater-bridge (dom0) and
+                mgmt.gui-vnc.install (template). False removes both sides.
   keep_qubes    teardown leaves the qubes in place when True.
 
 project_nets — one entry per project-network gateway. The key becomes
@@ -591,12 +607,17 @@ agents.template.locale — locale generated in the image. The boot service
     "label": "black",
     "memory": 2000,
     "maxmem": 4000,
-    "vcpus": 2,
-    "vnc_port": 5900,
+    "vcpus": 4,
     "autostart": True,
     "default_guivm": True,
     "sync_dom0_password": True,
     "admin_global_permissions": "rwx",
+    "updater_bridge": True,
+    "kasmvnc": {
+      "version": "1.5.0-1.fc43",
+      "url": "https://github.com/kasmtech/KasmVNC/releases/download/v1.5.0/kasmvncserver_fedora_43_1.5.0_x86_64.rpm",
+      "sha256": "a799979ebcfa4c0d17f4480620c1db7a6f5650b6039283527d5241bdc0283b95",
+    },
     "web": {
       "enabled": True,
       "template_source": "debian-minimal",
@@ -608,7 +629,7 @@ agents.template.locale — locale generated in the image. The boot service
       "maxmem": 1500,
       "vcpus": 2,
       "listen": "0.0.0.0:6080",
-      "target_port": 5901,
+      "kasm_port": 8444,
       "network": "portforward",
       "ext_port": 6080,
     },

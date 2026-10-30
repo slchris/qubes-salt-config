@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=Adaptive resize for KasmVNC (:1 size -> Qubes :0)
+Wants=qubes-kasmxproxy.service
+After=qubes-kasmxproxy.service
+ConditionPathExists=/var/run/qubes-service/kasmvnc
+
+[Service]
+Type=simple
+Environment=HOME=/root
+Environment=XAUTHORITY=/root/.Xauthority-kasm
+ExecStart=/rw/config/kasmvnc/resize-watch.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

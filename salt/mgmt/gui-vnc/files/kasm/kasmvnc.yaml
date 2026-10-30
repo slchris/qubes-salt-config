@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# KasmVNC server for the :1 mirror display. The REAL display is :0; this Xvnc
+# only receives the framebuffer that kasmxproxy copies from :0. It listens on
+# loopback; sys-vncweb reaches it through qubes.ConnectTCP.
+network:
+  protocol: http
+  interface: 127.0.0.1
+  websocket_port: {{ port }}
+  ssl:
+    pem_certificate: {{ cert }}
+    pem_key: {{ key }}
+    require_ssl: true
+desktop:
+  # Let the web client ask for a new :1 size when the browser window changes.
+  # qubes-kasm-resize.service copies that size to :0. We do NOT use
+  # `kasmxproxy -r`: it segfaults on this Qubes dummyqbs Xorg.
+  allow_resize: true
+encoding:
+  # Software H.264. KasmVNC dlopens the system libavcodec and asks for the
+  # encoder named libx264. Fedora's ffmpeg-free does not have it; mgmt.gui-vnc
+  # .install swaps in RPM Fusion's ffmpeg, which does. `auto` also tries H.265
+  # and used to black the canvas when that encoder was missing, so the codec
+  # is pinned to h264.
+  #
+  # `webp` is not a video_streaming_mode codec (the log says "Unknown codec
+  # webp skipped") and only forces the WebP/JPEG image path. That path is what
+  # made a LAN session feel laggy. The frame-rate cap and the legacy video-mode
+  # quality stay; the web client's Quality menu can go lower still.
+  video_streaming_mode:
+    codec: h264
+  max_frame_rate: 30
+  video_encoding_mode:
+    webp_quality: 5
+    jpeg_quality: 5
+    max_resolution:
+      width: 1920
+      height: 1080

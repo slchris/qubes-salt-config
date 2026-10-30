@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=KasmVNC proxy mirroring the Qubes GUI display :0 onto :1
+Wants=qubes-kasmvnc.service
+After=lightdm.service qubes-kasmvnc.service
+ConditionPathExists=/var/run/qubes-service/kasmvnc
+
+[Service]
+Type=simple
+TimeoutStartSec=180
+Environment=HOME=/root
+Environment=XAUTHORITY=/root/.Xauthority-kasm
+ExecStartPre=/rw/config/kasmvnc/merge-auth.sh
+ExecStart=/usr/bin/kasmxproxy -a :0 -v :1
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

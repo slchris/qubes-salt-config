@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Apply the dom0 side of the Qubes Update GUI bridge:
+#   sudo qubesctl state.apply mgmt.gui-vnc.updater-bridge
+
+base:
+  'dom0':
+    - match: nodegroup
+    - mgmt.gui-vnc.updater-bridge
