@@ -31,6 +31,11 @@ unit is Debian + nftables and **fail-closed**:
     DNAT'd to the tunnel resolver from the conf's `DNS=` line (fallback
     `9.9.9.9`, still routed through the tunnel) — no DNS leak to the upstream
     resolvers. For Mullvad, `DNS=` is its own `10.64.0.1`.
+*   TCP MSS is clamped to 1000 on forwarded SYNs and on the gateway's own
+    input. A post-quantum Client Hello does not fit through `wg0` (mtu 1420).
+    `rt mtu` used the 1500-byte vif, so handshakes were dropped in the tunnel.
+    1100 already fails on this path. The input clamp is what lets tinyproxy
+    (UpdatesProxy) complete TLS.
 
 The firewall lives in a marker-merged `# >>> project-net >>>` block of
 `/rw/config/qubes-firewall-user-script` and owns the whole
@@ -173,6 +178,12 @@ enough for the highstate as well.
     1420-MTU tunnel.
 *   `openresolv` is installed because `wg-quick` aborts on confs carrying
     `DNS=` when no `resolvconf` binary exists.
+*   `tinyproxy` is installed so a gateway can answer `qubes.UpdatesProxy`.
+    The service stays off until `agents.updates-proxy` enables it on
+    `cfg.agents.build.netvm`. Restart that gateway after the package lands
+    in the template; a running AppVM does not see new template files until
+    then. The gateway's output firewall allows only `wg0`, so template apt
+    through this proxy uses the tunnel and stops when the tunnel is down.
 *   While the tunnel is up, the gateway's own `/etc/resolv.conf` points at
     the tunnel DNS; after `wg-quick down` the gateway itself may lose DNS
     until reboot — downstream qubes are unaffected.
