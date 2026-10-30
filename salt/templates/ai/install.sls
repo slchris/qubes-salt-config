@@ -77,8 +77,14 @@ include:
 "tpl-ai-install-uv":
   cmd.run:
     - name: |
+        set -eu
         pip3 install --proxy http://127.0.0.1:8082 \
           --break-system-packages --prefix=/usr/local {{ pip_index_arg }} uv
+        # Same Debian prefix quirk as templates/mcp: scripts land in
+        # /usr/local/local/bin. Link the real binary into PATH.
+        bin="$(find /usr/local -maxdepth 4 -type f -name uv -perm -u+x | head -1)"
+        [ -n "$bin" ] || { echo "uv binary not found under /usr/local" >&2; exit 1; }
+        ln -sf "$bin" /usr/local/bin/uv
     - require:
       - pkg: tpl-ai-install-base
     - unless: test -x /usr/local/bin/uv

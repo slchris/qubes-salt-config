@@ -61,11 +61,17 @@ include:
 "tpl-mcp-install-uv":
   cmd.run:
     - name: |
+        set -eu
         pip3 install --proxy http://127.0.0.1:8082 \
           --break-system-packages --prefix=/usr/local {{ pip_index_arg }} uv
+        # Debian's pip --prefix=/usr/local maps scripts to
+        # /usr/local/local/bin, not /usr/local/bin. Link the real binary into
+        # PATH so the state's unless and the AppVM's `uv` both work.
+        bin="$(find /usr/local -maxdepth 4 -type f -name uv -perm -u+x | head -1)"
+        [ -n "$bin" ] || { echo "uv binary not found under /usr/local" >&2; exit 1; }
+        ln -sf "$bin" /usr/local/bin/uv
     - require:
       - pkg: tpl-mcp-install-base
-    - unless: test -x /usr/local/bin/uv
     - unless: test -x /usr/local/bin/uv
 
 # Node.js from Debian's own repo (via the mirror). NodeSource's external repo has
