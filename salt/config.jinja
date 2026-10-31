@@ -339,6 +339,25 @@ Put them in {data_dir}/secrets.env, mode 0600, owned by the service user, and
 have the systemd unit read it with EnvironmentFile= so the values never appear
 in a unit file, a ps listing or this repository.
 
+magpie — publish one existing profile project qube's magpie on the house
+LAN. Another computer adds it as a remote magpie. See salt/magpie/README.md.
+enabled is True for the live slchris publish. Every magpie state no-ops
+while it is False.
+  services       one entry per profile. The key must already exist in
+                 profiles. port is the TCP port magpie binds on
+                 profiles.<key>.project. That qube already exists; these
+                 states do not create one and do not change its netvm.
+                 The LAN path is three hops: sys-net, the netvm of
+                 profiles.<key>.netvm, then that netvm, then the project
+                 qube. A profile with no entry here is not published.
+                 Several profiles are several entries. Each entry needs
+                 its own port, and two entries may share one netvm.
+                 Do not reuse 22, 2333, 6080, 8080, 8443, 8444, or 18080.
+                 The steps are in salt/magpie/README.md.
+Gateway keys and the magpie binary do not belong in this file. The states
+do not install the binary. The CLI version and digest are in
+salt/magpie/README.md.
+
 gui_vnc — drive THIS machine's desktop from a browser, so the physical monitor
 can be used for something else. Qubes renders every qube's windows into a GUI
 domain; the officially supported remote variant is a VNC GUI domain (Qubes'
@@ -678,6 +697,13 @@ agents.template.locale — locale generated in the image. The boot service
     "dev": {"git": {"name": "Chris Su", "email": "chris@lesscrowds.org"}},
   },
 
+  "profiles": {
+    "slchris": {
+      "netvm": "sys-bwg-mullvad",
+      "project": "slchris-project",
+    },
+  },
+
   "agents": {
     "build": {
       "template_source": "debian-minimal",
@@ -709,6 +735,13 @@ agents.template.locale — locale generated in the image. The boot service
       "maxmem": 8000,
       "timezone": "UTC",
       "locale": "en_US.UTF-8",
+    },
+  },
+
+  "magpie": {
+    "enabled": True,
+    "services": {
+      "slchris": {"port": 3425},
     },
   },
 } -%}

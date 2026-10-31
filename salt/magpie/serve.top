@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# One target per cfg.magpie.services entry. The qube is that profile's
+# existing project qube.
+
+{%- from 'config.jinja' import cfg with context %}
+base:
+{% for name, svc in cfg.magpie.services.items() %}
+{% if name in cfg.profiles and cfg.profiles[name].get('project') %}
+  '{{ cfg.profiles[name].project }}':
+    - magpie.serve
+{% endif %}
+{% endfor %}
