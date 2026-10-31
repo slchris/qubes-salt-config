@@ -33,3 +33,11 @@ venv/
 /qubesair-deployment.json
 /salt/qubesair/files/qubes-air-console-*
 /salt/qubesair/files/qubes-air-backup-*
+
+# Operator secret overlay and decrypted sops output. The public tree keeps
+# salt/config.local.jinja.example and salt/secrets/. Never the filled-in
+# overlay, a decrypted document, or a private checkout dropped in this repo.
+/salt/config.local.jinja
+*.decrypted.yaml
+*.decrypted.json
+/qubes-salt-secrets/

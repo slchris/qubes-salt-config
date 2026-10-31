@@ -166,9 +166,11 @@ salt/
       update-admin.sls    # Admin VM update macro
       sync-appmenus.sls   # Appmenu sync macro
       policy.sls          # RPC policy macros
-  dotfiles/             # User dotfiles
+  dotfiles/             # Public user dotfiles (git identity, shell)
+  secrets/              # Apply a private sops checkout inside an AppVM
   magpie/               # Publish a profile project qube's magpie on the LAN
-  config.jinja          # All user configuration (no pillar)
+  config.jinja          # All non-secret user configuration (no pillar)
+  config.local.jinja.example  # Gitignored dom0 overlay; not the AppVM tokens
 scripts/
   setup.sh              # Setup script for dom0
   package.sh            # Package for deployment

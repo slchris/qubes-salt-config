@@ -337,7 +337,34 @@ copied wholesale to /srv/salt/slchris by scripts/setup.sh:
   the PVE API token, and the agent CA private key.
 Put them in {data_dir}/secrets.env, mode 0600, owned by the service user, and
 have the systemd unit read it with EnvironmentFile= so the values never appear
-in a unit file, a ps listing or this repository.
+in a unit file, a ps listing or this repository. Do not move them into git,
+encrypted or not. See salt/qubesair/README.md.
+
+profiles — one identity per entry. A profile owns its project NetVM, the
+agent AppVM that uses that NetVM, the offline gpg qube, and the offline
+pass qube. Those four names are unique across profiles. Templates stay
+shared (tpl-agents, tpl-gpg, tpl-vault, tpl-project-net). Adding a profile
+is another key in this dict. This file does not create the qubes.
+  email             the UID on that profile's card
+  git               name, email, signing subkey. dotfiles.git prefers this
+                    over cfg.qubes.<project>.git
+  netvm             project exit. The qube's live netvm is what agents.exit
+                    reads, and that gateway needs a cfg.agents.exits entry.
+                    WireGuard wg0.conf stays in the gateway, not here.
+  project           agent AppVM. Secrets and split SSH/GPG land here.
+  gpg               offline qube for that card. Split clients are the
+                    profile's project qube and its pass qube, nobody else.
+  pass              offline qube for that profile's password store. It is
+                    not the singleton qube templates.vault.create names
+                    "vault". The store stays in this qube.
+  pgp_fingerprint   public encrypt subkey (usage E). sops recipient for
+                    secrets/profiles/<profile>.yaml. The secret half stays
+                    on that profile's card.
+  ssh_keygrip       public auth subkey keygrip written to that gpg qube's
+                    sshcontrol.
+agents.qubes is the list of AppVMs that get the agent menu and exit
+binding. A test AppVM can be on that list and still not be a profile.
+mvtest is that case. It does not get a gpg client rule or a sops file.
 
 magpie — publish one existing profile project qube's magpie on the house
 LAN. Another computer adds it as a remote magpie. See salt/magpie/README.md.
@@ -357,6 +384,22 @@ while it is False.
 Gateway keys and the magpie binary do not belong in this file. The states
 do not install the binary. The CLI version and digest are in
 salt/magpie/README.md.
+
+secrets — layout of the private checkout. No ciphertext and no secret
+values live in this file. See salt/secrets/README.md.
+  checkout          absolute path inside the project AppVM
+  profile_file      path relative to checkout; "{profile}" is the dict key
+The sops recipient is the profile's pgp_fingerprint, not a single key for
+the whole machine. salt/templates/gpg/files/chris-su.asc is a different
+key and is not a profile recipient.
+
+config.local.jinja — optional file next to this one. It is gitignored, and
+scripts/package.sh excludes it, so a normal deploy does not ship it. When
+present it is included after the dict below and may mutate cfg in place
+(salt/config.local.jinja.example). Use it for values dom0 itself has to
+read, such as the hotspot password. Do not put AppVM tokens in it: this
+file is rendered on dom0. A broken overlay breaks every state, because they
+all import cfg.
 
 hotspot.password — leave this empty in the committed dict. mgmt.hotspot
 creates the NetworkManager connection only when ifname and password are
@@ -707,8 +750,14 @@ agents.template.locale — locale generated in the image. The boot service
 
   "profiles": {
     "slchris": {
+      "email": "chris@lesscrowds.org",
+      "git": {"name": "Chris Su", "email": "chris@lesscrowds.org", "signingkey": "F577849C85A3B7AA3194EAB71852FDF1D2F8A6C6!"},
       "netvm": "sys-bwg-mullvad",
       "project": "slchris-project",
+      "gpg": "gpg",
+      "pass": "pass-slchris",
+      "pgp_fingerprint": "47A2A768885CC8501DD1BB4F108477BC92020DB1",
+      "ssh_keygrip": "3614F6A6EB08C17DBCEB4A6D7CD5E4B30B952BA0",
     },
   },
 
@@ -746,6 +795,11 @@ agents.template.locale — locale generated in the image. The boot service
     },
   },
 
+  "secrets": {
+    "checkout": "/home/user/src/qubes-salt-secrets",
+    "profile_file": "secrets/profiles/{profile}.yaml",
+  },
+
   "magpie": {
     "enabled": True,
     "services": {
@@ -753,3 +807,9 @@ agents.template.locale — locale generated in the image. The boot service
     },
   },
 } -%}
+
+{#-
+Local overlay. Absent from the public package. Mutates cfg in place when a
+dom0-rendered value must not live in this file. See config.local.jinja.example.
+-#}
+{% include 'config.local.jinja' ignore missing %}
