@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# polkit rule so the gpg qube user can use the CanoKey via pcscd.
+#   sudo qubesctl --skip-dom0 --targets=tpl-gpg state.apply templates.gpg.pcscd
+
+base:
+  'tpl-gpg':
+    - templates.gpg.pcscd

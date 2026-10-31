@@ -1,0 +1,31 @@
+#!/bin/bash
+# SPDX-License-Identifier: MIT
+# Copyright 2026 Chris Su
+#
+# Replaces the split-gpg2 package script. The package script is still the
+# program that runs; this only refreshes the isolated keyring first so the
+# PIN cache and the CanoKey reader settings survive a keyring rebuild.
+# Persisted with bind-dirs. The template copy is the package original.
+
+refresh=/home/user/.gnupg/refresh-split-keyring.sh
+if [ -x "$refresh" ]; then
+  "$refresh" || true
+fi
+
+for d in /etc "${XDG_CONFIG_HOME:-$HOME/.config}"; do
+    rc_file="$d/split-gpg2-rc"
+    if [ -r "$rc_file" ]; then
+        . "$rc_file"
+    fi
+done
+
+# The Python on Ubuntu 22.04 doesn't support -P yet. So don't try to use it
+# there.
+p=/usr/bin/python3
+if $p -P -c '' 2>/dev/null; then
+    p="$p -P"
+else
+    cd /
+fi
+
+exec $p -m splitgpg2

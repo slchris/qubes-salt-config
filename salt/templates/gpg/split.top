@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Split GPG 2 packages and the Split SSH server RPC, in tpl-gpg:
+#   sudo qubesctl --skip-dom0 --targets=tpl-gpg state.apply templates.gpg.split
+
+base:
+  'tpl-gpg':
+    - templates.gpg.split
