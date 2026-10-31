@@ -16,7 +16,7 @@ file, and rules persist across reboots.
 ## Configure
 
 In `salt/config.jinja`, `cfg.hotspot` (a plain dict — no comments allowed
-inside config.jinja's dict):
+inside config.jinja's dict). The committed password is empty on purpose:
 
 ```jinja
 "hotspot": {
@@ -25,12 +25,19 @@ inside config.jinja's dict):
   "con_name": "thinkpad-x1",   # NetworkManager connection name
   "ifname": "wls6f0",          # Wi-Fi NIC (from `nmcli device`)
   "ssid": "thinkpad-x1",
-  "password": "114514111",
+  "password": "",
   "band": "bg",
 },
 ```
 
 If `ifname` or `password` is blank, the NM-create step is skipped (firewall-only).
+An existing connection is left untouched either way, so emptying the committed
+password does not drop a hotspot that is already up. The real password goes in
+`salt/config.local.jinja` (see `salt/config.local.jinja.example` and
+`salt/secrets/README.md`). That file is gitignored and excluded from
+`scripts/package.sh`. Copy it to `/srv/salt/slchris/config.local.jinja` on
+dom0 when you actually need to create the connection. A password that was
+previously committed here remains in git history; rotate it.
 
 ## Apply
 

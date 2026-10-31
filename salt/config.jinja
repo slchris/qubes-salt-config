@@ -358,6 +358,14 @@ Gateway keys and the magpie binary do not belong in this file. The states
 do not install the binary. The CLI version and digest are in
 salt/magpie/README.md.
 
+hotspot.password — leave this empty in the committed dict. mgmt.hotspot
+creates the NetworkManager connection only when ifname and password are
+both set, and only when that connection does not already exist. An empty
+password skips creation and leaves an existing connection alone. A
+replacement belongs in config.local.jinja, copied to dom0 on purpose,
+not via the public tarball. The value that used to be committed here is
+still in git history; rotate that Wi-Fi password.
+
 gui_vnc — drive THIS machine's desktop from a browser, so the physical monitor
 can be used for something else. Qubes renders every qube's windows into a GUI
 domain; the officially supported remote variant is a VNC GUI domain (Qubes'
@@ -681,7 +689,7 @@ agents.template.locale — locale generated in the image. The boot service
     "con_name": "thinkpad-x1",
     "ifname": "wls6f0",
     "ssid": "thinkpad-x1",
-    "password": "114514111",
+    "password": "",
     "band": "bg",
   },
 
