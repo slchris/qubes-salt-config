@@ -19,7 +19,7 @@ template and only hold their own credentials and code.
 ```
 sys-bwg-net           project-net gateway; build exit, not the project exit
   ├─ agent-build      downloads the pinned bundle (its netvm)
-  └─ UpdatesProxy     apt for tpl-agent-build and tpl-agents
+  └─ UpdatesProxy     apt for tpl-agent-build, tpl-agents and tpl-gpg
         │  sha256-verified stream over qrexec
         ▼
 tpl-agents              netvm=none; /opt/agents-bundle + /usr/local/bin wrappers
@@ -339,12 +339,27 @@ it shadows `/usr/bin/claude` because the repo's PATH setup prepends
   its netvm at a dedicated build exit, not a project exit.
 - `tpl-agents` has no netvm and no credentials. Project AppVMs have their own
   netvm and their own `~/.claude`, `~/.codex`, `~/.config/opencode`, etc.
+  Those credentials, and any private dotfiles, belong to one profile
+  (`cfg.profiles`): that profile's project AppVM, its NetVM, its gpg qube,
+  and its pass qube. `secrets.apply` runs on the project AppVM only. See
+  [salt/secrets](../secrets/README.md). `agents.template.tools` installs
+  Debian `age` and sops 3.13.3 there.
 - The bundle is installed system-wide in the template, so every AppVM based
   on it gets the same agent versions. If a project needs a different version,
   use a separate template (or a per-AppVM wrapper) rather than editing the
   shared tree.
-- split-GPG / split-SSH are not part of this unit; see the repository's gpg
-  and vault units and the discussion in the README.
+- Split GPG 2 and Split SSH follow `cfg.profiles`. The project AppVM and
+  the pass qube talk only to that profile's gpg qube. Policy is
+  `templates.gpg.policy`. Packages are `templates.gpg.split` and
+  `agents.template.split`. The client files are `agents.split`, and
+  `dotfiles.git` writes the profile's signing key. Secret keys stay in
+  the gpg qube.
+- `agents.template.tools` adds `gh`, `kubectl`, `kustomize`, Helm
+  3.20.2, Debian `age`, and sops 3.13.3. Helm is held so the upstream
+  repo's Helm 4 is not pulled in. sops is the upstream binary, not a
+  Debian package named `sops`. It does not upgrade the rest of the
+  template. Node stays in the bundle. Docker and the rest of a
+  workstation toolchain are not installed.
 
 ## License
 

@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Split GPG 2 client packages in tpl-agents:
+#   sudo qubesctl --skip-dom0 --targets=tpl-agents state.apply agents.template.split
+
+base:
+  'tpl-agents':
+    - agents.template.split

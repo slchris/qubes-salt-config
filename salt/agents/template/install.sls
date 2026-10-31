@@ -54,8 +54,20 @@ include:
       - pipx
       - build-essential
       - ripgrep
+      # Same CLIs as agents.template.tools. That state is the one to apply
+      # on a template that should not be fully upgraded. Debian's source
+      # package named helm is Emacs, so Helm is not listed here.
+      - gh
+      - kubectl
+      - kustomize
       - openssh-client
       - gnupg
+      # Split GPG 2 client. The server is the offline gpg qube. socat is the
+      # forwarder for both qubes.Gpg2 and qubes.SshAgent. zenity is required
+      # on a minimal template. See agents.split and templates.gpg.policy.
+      - socat
+      - split-gpg2
+      - zenity
       - vim
       - tmux
       # qubes-run-terminal tries x-terminal-emulator before anything else, and

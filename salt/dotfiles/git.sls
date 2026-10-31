@@ -20,7 +20,13 @@ Configure in pillar (user.sls):
 {% if grains['nodename'] != 'dom0' %}
 
 {% set qube_name = grains['nodename'] %}
-{% set git_config = cfg.qubes.get(qube_name, {}).get('git', {}) %}
+{% set found = namespace(git=None) %}
+{% for name, profile in cfg.profiles.items() %}
+{% if profile.project == qube_name %}
+{% set found.git = profile.git %}
+{% endif %}
+{% endfor %}
+{% set git_config = found.git if found.git is not none else cfg.qubes.get(qube_name, {}).get('git', {}) %}
 
 {% if git_config %}
 {% set git_name = git_config.get('name', 'Your Name') %}
