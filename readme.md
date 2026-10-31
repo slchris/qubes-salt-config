@@ -167,6 +167,7 @@ salt/
       sync-appmenus.sls   # Appmenu sync macro
       policy.sls          # RPC policy macros
   dotfiles/             # User dotfiles
+  magpie/               # Publish a profile project qube's magpie on the LAN
   config.jinja          # All user configuration (no pillar)
 scripts/
   setup.sh              # Setup script for dom0
