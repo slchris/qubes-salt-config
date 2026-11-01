@@ -35,7 +35,12 @@ kill-switch exception.
 ## Binary
 
 These states do not download or install magpie, and they do not store a
-gateway key. The CLI on `slchris-project` is the official terminal build
+gateway key. The pin lives in `salt/magpie/lock.yml`. GitHub Actions
+checks yetone/magpie-releases once a day and opens a pull request when
+a newer terminal build is published. Merging that pull request does not
+copy the file onto a qube.
+
+The CLI on `slchris-project` is the official terminal build
 `magpie-cli-linux-amd64` v0.1.2344, not the GTK build:
 
 ```
