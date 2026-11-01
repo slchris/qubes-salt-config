@@ -31,7 +31,8 @@ run_yamllint() {
     if ! yamllint -c .yamllint \
         salt/top.sls \
         .yamllint .salt-lint .github/workflows/lint.yml \
-        .github/workflows/magpie-bump.yml salt/magpie/lock.yml; then
+        .github/workflows/magpie-bump.yml salt/magpie/lock.yml \
+        .github/workflows/upstream-pins.yml; then
         rc=1
     fi
 }

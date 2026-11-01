@@ -1,0 +1,99 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Open pull requests when a pinned third-party CLI moves, or when a base
+# template is near upstream EOL and Qubes publishes a supported successor.
+# Merging does not install anything on a qube.
+
+name: upstream pins
+
+on:
+  schedule:
+    - cron: "47 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-pins
+  cancel-in-progress: false
+
+jobs:
+  agents:
+    name: bump agent pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Open or update the agent pin pull request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          summary=$(mktemp)
+          python3 scripts/bump_agents.py --summary "$summary"
+          if git diff --quiet -- salt/agents/lock.yml; then
+            echo "agent pins are current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B agents-pin
+          git add salt/agents/lock.yml
+          git commit -m "chore(agents): bump pinned CLIs"
+          if git fetch origin agents-pin:refs/remotes/origin/agents-pin; then
+            git push --force-with-lease=refs/heads/agents-pin:refs/remotes/origin/agents-pin origin HEAD:agents-pin
+          else
+            git push origin HEAD:agents-pin
+          fi
+          existing=$(gh pr list --head agents-pin --base main --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "chore(agents): bump pinned CLIs" --body-file "$summary"
+          else
+            gh pr create --base main --head agents-pin --title "chore(agents): bump pinned CLIs" --body-file "$summary"
+          fi
+
+  templates:
+    name: bump template pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Open or update the template pin pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          summary=$(mktemp)
+          files="salt/config.jinja salt/debian/template.jinja salt/fedora/template.jinja"
+          files="$files readme.md salt/utils/README.md docs/deploy-checklist.md"
+          python3 scripts/bump_templates.py --summary "$summary"
+          if git diff --quiet -- $files; then
+            echo "template pins are current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B template-pin
+          git add -- $files
+          git commit -m "chore(templates): bump base template pins"
+          remote=refs/remotes/origin/template-pin
+          if git fetch origin template-pin:"$remote"; then
+            git push --force-with-lease=refs/heads/template-pin:"$remote" origin HEAD:template-pin
+          else
+            git push origin HEAD:template-pin
+          fi
+          title="chore(templates): bump base template pins"
+          existing=$(gh pr list --head template-pin --base main --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$title" --body-file "$summary"
+          else
+            gh pr create --base main --head template-pin --title "$title" --body-file "$summary"
+          fi

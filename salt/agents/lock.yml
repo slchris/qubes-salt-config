@@ -5,9 +5,9 @@
 # truth for "which agent versions does tpl-agents contain"; the build qube
 # resolves nothing at build time except what is written here.
 #
-# Updating an agent is a two-line change: bump `version` (and, for a deb, the
-# URL and sha256), run agents.build.run, then agents.deliver. Rollback is the
-# same process with the previous version; the old bundle stays in
+# scripts/bump_agents.py is the writer for the versions below. It opens a
+# pull request; it does not install anything. Rollback is the previous lock,
+# then agents.build.run and agents.deliver. The old bundle stays in
 # {bundle_dir} and the old version directories stay in /opt/agents-bundle.
 #
 # Resolve current versions with:
@@ -87,3 +87,15 @@ gui_apps:
     url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.142.0-1792035033_amd64.deb"
     sha256: "33454f7d2d7bc79a5925b3e794d106fb454a10c6a635ddfeb908a63659a44ec5"
     desktop_file: "com.microsoft.VSCode.desktop"
+
+# CLI tools installed into tpl-agents by agents.template.tools.
+# gh, kubectl, kustomize, and age come from Debian and are not pinned here.
+# Helm stays on 3.x. The upstream apt repo also publishes Helm 4.
+tools:
+  helm:
+    version: "3.20.2"
+    apt_version: "3.20.2-1"
+  sops:
+    version: "3.13.3"
+    url: "https://github.com/getsops/sops/releases/download/v3.13.3/sops-v3.13.3.linux.amd64"
+    sha256: "e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b"

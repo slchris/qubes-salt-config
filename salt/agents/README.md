@@ -269,9 +269,10 @@ at Chrome (Qubes otherwise defaults `xdg-open` to `qvm-open-in-dvm`).
 
 Two different things get updated, and both leave through `sys-bwg-net`.
 
-**Pinned applications** — Chrome, Claude Desktop, Claude Code, and the npm
-agents. Versions live only in `lock.yml`. Resolve the new version and digest
-with the commands at the top of this file, edit the lock, then:
+**Pinned applications** — Chrome, Claude Desktop, Claude Code, the npm
+agents, Helm 3, and sops. Versions live only in `lock.yml`. GitHub Actions
+checks them once a day and opens a pull request. Merging that pull request
+does not download or install anything. To apply a merged lock:
 
 ```sh
 sudo qubesctl --skip-dom0 --targets=agent-build \
@@ -279,7 +280,7 @@ sudo qubesctl --skip-dom0 --targets=agent-build \
 sudo qubesctl state.apply agents.build.run    # download via agent-build's netvm
 sudo qubesctl state.apply agents.deliver
 sudo qubesctl --skip-dom0 --targets=tpl-agents \
-  state.apply agents.template.verify
+  state.apply agents.template.tools,agents.template.verify
 qvm-shutdown --wait tpl-agents
 # each AppVM keeps its old root until it is restarted
 qvm-shutdown --wait mvtest
@@ -343,7 +344,7 @@ it shadows `/usr/bin/claude` because the repo's PATH setup prepends
   (`cfg.profiles`): that profile's project AppVM, its NetVM, its gpg qube,
   and its pass qube. `secrets.apply` runs on the project AppVM only. See
   [salt/secrets](../secrets/README.md). `agents.template.tools` installs
-  Debian `age` and sops 3.13.3 there.
+  Debian `age` and the sops pin from `lock.yml`.
 - The bundle is installed system-wide in the template, so every AppVM based
   on it gets the same agent versions. If a project needs a different version,
   use a separate template (or a per-AppVM wrapper) rather than editing the
@@ -354,8 +355,8 @@ it shadows `/usr/bin/claude` because the repo's PATH setup prepends
   `agents.template.split`. The client files are `agents.split`, and
   `dotfiles.git` writes the profile's signing key. Secret keys stay in
   the gpg qube.
-- `agents.template.tools` adds `gh`, `kubectl`, `kustomize`, Helm
-  3.20.2, Debian `age`, and sops 3.13.3. Helm is held so the upstream
+- `agents.template.tools` adds `gh`, `kubectl`, `kustomize`, the Helm 3
+  pin, Debian `age`, and the sops pin. Helm is held so the upstream
   repo's Helm 4 is not pulled in. sops is the upstream binary, not a
   Debian package named `sops`. It does not upgrade the rest of the
   template. Node stays in the bundle. Docker and the rest of a

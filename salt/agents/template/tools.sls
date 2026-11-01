@@ -11,19 +11,23 @@ afterwards. A running AppVM keeps the old root until it is restarted.
 
 Debian ships gh, kubectl, kustomize, and age. The Debian source package
 named helm is Emacs (elpa-helm), so Helm comes from the upstream apt repo.
-That repo's newest package is Helm 4. This state pins 3.20.2, the same
-release as the workstation, and holds it so a later apt run does not
-cross that major version. Debian's kustomize binary reports its version
-as "(devel)"; the package version is what gets checked.
+That repo also publishes Helm 4. tools.helm in agents/lock.yml stays on
+3.x, and this state holds the package so a later apt run does not cross
+that major version. Debian's kustomize binary reports its version as
+"(devel)"; the package version is what gets checked.
 
 Debian has no Mozilla sops package. The packages named sops, sos, and
-orca-sops are different software and must not be installed. sops 3.13.3
-is the upstream linux amd64 binary, sha256-pinned, installed to
-/usr/bin/sops. An AppVM mounts its private volume over /usr/local, so a
-binary left there is invisible after the AppVM boots.
+orca-sops are different software and must not be installed. tools.sops
+in agents/lock.yml is the upstream linux amd64 binary, sha256-pinned,
+installed to /usr/bin/sops. An AppVM mounts its private volume over
+/usr/local, so a binary left there is invisible after the AppVM boots.
 
   sudo qubesctl --skip-dom0 --targets=tpl-agents state.apply agents.template.tools
 #}
+
+{% import_yaml 'agents/lock.yml' as lock %}
+{% set helm = lock['tools']['helm'] %}
+{% set sops = lock['tools']['sops'] %}
 
 {% if grains['nodename'] != 'dom0' %}
 
@@ -96,9 +100,9 @@ binary left there is invisible after the AppVM boots.
     - name: |
         set -euo pipefail
         apt-get update
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades helm=3.20.2-1
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades helm={{ helm.apt_version }}
         apt-mark hold helm
-    - unless: helm version --short 2>/dev/null | grep -q '^v3\.20\.2'
+    - unless: helm version --short 2>/dev/null | grep -Eq '^v{{ helm.version | replace(".", "\\.") }}([^0-9]|$)'
     - require:
       - file: tpl-agents-tools-helm-source
 
@@ -106,8 +110,7 @@ binary left there is invisible after the AppVM boots.
   cmd.run:
     - name: |
         set -euo pipefail
-        ver=3.13.3
-        expected=e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b
+        expected={{ sops.sha256 }}
         if [ -f /usr/local/bin/sops ] \
             && [ "$(sha256sum /usr/local/bin/sops | awk '{print $1}')" = "$expected" ]; then
           install -m 0755 /usr/local/bin/sops /usr/bin/sops
@@ -117,7 +120,7 @@ binary left there is invisible after the AppVM boots.
         tmp=$(mktemp)
         curl -fsSL -x http://127.0.0.1:8082 --max-time 180 \
           -o "$tmp" \
-          "https://github.com/getsops/sops/releases/download/v${ver}/sops-v${ver}.linux.amd64"
+          "{{ sops.url }}"
         got=$(sha256sum "$tmp" | awk '{print $1}')
         if [ "$got" != "$expected" ]; then
           echo "sops download does not match"
@@ -127,7 +130,7 @@ binary left there is invisible after the AppVM boots.
         install -m 0755 "$tmp" /usr/bin/sops
         rm -f "$tmp" /usr/local/bin/sops
         test "$(sha256sum /usr/bin/sops | awk '{print $1}')" = "$expected"
-    - unless: sha256sum /usr/bin/sops | awk '{print $1}' | grep -qx e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b
+    - unless: sha256sum /usr/bin/sops | awk '{print $1}' | grep -qx {{ sops.sha256 }}
     - require:
       - pkg: tpl-agents-tools-debian
 
@@ -142,17 +145,17 @@ binary left there is invisible after the AppVM boots.
         dpkg-query -W -f 'kustomize ${Version}\n' kustomize
         short=$(helm version --short)
         printf '%s\n' "$short"
-        printf '%s\n' "$short" | grep -q '^v3\.20\.2'
+        printf '%s\n' "$short" | grep -Eq '^v{{ helm.version | replace(".", "\\.") }}([^0-9]|$)'
         apt-mark showhold | grep -qx helm
         if dpkg-query -W -f '${Status}' elpa-helm 2>/dev/null | grep -q 'install ok installed'; then
           echo "refusing Debian elpa-helm"
           exit 1
         fi
         age --version
-        test "$(sha256sum /usr/bin/sops | awk '{print $1}')" = e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b
+        test "$(sha256sum /usr/bin/sops | awk '{print $1}')" = {{ sops.sha256 }}
         help=$(mktemp)
         sops --help > "$help"
-        grep -q '3\.13\.3' "$help"
+        grep -Eq '(^|[^0-9]){{ sops.version }}([^0-9]|$)' "$help"
         rm -f "$help"
         if dpkg-query -W -f '${Status}' sops 2>/dev/null | grep -q 'install ok installed'; then
           echo "refusing Debian package sops"
