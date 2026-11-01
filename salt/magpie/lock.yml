@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# Pinned magpie CLI for the login qube. scripts/bump_magpie.py is the
+# only writer. It follows the newest non-prerelease tag of
+# yetone/magpie-releases that publishes magpie-cli-linux-amd64, checks
+# that file against SHA256SUMS, and opens a pull request. GTK packages
+# are ignored. Salt does not download this file.
+
+repo: yetone/magpie-releases
+asset: magpie-cli-linux-amd64
+version: "0.1.2344"
+url: "https://github.com/yetone/magpie-releases/releases/download/v0.1.2344/magpie-cli-linux-amd64"
+sha256: "fc300912d403ad3a72c0db090aaa072df25dc106c8b0abfe10ccbb2ac93d4365"

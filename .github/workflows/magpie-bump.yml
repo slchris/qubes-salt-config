@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# When yetone/magpie-releases publishes a newer terminal CLI, open a pull
+# request that updates salt/magpie/lock.yml and the README pin. Merging
+# the pull request does not copy the binary onto a qube.
+
+name: magpie pin
+
+on:
+  schedule:
+    - cron: "17 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: magpie-pin
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: bump magpie CLI pin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Check upstream and rewrite the pin
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/bump_magpie.py
+      - name: Open or update the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if git diff --quiet -- salt/magpie/lock.yml salt/magpie/README.md; then
+            echo "pin is current"
+            exit 0
+          fi
+          version=$(python3 scripts/bump_magpie.py --print-version)
+          body=$(mktemp)
+          python3 scripts/bump_magpie.py --pr-body "$body"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B magpie-pin
+          git add salt/magpie/lock.yml salt/magpie/README.md
+          git commit -m "chore(magpie): bump CLI to v${version}"
+          if git ls-remote --exit-code --heads origin magpie-pin >/dev/null; then
+            git push --force-with-lease origin HEAD:magpie-pin
+          else
+            git push origin HEAD:magpie-pin
+          fi
+          title="chore(magpie): bump CLI to v${version}"
+          existing=$(gh pr list --head magpie-pin --base main --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$title" --body-file "$body"
+          else
+            gh pr create --base main --head magpie-pin --title "$title" --body-file "$body"
+          fi

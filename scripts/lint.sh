@@ -30,7 +30,8 @@ run_yamllint() {
     # salt-lint below. This project uses no pillar.
     if ! yamllint -c .yamllint \
         salt/top.sls \
-        .yamllint .salt-lint .github/workflows/lint.yml; then
+        .yamllint .salt-lint .github/workflows/lint.yml \
+        .github/workflows/magpie-bump.yml salt/magpie/lock.yml; then
         rc=1
     fi
 }
