@@ -33,7 +33,8 @@ jobs:
           yamllint -c .yamllint \
             salt/top.sls \
             .yamllint .salt-lint .github/workflows/lint.yml \
-            .github/workflows/magpie-bump.yml salt/magpie/lock.yml
+            .github/workflows/magpie-bump.yml salt/magpie/lock.yml \
+            .github/workflows/upstream-pins.yml
 
   salt-lint:
     name: salt-lint

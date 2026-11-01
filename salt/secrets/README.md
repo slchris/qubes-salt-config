@@ -134,11 +134,9 @@ Debian trixie has an `age` package. It does not have Mozilla sops. The
 packages named `sops`, `sos`, and `orca-sops` are different software; do
 not install them.
 
-`agents.template.tools` installs Debian `age` and pins sops 3.13.3 at
-`/usr/bin/sops`. The binary is `sops-v3.13.3.linux.amd64` from the
-getsops release, sha256
-`e5bec3346a873ae91d871550f3e698c1aad962aff462a080e40f25fde17fef6b`,
-checked before install. Apt and that download leave through `sys-bwg-net`.
+`agents.template.tools` installs Debian `age` and the sops binary pinned
+in `salt/agents/lock.yml` (`tools.sops`) at `/usr/bin/sops`. The digest
+is checked before install. Apt and that download leave through `sys-bwg-net`.
 A running AppVM sees them after `tpl-agents` is shut down and that AppVM
 is restarted.
 

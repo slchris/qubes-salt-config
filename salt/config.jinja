@@ -514,10 +514,15 @@ agents.template.locale — locale generated in the image. The boot service
   selects the exit's locale for the session.
 -#}
 
+{#- scripts/bump_templates.py writes these two versions. sys-gui-vnc stays
+    fedora-43-xfce; its KasmVNC RPM is built for that Fedora. -#}
+{%- set qvm_debian_version = "13" -%}
+{%- set qvm_fedora_version = "43" -%}
+
 {%- set cfg = {
   "qvm": {
-    "debian": {"version": "13", "repo": "qubes-templates-itl"},
-    "fedora": {"version": "43", "repo": "qubes-templates-itl"},
+    "debian": {"version": qvm_debian_version, "repo": "qubes-templates-itl"},
+    "fedora": {"version": qvm_fedora_version, "repo": "qubes-templates-itl"},
     "whonix": {"version": "18", "repo": "qubes-templates-community"},
     "gentoo": {
       "flavor": "xfce",
@@ -544,7 +549,7 @@ agents.template.locale — locale generated in the image. The boot service
 
   "remote_debug": {
     "qube": "mgmt-jump",
-    "template": "debian-13-minimal",
+    "template": "debian-" ~ qvm_debian_version ~ "-minimal",
     "label": "red",
     "authorized_keys": [
       "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDFBtGrp0fsGhJ2mCiDtGnOWHbmAscWMnfPwkcvmbj6C2sotpstfSFPd63bzME8shQZYJmNJp9aS5VdW9L1bTpfCHkTm/6l9bOT2r2hsLMUxHpd8FK+k7qiUGvpuQu2QAy+q4MD93Mvna0rwwwNEd4TPMVzi7S8V5wPuzOK4aU/QIW8UwnWKRNFGokiCl3ySOd6NFxpvsp259N0KKL01Xc71QBy5BzrKPOco+1wlFqrtUrSQt9TsbtLrj2yYY+1RcD6JJlt2OoCJs0WHEXbyYw30PdNZVB4oJF1lzjAZTE9miyxxGDDixygCLBHcspVcj62T/5QYOP9QG+vU0y0wlXyYE4g6SI+UUJeNu0ZVpi1APzlA4TpxyAqLGQIzfBeyEAEObFZlENhZ/LV5ZDleYgD/wkTONm8aRq6ScmUdZPlel3z9wOfbr2TAuSxL93HoxqamQG7wGHD5iBpwn/gysr/gEkURZz/umFqep/KNi3gIpwcP9iBsbvBV6bUeVg7M0JrxYp+MCALY339Haw1b0yfqdxbL2bNl30D6IQOquv5IrTiMnYwKBK37tdhdwTG12Lj03FGxSNkIFLy5D+ZLBXdFtPhOXtwOOnDQ6K9pJ+2bURLDjVc/bIEZ6w22xj+tjykciTsUg4lHsQzvwkHA1xd4UwEyJXe7FPOdtQ9eOJy5w== cardno:11_023_204",
@@ -709,7 +714,7 @@ agents.template.locale — locale generated in the image. The boot service
   "tailscale": {
     "enabled": True,
     "qube": "sys-tailscale",
-    "template": "debian-13-minimal",
+    "template": "debian-" ~ qvm_debian_version ~ "-minimal",
     "label": "green",
     "netvm": "sys-firewall",
     "memory": 400,
