@@ -23,6 +23,8 @@ EXCLUDE_EXACT = {
     "salt/dotfiles/init.sls",    # dotfiles are applied per-AppVM via --targets
     "salt/dotfiles/git.sls",
     "salt/dotfiles/shell.sls",
+    "salt/agents/configure.sls",  # applied per-AppVM via --targets (timezone/browser)
+    "salt/agents/split.sls",      # applied per-AppVM via --targets (split GPG/SSH client)
 }
 
 

@@ -51,6 +51,14 @@ cd "$PROJECT_DIR"
 # On macOS, set COPYFILE_DISABLE to prevent AppleDouble files (._*)
 export COPYFILE_DISABLE=1
 
+# Local secret overlays are gitignored and must not ride the public tarball
+# either. A filled-in salt/config.local.jinja is plaintext for dom0; AppVM
+# tokens are decrypted in the AppVM from the private checkout. See
+# salt/secrets/README.md.
+if [ -f salt/config.local.jinja ] || [ -d qubes-salt-secrets ]; then
+    info "Excluding local secret overlay from the package (config.local.jinja / qubes-salt-secrets)."
+fi
+
 tar --exclude='.git' \
     --exclude='.gitignore' \
     --exclude='.DS_Store' \
@@ -60,6 +68,10 @@ tar --exclude='.git' \
     --exclude='__pycache__' \
     --exclude='.vscode' \
     --exclude='.idea' \
+    --exclude='config.local.jinja' \
+    --exclude='*.decrypted.yaml' \
+    --exclude='*.decrypted.json' \
+    --exclude='qubes-salt-secrets' \
     -czf "${OUTPUT_DIR}/${ARCHIVE_NAME}" \
     -C "$(dirname "$PROJECT_DIR")" \
     "$(basename "$PROJECT_DIR")"

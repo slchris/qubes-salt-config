@@ -51,7 +51,17 @@ is a Jinja dict keyed under `cfg`.
 },
 ```
 
+A profile project's name, email, and signing key come from
+`cfg.profiles.<name>.git`. `cfg.qubes.<qube>.git` still covers an AppVM
+that is not a profile. Tokens, kubeconfig, `~/.config/gh/hosts.yml`, and
+other private files are that profile's sops document, applied by
+`secrets.apply` on the project AppVM. See [salt/secrets](../secrets/README.md).
+
 ### Shell Configuration (for templates)
+
+`dotfiles.shell` writes `~/.bashrc` and applies `cfg.user.shell`, whose
+timezone in the current config is `Asia/Shanghai`. Do not apply it to an
+agent qube. A private snippet belongs in the sops file, not in this state.
 
 ```jinja
 "user": {

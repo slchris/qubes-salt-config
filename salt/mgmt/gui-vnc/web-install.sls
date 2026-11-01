@@ -4,10 +4,11 @@ SPDX-License-Identifier: MIT
 
 Install the browser front-end packages in its TEMPLATE (runs IN the template).
 
-novnc serves the HTML/JS client, websockify translates its WebSocket back to
-raw VNC, and socat bridges that to the qrexec tunnel into the GUI domain
-(mgmt.gui-vnc.web-configure). Packages live in the template because an AppVM's
-root volume is reset on every boot — a per-qube install would vanish.
+The KasmVNC web server runs inside the GUI domain; this qube only needs socat
+to carry its raw HTTPS/WebSocket stream over the qrexec tunnel
+(mgmt.gui-vnc.web-configure). novnc and websockify are explicitly removed:
+the browser client is now KasmVNC's own. Packages live in the template because
+an AppVM's root volume is reset on every boot — a per-qube install would vanish.
 
 The template itself is cloned from debian-minimal by mgmt.gui-vnc.web-create.
 
@@ -33,12 +34,17 @@ Deploy (from dom0):
     - install_recommends: False
     - skip_suggestions: True
     - pkgs:
-      - novnc
-      - websockify
       - socat
       # minimal templates ship without the networking agent, so the NIC never
       # comes up and nothing can reach the web listener.
       - qubes-core-agent-networking
+
+# The old noVNC front end is gone; remove its packages from the template.
+"gui-vnc-web-remove-novnc":
+  pkg.removed:
+    - pkgs:
+      - novnc
+      - websockify
 
 {% else %}
 

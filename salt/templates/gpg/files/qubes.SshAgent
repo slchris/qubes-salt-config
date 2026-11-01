@@ -1,0 +1,16 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# Copyright 2026 Chris Su
+#
+# qubes.SshAgent — server side, installed in tpl-gpg.
+# The client talks to this socket; the private key stays in this qube
+# (software key or the OpenPGP card attached here).
+
+set -eu
+
+export HOME="${HOME:-/home/user}"
+export GNUPGHOME="${GNUPGHOME:-$HOME/.gnupg}"
+
+socket="$(gpgconf --list-dirs agent-ssh-socket)"
+gpgconf --launch gpg-agent
+exec socat STDIO "UNIX-CONNECT:${socket}"

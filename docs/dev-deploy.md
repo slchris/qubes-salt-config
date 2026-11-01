@@ -64,7 +64,9 @@ reach a host on the physical LAN without extra config.
 ### 1. Package on the dev machine
 
 `scripts/package.sh` tars the working tree (excluding `.git`, `dist`, editor
-cruft) into `dist/`:
+cruft, `salt/config.local.jinja`, and a nested `qubes-salt-secrets` checkout)
+into `dist/`. The excluded overlay is the dom0 secret file; AppVM credentials
+are not in this tree at all (`salt/secrets/README.md`):
 
 ```sh
 cd ~/git/qubes-salt-config

@@ -47,6 +47,10 @@ include:
       # debian-13-minimal ships no iptables)
       - nftables
       - curl
+      # Lets this gateway answer qubes.UpdatesProxy. The service stays off
+      # until agents.updates-proxy enables it on the build NetVM. Template
+      # apt then exits via wg0 and dies with the tunnel.
+      - tinyproxy
 
 # Enable IP forwarding so the qube can route downstream traffic into the
 # tunnel once built from this template.
@@ -91,9 +95,23 @@ include:
         table inet project-net {
           chain forward {
             type filter hook forward priority -10; policy accept;
+            # Clamp every forwarded SYN to MSS 1000, both directions.
+            # `rt mtu` is the outgoing iface of that packet: a SYN-ACK headed
+            # at a vif was clamped to 1500, and the AppVM then sent a large
+            # post-quantum Client Hello that was lost inside wg0 (mtu 1420).
+            # TLS died with no ICMP. 1000 carries a full Client Hello on this
+            # path; 1100 already fails.
+            tcp flags syn / syn,rst tcp option maxseg size set 1000
             ct state established,related accept
             iifname "vif*" oifname "wg0" accept
             iifname "vif*" counter drop
+          }
+          # Same clamp for the gateway's own sockets (tinyproxy, apt). The
+          # forward rule never sees those SYNs. Without this, UpdatesProxy
+          # dies in the tunnel the same way a downstream Client Hello did.
+          chain input {
+            type filter hook input priority -10; policy accept;
+            tcp flags syn / syn,rst tcp option maxseg size set 1000
           }
           chain output-dynamic {
           }

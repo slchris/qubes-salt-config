@@ -1,0 +1,8 @@
+#!/bin/sh
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# :1 must not run a desktop of its own: every pixel comes from :0 through
+# kasmxproxy. This also keeps KasmVNC from spawning an XFCE session that would
+# compete with the real GUI domain.
+exec sleep infinity

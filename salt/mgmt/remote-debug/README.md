@@ -117,6 +117,22 @@ dom0() { printf '%s\n' "$*" | qrexec-client-vm dom0 qubes.RemoteDebug; }
 
 In **shell** mode, use `qubes.VMShell` instead of `qubes.RemoteDebug`.
 
+When `qubesctl --targets=<qube> ...` fails, it writes the state error to
+`/var/log/qubes/mgmt-<qube>.log` in dom0 and only the exit code reaches qrexec
+(stderr is not relayed). Read the tail with the dedicated read-only action:
+
+```sh
+ssh qubes-jump "dom0 'qlog sys-gui-vnc'"
+```
+
+`qpolicy` is a read-only dump of the GUI-domain policy files and the
+qrexec-policy journal; use it when a qrexec service such as
+`qubes.ConnectTCP` is refused:
+
+```sh
+ssh qubes-jump "dom0 'qpolicy'"
+```
+
 **Move files** (Mac → jump → dom0/other qube):
 
 ```sh

@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# GitHub CLI, kubectl, kustomize, and Helm in tpl-agents:
+#   sudo qubesctl --skip-dom0 --targets=tpl-agents state.apply agents.template.tools
+
+base:
+  'tpl-agents':
+    - agents.template.tools

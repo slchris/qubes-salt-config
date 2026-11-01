@@ -1,0 +1,20 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Ordered reference. Do not top.enable this. Apply the two states
+separately, in the order in salt/magpie/README.md. netfw runs in dom0.
+serve runs in the project qube, which must already be running.
+#}
+
+{%- from 'config.jinja' import cfg with context %}
+base:
+  'dom0':
+    - match: nodegroup
+    - magpie.netfw
+{% for name, svc in cfg.magpie.services.items() %}
+{% if name in cfg.profiles and cfg.profiles[name].get('project') %}
+  '{{ cfg.profiles[name].project }}':
+    - magpie.serve
+{% endif %}
+{% endfor %}

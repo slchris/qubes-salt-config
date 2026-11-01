@@ -29,6 +29,13 @@ def args(state, function):
             for key, value in entry.items()}
 
 
+def published_cfg():
+    # Salt's file root is salt/, so the optional overlay include resolves
+    # there. ignore missing needs a loader; a bare from_string has none.
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(ROOT / 'salt'))
+    return env.get_template('config.jinja').module.cfg
+
+
 class DeploymentTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -128,7 +135,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotIn('qubesair-backup-mount-unit', mount)
 
     def test_recorded_pins_match_config_and_missing_agent_url_fails(self):
-        cfg = jinja2.Environment().from_string((ROOT / 'salt/config.jinja').read_text()).module.cfg
+        cfg = published_cfg()
         qa = cfg['qubesair']
         record = json.loads((ROOT / 'salt/qubesair/artifacts.json').read_text())
         artifacts = {}
@@ -159,7 +166,7 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotIn('qubesair-console-binary', states)
 
     def test_release_urls_match_provenance_and_keep_desktop_opt_in(self):
-        cfg = jinja2.Environment().from_string((ROOT / 'salt/config.jinja').read_text()).module.cfg
+        cfg = published_cfg()
         record = json.loads((ROOT / 'salt/qubesair/artifacts.json').read_text())
         release = record['release']
         self.assertRegex(release['tag'], r'^v[0-9]+\.[0-9]+\.[0-9]+$')

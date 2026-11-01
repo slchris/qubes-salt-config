@@ -13,6 +13,7 @@ base:
     - mgmt.gui-vnc.clone
     - mgmt.gui-vnc.create
     - mgmt.gui-vnc.prefs
+    - mgmt.gui-vnc.updater-bridge
     - mgmt.gui-vnc.web-create
     - mgmt.gui-vnc.netfw
   'fedora-43-xfce':
@@ -21,3 +22,5 @@ base:
     - mgmt.gui-vnc.web-install
   'sys-vncweb':
     - mgmt.gui-vnc.web-configure
+  'sys-gui-vnc':
+    - mgmt.gui-vnc.kasm

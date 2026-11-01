@@ -337,7 +337,77 @@ copied wholesale to /srv/salt/slchris by scripts/setup.sh:
   the PVE API token, and the agent CA private key.
 Put them in {data_dir}/secrets.env, mode 0600, owned by the service user, and
 have the systemd unit read it with EnvironmentFile= so the values never appear
-in a unit file, a ps listing or this repository.
+in a unit file, a ps listing or this repository. Do not move them into git,
+encrypted or not. See salt/qubesair/README.md.
+
+profiles — one identity per entry. A profile owns its project NetVM, the
+agent AppVM that uses that NetVM, the offline gpg qube, and the offline
+pass qube. Those four names are unique across profiles. Templates stay
+shared (tpl-agents, tpl-gpg, tpl-vault, tpl-project-net). Adding a profile
+is another key in this dict. This file does not create the qubes.
+  email             the UID on that profile's card
+  git               name, email, signing subkey. dotfiles.git prefers this
+                    over cfg.qubes.<project>.git
+  netvm             project exit. The qube's live netvm is what agents.exit
+                    reads, and that gateway needs a cfg.agents.exits entry.
+                    WireGuard wg0.conf stays in the gateway, not here.
+  project           agent AppVM. Secrets and split SSH/GPG land here.
+  gpg               offline qube for that card. Split clients are the
+                    profile's project qube and its pass qube, nobody else.
+  pass              offline qube for that profile's password store. It is
+                    not the singleton qube templates.vault.create names
+                    "vault". The store stays in this qube.
+  pgp_fingerprint   public encrypt subkey (usage E). sops recipient for
+                    secrets/profiles/<profile>.yaml. The secret half stays
+                    on that profile's card.
+  ssh_keygrip       public auth subkey keygrip written to that gpg qube's
+                    sshcontrol.
+agents.qubes is the list of AppVMs that get the agent menu and exit
+binding. A test AppVM can be on that list and still not be a profile.
+mvtest is that case. It does not get a gpg client rule or a sops file.
+
+magpie — publish one existing profile project qube's magpie on the house
+LAN. Another computer adds it as a remote magpie. See salt/magpie/README.md.
+enabled is True for the live slchris publish. Every magpie state no-ops
+while it is False.
+  services       one entry per profile. The key must already exist in
+                 profiles. port is the TCP port magpie binds on
+                 profiles.<key>.project. That qube already exists; these
+                 states do not create one and do not change its netvm.
+                 The LAN path is three hops: sys-net, the netvm of
+                 profiles.<key>.netvm, then that netvm, then the project
+                 qube. A profile with no entry here is not published.
+                 Several profiles are several entries. Each entry needs
+                 its own port, and two entries may share one netvm.
+                 Do not reuse 22, 2333, 6080, 8080, 8443, 8444, or 18080.
+                 The steps are in salt/magpie/README.md.
+Gateway keys and the magpie binary do not belong in this file. The states
+do not install the binary. The CLI version and digest are in
+salt/magpie/README.md.
+
+secrets — layout of the private checkout. No ciphertext and no secret
+values live in this file. See salt/secrets/README.md.
+  checkout          absolute path inside the project AppVM
+  profile_file      path relative to checkout; "{profile}" is the dict key
+The sops recipient is the profile's pgp_fingerprint, not a single key for
+the whole machine. salt/templates/gpg/files/chris-su.asc is a different
+key and is not a profile recipient.
+
+config.local.jinja — optional file next to this one. It is gitignored, and
+scripts/package.sh excludes it, so a normal deploy does not ship it. When
+present it is included after the dict below and may mutate cfg in place
+(salt/config.local.jinja.example). Use it for values dom0 itself has to
+read, such as the hotspot password. Do not put AppVM tokens in it: this
+file is rendered on dom0. A broken overlay breaks every state, because they
+all import cfg.
+
+hotspot.password — leave this empty in the committed dict. mgmt.hotspot
+creates the NetworkManager connection only when ifname and password are
+both set, and only when that connection does not already exist. An empty
+password skips creation and leaves an existing connection alone. A
+replacement belongs in config.local.jinja, copied to dom0 on purpose,
+not via the public tarball. The value that used to be committed here is
+still in git history; rotate that Wi-Fi password.
 
 gui_vnc — drive THIS machine's desktop from a browser, so the physical monitor
 can be used for something else. Qubes renders every qube's windows into a GUI
@@ -355,7 +425,6 @@ console.
                 that composites every window must not also face the network.
   memory/maxmem/vcpus  sizing. The GUI domain is the memory consumer here, not
                 dom0 — it holds every qube's compositing buffers.
-  vnc_port      where the VNC server inside the GUI domain listens (localhost).
   autostart     start the GUI domain at boot.
   default_guivm True on this machine: mgmt.gui-vnc.prefs sets the global
                 `default_guivm` to the GUI domain, so every qube renders there
@@ -376,7 +445,7 @@ console.
   admin_global_permissions  'rwx' | 'ro' | 'none' — Admin API grant appended to
                 the GUI domain's policy includes. 'rwx' matches the Qubes
                 default for a GuiVM.
-  web           the browser front end (noVNC + websockify) in its own qube:
+  web           the browser front end (KasmVNC over qrexec) in its own qube:
     enabled       deploy the front end at all.
     template_source  salt directory to clone the front-end template from.
     template      cloned template name (default tpl-gui-vnc-web).
@@ -385,15 +454,64 @@ console.
                   sys-net -> sys-firewall -> this qube and assumes exactly that
                   chain. This module is LAN-only by design (see the README); it
                   does not expose the VNC session over a VPN.
-    listen        websockify bind address:port. 0.0.0.0:6080 is reached only via
-                  the DNAT, which is source-filtered to remote_debug.lan_subnet.
-    target_port   loopback port websockify forwards to; a socat listener there
-                  bridges to the GUI domain's VNC over qrexec.
+    listen        socat bind address:port. 0.0.0.0:6080 is reached only via the
+                  DNAT, which is source-filtered to remote_debug.lan_subnet.
+    kasm_port     loopback port KasmVNC serves HTTPS on inside the GUI domain;
+                  the front end tunnels this port over qubes.ConnectTCP.
     network       only 'portforward' is implemented: ext_port on sys-net's
                   physical LAN IP, DNAT'd to this qube. Any other value installs
                   no rules and exposes nothing.
-    ext_port      the LAN port mapped to websockify.
+    ext_port      the LAN port mapped to the front end's socat listener.
+  kasmvnc       pinned KasmVNC server package installed in the GUI-domain
+                template. KasmVNC is not in the Fedora repos, so the template
+                downloads this exact RPM and verifies the digest before dnf
+                resolves its dependencies. Bump version/url/sha256 together.
+    version       RPM version-release (`rpm -q --qf '%{VERSION}-%{RELEASE}'`).
+    url           upstream release asset.
+    sha256        SHA-256 of that asset.
+  updater_bridge
+                install a narrow qrexec bridge so the GUI domain's Qubes
+                Update app can call the dom0-only qubes-vm-update CLI
+                (QubesOS/qubes-issues#8934; the VM repos do not ship it). The
+                bridge accepts only the updater's own flags, never a shell.
+                Off by default because it lets the GUI domain trigger updates,
+                including dom0; enable it only after reviewing
+                salt/mgmt/gui-vnc/updater-bridge.sls. To enable, set True and
+                apply BOTH mgmt.gui-vnc.updater-bridge (dom0) and
+                mgmt.gui-vnc.install (template). False removes both sides.
   keep_qubes    teardown leaves the qubes in place when True.
+
+project_nets — one entry per project-network gateway. The key becomes
+  sys-<key> (e.g. "bwg-mullvad-lax701" -> sys-bwg-mullvad-lax701). Every
+  gateway uses tpl-project-net and shares the fail-closed firewall; each one
+  still needs its own /rw/config/wireguard/wg0.conf, which is a secret and is
+  never stored here. Optional fields per key: template (default
+  tpl-project-net), label, netvm, memory, maxmem. "project-net" preserves the
+  original sys-project-net. Adding a key is all the Salt side needs; the other
+  end (BWG peer/subnet/table) lives in the homelab repo.
+
+agents.build.netvm — NetVM of the agent-build AppVM. Chrome, Claude Desktop,
+  Claude Code and the npm agents are downloaded here, not by a template.
+  Point it at a project-net gateway whose WireGuard tunnel is up, and keep
+  it off the project exit (sys-project-net) so a compromised build qube
+  cannot see project traffic. Changing it requires agent-build to be stopped.
+agents.updates_proxy.templates — TemplateVMs whose apt updates are redirected
+  to agents.build.netvm. Templates stay netvm-less; qubes.UpdatesProxy is the
+  path. The gateway needs tinyproxy from templates.project-net.install and
+  the service enabled by agents.updates-proxy. A down tunnel fail-closes
+  these template builds the same way it fail-closes downstream traffic.
+agents.exits — timezone and locale of a project-net gateway's WireGuard
+  exit. agents.exit reads each agent qube's netvm and stores the matching
+  entry as vm-config.timezone and vm-config.locale. The values below were
+  read from the live exits (Los Angeles, US). When a tunnel's exit city
+  changes, update that gateway's entry; this is the exit, not the
+  operator's physical timezone. Agent qubes here are for Claude on that
+  US exit: no zh_CN locale, no China-exit gateway, and no fcitx5.
+agents.template.timezone — fallback zone in the tpl-agents image (UTC).
+  An AppVM does not keep it. qubes-agents-exit.service applies the exit
+  feature at boot, after Qubes has copied dom0's zone in.
+agents.template.locale — locale generated in the image. The boot service
+  selects the exit's locale for the session.
 -#}
 
 {%- set cfg = {
@@ -418,6 +536,10 @@ console.
     "fedora_baseurl": "https://mirrors.tuna.tsinghua.edu.cn/fedora",
     "dom0_baseurl": "https://mirrors.tuna.tsinghua.edu.cn/qubesos/repo/yum",
     "pip_index": "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple",
+  },
+
+  "project_nets": {
+    "project-net": {},
   },
 
   "remote_debug": {
@@ -555,12 +677,17 @@ console.
     "label": "black",
     "memory": 2000,
     "maxmem": 4000,
-    "vcpus": 2,
-    "vnc_port": 5900,
+    "vcpus": 4,
     "autostart": True,
     "default_guivm": True,
     "sync_dom0_password": True,
     "admin_global_permissions": "rwx",
+    "updater_bridge": True,
+    "kasmvnc": {
+      "version": "1.5.0-1.fc43",
+      "url": "https://github.com/kasmtech/KasmVNC/releases/download/v1.5.0/kasmvncserver_fedora_43_1.5.0_x86_64.rpm",
+      "sha256": "a799979ebcfa4c0d17f4480620c1db7a6f5650b6039283527d5241bdc0283b95",
+    },
     "web": {
       "enabled": True,
       "template_source": "debian-minimal",
@@ -572,7 +699,7 @@ console.
       "maxmem": 1500,
       "vcpus": 2,
       "listen": "0.0.0.0:6080",
-      "target_port": 5901,
+      "kasm_port": 8444,
       "network": "portforward",
       "ext_port": 6080,
     },
@@ -605,7 +732,7 @@ console.
     "con_name": "thinkpad-x1",
     "ifname": "wls6f0",
     "ssid": "thinkpad-x1",
-    "password": "114514111",
+    "password": "",
     "band": "bg",
   },
 
@@ -619,5 +746,71 @@ console.
 
   "qubes": {
     "dev": {"git": {"name": "Chris Su", "email": "chris@lesscrowds.org"}},
+    "slchris-project": {"git": {"name": "Chris Su", "email": "chris@lesscrowds.org", "signingkey": "F577849C85A3B7AA3194EAB71852FDF1D2F8A6C6!"}},
+  },
+
+  "profiles": {
+    "slchris": {
+      "email": "chris@lesscrowds.org",
+      "git": {"name": "Chris Su", "email": "chris@lesscrowds.org", "signingkey": "F577849C85A3B7AA3194EAB71852FDF1D2F8A6C6!"},
+      "netvm": "sys-bwg-mullvad",
+      "project": "slchris-project",
+      "gpg": "gpg",
+      "pass": "pass-slchris",
+      "pgp_fingerprint": "47A2A768885CC8501DD1BB4F108477BC92020DB1",
+      "ssh_keygrip": "3614F6A6EB08C17DBCEB4A6D7CD5E4B30B952BA0",
+    },
+  },
+
+  "agents": {
+    "build": {
+      "template_source": "debian-minimal",
+      "template": "tpl-agent-build",
+      "qube": "agent-build",
+      "label": "orange",
+      "netvm": "sys-bwg-net",
+      "vcpus": 2,
+      "memory": 2000,
+      "maxmem": 6000,
+      "private_size": "20G",
+      "workspace": "/home/user/agent-build",
+      "bundle_dir": "/home/user/agent-bundles",
+    },
+    "updates_proxy": {
+      "templates": ["tpl-agent-build", "tpl-agents", "tpl-gpg"],
+    },
+    "exits": {
+      "sys-bwg-mullvad": {"timezone": "America/Los_Angeles", "locale": "en_US.UTF-8"},
+      "sys-bwg-net": {"timezone": "America/Los_Angeles", "locale": "en_US.UTF-8"},
+    },
+    "qubes": ["mvtest", "slchris-project"],
+    "template": {
+      "source": "debian-minimal",
+      "name": "tpl-agents",
+      "label": "blue",
+      "vcpus": 4,
+      "memory": 400,
+      "maxmem": 8000,
+      "timezone": "UTC",
+      "locale": "en_US.UTF-8",
+    },
+  },
+
+  "secrets": {
+    "checkout": "/home/user/src/qubes-salt-secrets",
+    "profile_file": "secrets/profiles/{profile}.yaml",
+  },
+
+  "magpie": {
+    "enabled": True,
+    "services": {
+      "slchris": {"port": 3425},
+    },
   },
 } -%}
+
+{#-
+Local overlay. Absent from the public package. Mutates cfg in place when a
+dom0-rendered value must not live in this file. See config.local.jinja.example.
+-#}
+{% include 'config.local.jinja' ignore missing %}

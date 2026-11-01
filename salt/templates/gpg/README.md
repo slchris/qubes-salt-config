@@ -45,13 +45,43 @@ sudo qubesctl --skip-dom0 --targets=gpg state.apply templates.gpg.configure
 
 ## Usage
 
-### Split-GPG Setup
+### Split GPG 2 and Split SSH
 
-For enhanced security, use split-GPG:
+Clients come from `cfg.profiles`. Each profile's project AppVM and pass
+qube may use that profile's gpg qube, and no other gpg qube. Private keys
+stay in the offline gpg qube. The `slchris` profile uses the CanoKey in
+the `gpg` qube. The YubiKey on this host belongs to another profile's qube,
+which is not named here and is not attached to `gpg`. The template already
+runs `pcscd`.
+`scdaemon.conf` sets `disable-ccid` and `pcsc-shared`, because the
+CanoKey's OpenPGP interface is not interface 0. `templates.gpg.pcscd`
+lets the qube user talk to pcscd when the session is not a seat.
+Split SSH offers only the CanoKey authentication subkey.
+Do not copy secret keys into the client.
 
-1.  Store GPG keys in the `gpg` qube (offline)
-2.  Client qubes request signing/decryption via Qubes RPC
-3.  User confirms each operation
+`qubes.Gpg2` is allowed. split-gpg2 refuses to export key material.
+`qubes.SshAgent` is allowed for that profile's project AppVM only. The
+pass qube does not get an SSH agent. The project AppVM is headless;
+the card PIN is cached in the gpg qube, and the private key stays there.
+Apt for `tpl-gpg` goes through
+`sys-bwg-net` (`cfg.agents.updates_proxy.templates`).
+
+```sh
+# VPN gateway up, then the two templates. Shut the gateway afterwards.
+sudo qubesctl state.apply agents.updates-proxy
+sudo qubesctl --skip-dom0 --targets=tpl-gpg state.apply templates.gpg.split
+sudo qubesctl --skip-dom0 --targets=tpl-agents state.apply agents.template.split
+qvm-shutdown --wait tpl-gpg tpl-agents
+
+sudo qubesctl state.apply templates.gpg.policy
+sudo qubesctl --skip-dom0 --targets=gpg state.apply templates.gpg.configure
+sudo qubesctl --skip-dom0 --targets=slchris-project state.apply agents.split
+sudo qubesctl --skip-dom0 --targets=slchris-project state.apply dotfiles.git
+# restart slchris-project so split-gpg2-client replaces its gpg-agent
+```
+
+`templates.gpg.install` also lists these packages, but it runs `pkg.uptodate`.
+Use `templates.gpg.split` and `agents.template.split` to add only this stack.
 
 ### Generate a new key
 
@@ -59,11 +89,14 @@ For enhanced security, use split-GPG:
 qvm-run -u user gpg -- gpg --full-generate-key
 ```
 
-### Import existing key
+### Import an existing public key
+
+`files/chris-su.asc` is the YubiKey-backed Veritas key. It is not the
+CanoKey and it is not imported here. To import a public key:
 
 ```sh
-qvm-copy-to-vm gpg /path/to/secret-key.asc
-qvm-run -u user gpg -- gpg --import /home/user/QubesIncoming/*/secret-key.asc
+qvm-copy-to-vm gpg /path/to/public-key.asc
+qvm-run -u user gpg -- gpg --import /home/user/QubesIncoming/*/public-key.asc
 ```
 
 ## Qubes Created

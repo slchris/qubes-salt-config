@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# RPC policy and the split-gpg2-client service for slchris-project:
+#   sudo qubesctl state.apply templates.gpg.policy
+
+base:
+  'dom0':
+    - match: nodegroup
+    - templates.gpg.policy

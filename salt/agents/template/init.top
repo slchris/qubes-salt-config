@@ -1,0 +1,14 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Highstate convenience for tpl-agents. create runs in dom0; install runs in
+the new template. Use the ordered commands in README.md on a fresh machine.
+#}
+
+base:
+  'dom0':
+    - match: nodegroup
+    - agents.template.create
+  'tpl-agents':
+    - agents.template.install

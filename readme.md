@@ -74,8 +74,6 @@ sudo qubesctl state.apply fedora-minimal.create
 | [vault](salt/templates/vault/) | debian-13-minimal | Password management (offline) | tpl-vault, vault |
 | [vpn](salt/templates/vpn/) | fedora-43-minimal | VPN gateway | tpl-vpn, sys-vpn |
 | [project-net](salt/templates/project-net/) | debian-13-minimal | Per-project WireGuard gateway (fail-closed) | tpl-project-net, sys-project-net |
-| [mcp](salt/templates/mcp/) | debian-13-minimal | MCP server & AI app development | tpl-mcp, dvm-mcp, mcp |
-| [ai](salt/templates/ai/) | debian-13-minimal | Claude Desktop + agents behind project VPN | tpl-ai, dvm-ai, ai |
 | [gentoo-dev](salt/templates/gentoo-dev/) | gentoo-xfce | Ebuild/package development | tpl-gentoo-dev, gentoo-dev |
 
 **Note:** `gentoo-dev` requires a Gentoo base template, which Qubes does not ship
@@ -168,8 +166,11 @@ salt/
       update-admin.sls    # Admin VM update macro
       sync-appmenus.sls   # Appmenu sync macro
       policy.sls          # RPC policy macros
-  dotfiles/             # User dotfiles
-  config.jinja          # All user configuration (no pillar)
+  dotfiles/             # Public user dotfiles (git identity, shell)
+  secrets/              # Apply a private sops checkout inside an AppVM
+  magpie/               # Publish a profile project qube's magpie on the LAN
+  config.jinja          # All non-secret user configuration (no pillar)
+  config.local.jinja.example  # Gitignored dom0 overlay; not the AppVM tokens
 scripts/
   setup.sh              # Setup script for dom0
   package.sh            # Package for deployment

@@ -10,7 +10,12 @@ Offline password management template for Qubes OS.
 
 ## Description
 
-Creates an offline vault qube for password management with KeePassXC and pass. This qube has no network access for maximum security.
+Creates an offline template for KeePassXC and `pass`. A profile's password
+store is its own AppVM, named by `cfg.profiles.<name>.pass`, with no
+network. `templates.vault.create` still creates one qube named `vault`;
+that singleton is not a profile pass qube. The store stays in the pass
+qube. The project AppVM reaches the profile's gpg qube for decrypt, and
+the pass qube is the other gpg client. See `salt/secrets/README.md`.
 
 Packages installed:
 

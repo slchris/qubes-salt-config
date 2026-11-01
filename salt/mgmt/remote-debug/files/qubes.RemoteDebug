@@ -70,6 +70,79 @@ if [[ "$cmdline" =~ ^qgrep\ ([a-zA-Z0-9._:-]+)$ ]]; then
     exit 0
 fi
 
+# Dedicated qpolicy action: read-only dump of the GUI-domain policy files and
+# the qrexec-policy journal. Used to diagnose a refused qrexec service without
+# opening a general dom0 shell.
+if [[ "$cmdline" == "qpolicy" ]]; then
+    echo "=== policy files ==="
+    sudo ls -la /etc/qubes/policy.d/ 2>&1
+    for f in /etc/qubes/policy.d/50-gui-vnc-web.policy \
+             /etc/qubes/policy.d/50-gui-sys-gui-vnc.policy \
+             /etc/qubes/policy.d/51-gui-global-settings.policy; do
+        echo "--- $f"
+        sudo cat "$f" 2>&1
+    done
+    echo "=== qrexec policy units ==="
+    systemctl list-units --all --no-legend 2>/dev/null | grep -i qrexec-policy || true
+    echo "=== qrexec policy journal ==="
+    sudo journalctl -u qubes-qrexec-policy -u qubes-qrexec-policy-daemon \
+        -n 100 --no-pager 2>&1 | tail -100
+    exit 0
+fi
+
+# Dedicated qlog action: `qlog <qube>` prints the tail of qubesctl's per-target
+# log (read-only). qubesctl writes failures to stderr, which qrexec does not
+# relay, so a failed `qubesctl --targets=<qube> state.apply ...` otherwise
+# reports only an exit code. The path is fixed to /var/log/qubes/mgmt-<qube>.log
+# and the qube name is scoped to one path component.
+if [[ "$cmdline" =~ ^qlog\ ([a-zA-Z0-9._-]+)$ ]]; then
+    VM="${BASH_REMATCH[1]}"
+    f="/var/log/qubes/mgmt-$VM.log"
+    if [ -f "$f" ]; then
+        sudo tail -200 "$f"
+    else
+        echo "no log at $f"
+    fi
+    exit 0
+fi
+
+# Dedicated qstate action: `qstate <qube>` prints the qvm-ls row (read-only) so a
+# qube that qvm-start accepted but is not answering qrexec can be checked
+# (Running/Paused/Halted/Crashed) without opening a general dom0 shell.
+if [[ "$cmdline" =~ ^qstate\ ([a-zA-Z0-9._-]+)$ ]]; then
+    VM="${BASH_REMATCH[1]}"
+    sudo qvm-ls --fields NAME,CLASS,STATE,TEMPLATE 2>&1 | awk -v v="$VM" 'NR==1 || $1==v'
+    exit 0
+fi
+
+# Dedicated qconsole action: `qconsole <qube>` tails the Xen console and the
+# GUI-daemon log for that qube (read-only). Used when a GUI-domain restart is
+# accepted but the qube never answers qrexec.
+if [[ "$cmdline" =~ ^qconsole\ ([a-zA-Z0-9._-]+)$ ]]; then
+    VM="${BASH_REMATCH[1]}"
+    for f in "/var/log/xen/console/guest-$VM.log" \
+             "/var/log/qubes/guid.$VM.log"; do
+        if [ -f "$f" ]; then
+            echo "=== $f"
+            sudo tail -80 "$f"
+        fi
+    done
+    exit 0
+fi
+
+# Dedicated qhost action: read-only host/Xen/qube load snapshot (uptime, free,
+# xl info, xentop, dom0 top, qvm-ls states). No argument, fixed commands.
+if [[ "$cmdline" == "qhost" ]]; then
+    echo "=== uptime"; uptime
+    echo "=== free -m"; free -m
+    echo "=== xl info"; sudo xl info 2>&1 | grep -E 'nr_cpus|free_memory|total_memory|nr_nodes'
+    echo "=== cpu MHz"; grep -m 8 'cpu MHz' /proc/cpuinfo
+    echo "=== xentop"; sudo xentop -b -i 3 -d 1 2>&1 | tail -45
+    echo "=== dom0 top"; top -b -n1 2>&1 | head -20
+    echo "=== qvm-ls"; sudo qvm-ls --fields NAME,CLASS,STATE 2>&1
+    exit 0
+fi
+
 # Dedicated qshow action: `qshow <substr>` prints the first Qubes python file whose path
 # matches <substr> (read-only), for reading the RemoteVM class etc.
 if [[ "$cmdline" =~ ^qshow\ ([a-zA-Z0-9._/-]+)$ ]]; then

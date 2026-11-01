@@ -1,0 +1,20 @@
+{#-
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+
+Copy to salt/config.local.jinja on the machine that renders Salt. That file
+is gitignored and scripts/package.sh excludes it. Do not commit it, and do
+not put it in the public deploy tarball.
+
+This file is included by config.jinja after cfg is built. Mutate the dict
+in place. Replacing a nested dict drops the keys you did not repeat.
+
+AppVM tokens do not belong here. config.jinja is rendered on dom0, so a
+value in this overlay is plaintext on dom0. Those tokens live in the private
+sops checkout and are decrypted inside the AppVM. See salt/secrets/README.md.
+
+The hotspot password is the dom0 exception: mgmt.hotspot reads it while
+creating the NetworkManager connection. Leave it empty to skip creation.
+An existing connection is left alone either way.
+-#}
+{% set _ = cfg['hotspot'].update({'password': ''}) %}

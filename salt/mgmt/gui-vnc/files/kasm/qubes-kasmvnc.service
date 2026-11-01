@@ -1,0 +1,21 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+[Unit]
+Description=KasmVNC Xvnc :1 (mirror target for the Qubes GUI domain)
+Documentation=file:///rw/config/kasmvnc/kasmvnc.yaml
+Wants=lightdm.service
+After=lightdm.service
+ConditionPathExists=/var/run/qubes-service/kasmvnc
+
+[Service]
+Type=simple
+TimeoutStartSec=180
+# vncserver resolves ~/.vnc from HOME; systemd system services have none.
+Environment=HOME=/root
+ExecStart=/rw/config/kasmvnc/start-vnc.sh
+ExecStop=-/usr/bin/vncserver -kill :1
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

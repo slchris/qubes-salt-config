@@ -1,6 +1,0 @@
-# SPDX-FileCopyrightText: 2026 Chris Su
-# SPDX-License-Identifier: MIT
-
-base:
-  'tpl-ai':
-    - templates.ai.install

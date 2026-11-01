@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+#
+# The qube here must match cfg.gui_vnc.qube (a Salt top cannot read
+# config.jinja). Change both together.
+
+base:
+  'sys-gui-vnc':
+    - mgmt.gui-vnc.kasm
