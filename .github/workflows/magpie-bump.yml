@@ -50,8 +50,10 @@ jobs:
           git checkout -B magpie-pin
           git add salt/magpie/lock.yml salt/magpie/README.md
           git commit -m "chore(magpie): bump CLI to v${version}"
-          if git ls-remote --exit-code --heads origin magpie-pin >/dev/null; then
-            git push --force-with-lease origin HEAD:magpie-pin
+          # checkout does not have this branch. Fetch it so --force-with-lease
+          # can see the remote tip. A missing branch is the first run.
+          if git fetch origin magpie-pin:refs/remotes/origin/magpie-pin; then
+            git push --force-with-lease=refs/heads/magpie-pin:refs/remotes/origin/magpie-pin origin HEAD:magpie-pin
           else
             git push origin HEAD:magpie-pin
           fi
