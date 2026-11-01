@@ -35,15 +35,23 @@ def sums_for(digest):
     return digest + "  magpie-cli-linux-amd64\n" + ("ab" * 32) + "  magpie-linux-amd64\n"
 
 
+def next_version(version):
+    parts = [int(part) for part in version.split(".")]
+    parts[-1] += 1
+    return ".".join(str(part) for part in parts)
+
+
 class MagpieBumpTest(unittest.TestCase):
     def test_lock_matches_readme(self):
-        pin = bump.load_lock((ROOT / "salt/magpie/lock.yml").read_text())
+        lock_text = (ROOT / "salt/magpie/lock.yml").read_text()
+        pin = bump.load_lock(lock_text)
         readme = (ROOT / "salt/magpie/README.md").read_text()
-        self.assertEqual(pin["version"], "0.1.2344")
-        self.assertIn("v" + pin["version"], readme)
+        sentence = "`magpie-cli-linux-amd64` v" + pin["version"] + ", not the GTK build:"
+        self.assertRegex(pin["version"], r"^[0-9]+\.[0-9]+\.[0-9]+$")
+        self.assertIn(sentence, readme)
         self.assertIn(pin["url"], readme)
         self.assertIn(pin["sha256"], readme)
-        self.assertEqual(bump.render_lock(pin), (ROOT / "salt/magpie/lock.yml").read_text())
+        self.assertEqual(bump.render_lock(pin), lock_text)
 
     def test_sums_line_ignores_gtk_package(self):
         digest = "a" * 64
@@ -52,20 +60,26 @@ class MagpieBumpTest(unittest.TestCase):
 
     def test_newer_release_replaces_pin(self):
         pin = bump.load_lock((ROOT / "salt/magpie/lock.yml").read_text())
-        digest = "c" * 64
+        version = next_version(pin["version"])
+        tag = "v" + version
         binary = b"magpie-bytes"
-        proposed = bump.plan_update(pin, release(), sums_for(hashlib.sha256(binary).hexdigest()), binary)
-        self.assertEqual(proposed["version"], "0.1.2350")
-        self.assertTrue(proposed["url"].endswith("/v0.1.2350/magpie-cli-linux-amd64"))
+        proposed = bump.plan_update(
+            pin, release(tag=tag), sums_for(hashlib.sha256(binary).hexdigest()), binary
+        )
+        self.assertEqual(proposed["version"], version)
+        self.assertTrue(proposed["url"].endswith("/" + tag + "/magpie-cli-linux-amd64"))
         readme = bump.update_readme(
             (ROOT / "salt/magpie/README.md").read_text(),
             proposed["version"],
             proposed["url"],
             proposed["sha256"],
         )
-        self.assertIn("v0.1.2350", readme)
-        self.assertNotIn("v0.1.2344", readme)
+        old_sentence = "`magpie-cli-linux-amd64` v" + pin["version"] + ", not the GTK build:"
+        new_sentence = "`magpie-cli-linux-amd64` v" + version + ", not the GTK build:"
+        self.assertIn(new_sentence, readme)
+        self.assertNotIn(old_sentence, readme)
         self.assertIn(proposed["sha256"], readme)
+        self.assertNotIn(pin["sha256"], readme)
 
     def test_same_pin_is_left_alone(self):
         pin = bump.load_lock((ROOT / "salt/magpie/lock.yml").read_text())
