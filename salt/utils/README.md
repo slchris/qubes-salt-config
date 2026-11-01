@@ -44,7 +44,7 @@ Template versions are configured in `salt/config.jinja` under `cfg.qvm`:
 ```jinja
 "qvm": {
   "debian": {"version": "13", "repo": "qubes-templates-itl"},  # debian-13 / debian-13-minimal
-  "fedora": {"version": "43", "repo": "qubes-templates-itl"},  # fedora-43 / fedora-43-minimal
+  "fedora": {"version": "44", "repo": "qubes-templates-itl"},  # fedora-43 / fedora-44-minimal
 },
 ```
 
