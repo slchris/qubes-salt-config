@@ -72,7 +72,7 @@ sudo qubesctl state.apply fedora-minimal.create
 | [tools](salt/templates/tools/) | debian-13-minimal | General utilities | tpl-tools, dvm-tools |
 | [gpg](salt/templates/gpg/) | debian-13-minimal | GPG key management (offline) | tpl-gpg, gpg |
 | [vault](salt/templates/vault/) | debian-13-minimal | Password management (offline) | tpl-vault, vault |
-| [vpn](salt/templates/vpn/) | fedora-43-minimal | VPN gateway | tpl-vpn, sys-vpn |
+| [vpn](salt/templates/vpn/) | fedora-44-minimal | VPN gateway | tpl-vpn, sys-vpn |
 | [project-net](salt/templates/project-net/) | debian-13-minimal | Per-project WireGuard gateway (fail-closed) | tpl-project-net, sys-project-net |
 | [gentoo-dev](salt/templates/gentoo-dev/) | gentoo-xfce | Ebuild/package development | tpl-gentoo-dev, gentoo-dev |
 
@@ -235,7 +235,7 @@ Template versions are configured in `salt/config.jinja` under `cfg.qvm`:
 ```jinja
 "qvm": {
   "debian": {"version": "13"},   # Change to upgrade (e.g., "14")
-  "fedora": {"version": "43"},   # Change to upgrade (e.g., "44")
+  "fedora": {"version": "44"},   # Change to upgrade (e.g., "44")
 },
 ```
 
