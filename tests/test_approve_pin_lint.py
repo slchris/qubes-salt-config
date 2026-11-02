@@ -57,6 +57,18 @@ class ApprovePinLintTest(unittest.TestCase):
         runs = [run("pull_request", SHA, None, status="in_progress")]
         self.assertEqual(approve.waiting_ids(runs, SHA), [])
 
+    def test_verdict_waits_until_checks_exist(self):
+        self.assertEqual(approve.verdict([]), "wait")
+        self.assertEqual(approve.verdict([{"bucket": "pending"}]), "wait")
+
+    def test_verdict_passes_only_when_every_check_passed(self):
+        checks = [{"bucket": "pass"}, {"bucket": "skipping"}]
+        self.assertEqual(approve.verdict(checks), "pass")
+
+    def test_verdict_fails_when_one_check_fails(self):
+        checks = [{"bucket": "pass"}, {"bucket": "fail"}]
+        self.assertEqual(approve.verdict(checks), "fail")
+
     def test_two_waiting_workflows_are_both_returned(self):
         runs = [
             run("pull_request", SHA, "action_required", database_id=8),

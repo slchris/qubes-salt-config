@@ -59,7 +59,8 @@ jobs:
             gh pr create --base main --head agents-pin --title "chore(agents): bump pinned CLIs" --body-file "$summary"
           fi
           # GITHUB_TOKEN pull requests sit at action_required until this approve.
-          python3 scripts/approve_pin_lint.py --branch agents-pin --sha "$(git rev-parse HEAD)"
+          # Merge after lint passes. Merging does not install the CLIs.
+          python3 scripts/approve_pin_lint.py --branch agents-pin --merge --sha "$(git rev-parse HEAD)"
 
   templates:
     name: bump template pins
@@ -101,4 +102,5 @@ jobs:
             gh pr create --base main --head template-pin --title "$title" --body-file "$summary"
           fi
           # GITHUB_TOKEN pull requests sit at action_required until this approve.
-          python3 scripts/approve_pin_lint.py --branch template-pin --sha "$(git rev-parse HEAD)"
+          # Merge after lint passes. Merging does not install a template.
+          python3 scripts/approve_pin_lint.py --branch template-pin --merge --sha "$(git rev-parse HEAD)"

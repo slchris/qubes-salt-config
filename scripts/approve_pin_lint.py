@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Chris Su
 # SPDX-License-Identifier: MIT
-"""Approve the lint run GitHub holds on a pin pull request.
+"""Approve the lint run GitHub holds on a pin pull request, then merge it.
 
 A pull request opened with GITHUB_TOKEN creates pull_request workflows in
 the action_required state. The same token can approve the run for the
-commit it just pushed. Other commits are left alone.
+commit it just pushed. Other commits are left alone. With --merge, the
+pull request merges after every check has passed. Merging does not install
+anything on a qube.
 """
 
 import argparse
@@ -42,16 +44,44 @@ def waiting_ids(runs, sha):
     raise LookupError(sha)
 
 
+def verdict(checks):
+    """Return pass, fail, or wait. No checks yet means wait."""
+    if not checks:
+        return "wait"
+    buckets = {(check.get("bucket") or "").lower() for check in checks}
+    if buckets & {"fail", "cancel"}:
+        return "fail"
+    if buckets <= {"pass", "skipping"}:
+        return "pass"
+    return "wait"
+
+
 def _gh_json(args):
     out = subprocess.check_output(["gh", *args], text=True)
     return json.loads(out) if out.strip() else None
+
+
+def _gh_checks(repo, branch):
+    proc = subprocess.run(
+        ["gh", "pr", "checks", branch, "--repo", repo, "--json", "bucket,name,state"],
+        text=True, capture_output=True,
+    )
+    # 0 passed, 1 failed or not reported yet, 8 still running.
+    if proc.returncode not in (0, 1, 8):
+        raise subprocess.CalledProcessError(
+            proc.returncode, proc.args, proc.stdout, proc.stderr)
+    if not proc.stdout.strip():
+        return []
+    return json.loads(proc.stdout)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--branch", required=True)
     parser.add_argument("--sha", required=True)
+    parser.add_argument("--merge", action="store_true")
     parser.add_argument("--attempts", type=int, default=15)
+    parser.add_argument("--merge-attempts", type=int, default=40)
     parser.add_argument("--interval", type=float, default=3)
     args = parser.parse_args()
     repo = os.environ.get("GITHUB_REPOSITORY")
@@ -76,8 +106,25 @@ def main():
             print(f"approved lint run {run_id}")
         if not ids:
             print(f"lint already started for {args.sha}")
+        break
+    else:
+        raise SystemExit(f"lint run for {args.sha} did not appear")
+    if not args.merge:
         return
-    raise SystemExit(f"lint run for {args.sha} did not appear")
+    for _ in range(args.merge_attempts):
+        state = verdict(_gh_checks(repo, args.branch))
+        if state == "wait":
+            time.sleep(args.interval)
+            continue
+        if state == "fail":
+            raise SystemExit(f"lint failed for {args.sha}")
+        subprocess.check_call([
+            "gh", "pr", "merge", args.branch, "--repo", repo, "--merge",
+            "--match-head-commit", args.sha,
+        ])
+        print(f"merged {args.branch} {args.sha}")
+        return
+    raise SystemExit(f"lint did not finish for {args.sha}")
 
 
 if __name__ == "__main__":

@@ -66,4 +66,5 @@ jobs:
             gh pr create --base main --head magpie-pin --title "$title" --body-file "$body"
           fi
           # GITHUB_TOKEN pull requests sit at action_required until this approve.
-          python3 scripts/approve_pin_lint.py --branch magpie-pin --sha "$(git rev-parse HEAD)"
+          # Merge after lint passes. Merging does not install the binary.
+          python3 scripts/approve_pin_lint.py --branch magpie-pin --merge --sha "$(git rev-parse HEAD)"
