@@ -27,9 +27,9 @@ agents:
   # with dpkg in tpl-agents.
   claude-code:
     method: deb
-    version: "2.1.309-1"
-    url: "https://downloads.claude.ai/claude-code/apt/stable/pool/main/c/claude-code/claude-code_2.1.309-1_amd64.deb"
-    sha256: "6911afbed733a8b4320cce2208f3f8aa5400c3d8baa438b72cf27a8d53dbd5a5"
+    version: "2.1.311-1"
+    url: "https://downloads.claude.ai/claude-code/apt/stable/pool/main/c/claude-code/claude-code_2.1.311-1_amd64.deb"
+    sha256: "f8c5d162f17ce0cc2327ce31db33bddfd7448b73b4a9aa5b71f5edb632d74330"
     bin: claude
 
   # The remaining agents are installed into a versioned npm prefix inside the
@@ -83,9 +83,9 @@ gui_apps:
 
   vscode:
     method: deb
-    version: "1.144.0-1793133881"
-    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.144.0-1793133881_amd64.deb"
-    sha256: "b8fbff92d8d95908990eed0acf004c980f29003725469e794ddbd017ea511a20"
+    version: "1.144.1-1793549573"
+    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.144.1-1793549573_amd64.deb"
+    sha256: "6ea99a41d03b62a5c6658bab66f12210322ebe4214dfa5f0bf1a3ca97501b848"
     desktop_file: "com.microsoft.VSCode.desktop"
 
 # CLI tools installed into tpl-agents by agents.template.tools.
