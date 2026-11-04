@@ -9,6 +9,6 @@
 
 repo: yetone/magpie-releases
 asset: magpie-cli-linux-amd64
-version: "0.1.2862"
-url: "https://github.com/yetone/magpie-releases/releases/download/v0.1.2862/magpie-cli-linux-amd64"
-sha256: "b51cd9822ae0d4f57528bcfd0d1b067def7de141a454d158c179552cc240cd0b"
+version: "0.1.2962"
+url: "https://github.com/yetone/magpie-releases/releases/download/v0.1.2962/magpie-cli-linux-amd64"
+sha256: "bbbf1e8eda885d67f1f52ff7f8fb888ad86232a5500b4056ceb928c2562a95ad"
