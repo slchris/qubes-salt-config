@@ -38,7 +38,7 @@ agents:
   codex:
     method: npm
     package: "@openai/codex"
-    version: "0.166.0"
+    version: "0.167.0"
     bin: codex
 
   opencode:
@@ -58,7 +58,7 @@ agents:
   grok:
     method: npm
     package: "@xai-official/grok"
-    version: "1.0.70"
+    version: "1.0.77"
     bin: grok
 
 # GUI applications installed into tpl-agents from the same verified bundle.
@@ -69,9 +69,9 @@ agents:
 gui_apps:
   claude-desktop:
     method: deb
-    version: "4.16336.0"
-    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_4.16336.0_amd64.deb"
-    sha256: "3810733e93792f70eae921175d13e53d1cc6bdce9dc23117f0588087521a64bc"
+    version: "4.23118.0"
+    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_4.23118.0_amd64.deb"
+    sha256: "1ad996e8caab05c9b374646051c40cb6bb9d84f371756f15b8d3728897515a97"
     desktop_file: "com.anthropic.Claude.desktop"
 
   google-chrome:
@@ -83,9 +83,9 @@ gui_apps:
 
   vscode:
     method: deb
-    version: "1.145.0-1793749366"
-    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.145.0-1793749366_amd64.deb"
-    sha256: "64cb445811a347df1b5118a17117cfd5ac0ab7e2cc41832351b938364d17cacd"
+    version: "1.145.2-1793945276"
+    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.145.2-1793945276_amd64.deb"
+    sha256: "aa2bfc5a3db4f0971e8b50ce08d07b1849894a9caca2b0f8ea5b07ac8d68da8d"
     desktop_file: "com.microsoft.VSCode.desktop"
 
 # CLI tools installed into tpl-agents by agents.template.tools.
