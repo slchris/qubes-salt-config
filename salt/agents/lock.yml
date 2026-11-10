@@ -44,13 +44,13 @@ agents:
   opencode:
     method: npm
     package: "@opencode/cli"
-    version: "2.2.6"
+    version: "2.2.7"
     bin: opencode
 
   pi:
     method: npm
     package: "@earendil-works/pi-coding-agent"
-    version: "1.5.0"
+    version: "1.5.2"
     bin: pi
     # pi's npm docs recommend --ignore-scripts for global installs.
     ignore_scripts: true
@@ -69,16 +69,16 @@ agents:
 gui_apps:
   claude-desktop:
     method: deb
-    version: "4.23118.0"
-    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_4.23118.0_amd64.deb"
-    sha256: "1ad996e8caab05c9b374646051c40cb6bb9d84f371756f15b8d3728897515a97"
+    version: "4.23118.1"
+    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_4.23118.1_amd64.deb"
+    sha256: "b09ccdd72b38916c9637d48548db70e77c425eb2e09bb467465409d2ff9d287a"
     desktop_file: "com.anthropic.Claude.desktop"
 
   google-chrome:
     method: deb
-    version: "157.0.8103.38-1"
-    url: "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_157.0.8103.38-1_amd64.deb"
-    sha256: "a62b277dc03da2cff50cc04589deb66f6875be339c066d46adb49b49eedb629d"
+    version: "157.0.8103.50-1"
+    url: "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_157.0.8103.50-1_amd64.deb"
+    sha256: "92148bd14dc05823a64061c2fafcf20d4d82b3fc56f5831206f16d2ac9ee3f79"
     desktop_file: "google-chrome.desktop"
 
   vscode:
