@@ -38,7 +38,7 @@ agents:
   codex:
     method: npm
     package: "@openai/codex"
-    version: "0.167.0"
+    version: "0.167.1"
     bin: codex
 
   opencode:
@@ -69,9 +69,9 @@ agents:
 gui_apps:
   claude-desktop:
     method: deb
-    version: "4.23118.1"
-    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_4.23118.1_amd64.deb"
-    sha256: "b09ccdd72b38916c9637d48548db70e77c425eb2e09bb467465409d2ff9d287a"
+    version: "5.1231.2"
+    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_5.1231.2_amd64.deb"
+    sha256: "eb4d16c9aff0a696366d88728f74fa55136be7cfde3c1fe35af4062b45955b6f"
     desktop_file: "com.anthropic.Claude.desktop"
 
   google-chrome:
@@ -83,9 +83,9 @@ gui_apps:
 
   vscode:
     method: deb
-    version: "1.145.2-1793945276"
-    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.145.2-1793945276_amd64.deb"
-    sha256: "aa2bfc5a3db4f0971e8b50ce08d07b1849894a9caca2b0f8ea5b07ac8d68da8d"
+    version: "1.146.0-1794340865"
+    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.146.0-1794340865_amd64.deb"
+    sha256: "f83565f7f11a60b256807fe2216da8405f9728f193754959695242eecd148992"
     desktop_file: "com.microsoft.VSCode.desktop"
 
 # CLI tools installed into tpl-agents by agents.template.tools.
