@@ -38,13 +38,13 @@ agents:
   codex:
     method: npm
     package: "@openai/codex"
-    version: "0.167.2"
+    version: "0.169.0"
     bin: codex
 
   opencode:
     method: npm
     package: "@opencode/cli"
-    version: "2.2.7"
+    version: "2.3.0"
     bin: opencode
 
   pi:
@@ -69,9 +69,9 @@ agents:
 gui_apps:
   claude-desktop:
     method: deb
-    version: "5.1231.2"
-    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_5.1231.2_amd64.deb"
-    sha256: "eb4d16c9aff0a696366d88728f74fa55136be7cfde3c1fe35af4062b45955b6f"
+    version: "5.11492.2"
+    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_5.11492.2_amd64.deb"
+    sha256: "d10944fa5663b997400cf66c5c7738fd6acf654f8aaeaca5b994eb147aa6b35f"
     desktop_file: "com.anthropic.Claude.desktop"
 
   google-chrome:
