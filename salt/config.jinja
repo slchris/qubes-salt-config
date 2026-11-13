@@ -370,15 +370,16 @@ magpie — publish one existing profile project qube's magpie on the house
 LAN. Another computer adds it as a remote magpie. See salt/magpie/README.md.
 enabled is True for the live slchris publish. Every magpie state no-ops
 while it is False.
-  services       one entry per profile. The key must already exist in
-                 profiles. port is the TCP port magpie binds on
-                 profiles.<key>.project. That qube already exists; these
-                 states do not create one and do not change its netvm.
-                 The LAN path is three hops: sys-net, the netvm of
-                 profiles.<key>.netvm, then that netvm, then the project
-                 qube. A profile with no entry here is not published.
-                 Several profiles are several entries. Each entry needs
-                 its own port, and two entries may share one netvm.
+  services       one entry per published project. The key is a profile
+                 (slchris), or an entry that carries project and netvm
+                 inline (a plain agent AppVM with no gpg/pass qube, so no
+                 profile). port is the TCP port magpie binds on
+                 that project qube. The qube already exists; these states
+                 do not create one and do not change its netvm. The LAN
+                 path is three hops: sys-net, the middle qube, the netvm,
+                 then the project qube. A project with no entry here is not
+                 published. Several entries each need their own port, and
+                 two entries may share one netvm.
                  Do not reuse 22, 2333, 6080, 8080, 8443, 8444, or 18080.
                  The steps are in salt/magpie/README.md.
 Gateway keys and the magpie binary do not belong in this file. The states

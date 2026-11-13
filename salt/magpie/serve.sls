@@ -40,14 +40,18 @@ yes
 {%- set seen_ports = namespace(items=[]) -%}
 {%- set seen_projects = namespace(items=[]) -%}
 {% for name, svc in mg.services.items() %}
+{# A service may name its project and netvm inline, or fall back to the
+   profile of the same key. Inline entries let a qube run magpie without a
+   cfg.profiles entry (no gpg/pass qube), which is what a plain agent
+   AppVM needs. #}
 {%- set profile = cfg.profiles.get(name) -%}
 {%- set port_s = svc.port | string -%}
 {%- set port_i = port_s | int(-1) -%}
-{%- if profile is none -%}
-{%- set _ = ns.errors.append(name ~ ' is not a profile') -%}
+{%- if profile is none and not (svc.get('project') and svc.get('netvm')) -%}
+{%- set _ = ns.errors.append(name ~ ' is not a profile and has no inline project/netvm') -%}
 {%- else -%}
-{%- set project = profile.project | string -%}
-{%- set netvm = profile.netvm | string -%}
+{%- set project = (svc.get('project') or profile.project) | string -%}
+{%- set netvm = (svc.get('netvm') or profile.netvm) | string -%}
 {%- if port_s != (port_i | string) or port_i < 1 or port_i > 65535 or port_i in reserved or port_i in seen_ports.items -%}
 {%- set _ = ns.errors.append(name ~ ' port ' ~ port_s ~ ' is invalid, reserved, or duplicated') -%}
 {%- endif -%}

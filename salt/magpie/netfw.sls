@@ -131,14 +131,15 @@ fi
 {%- set _ = ns.errors.append('cfg.magpie.services is empty') -%}
 {%- endif -%}
 {%- for name, svc in mg.services.items() -%}
+{# Inline project/netvm wins; otherwise fall back to the same-key profile. #}
 {%- set profile = cfg.profiles.get(name) -%}
 {%- set port_s = svc.port | string -%}
 {%- set port_i = port_s | int(-1) -%}
-{%- if profile is none -%}
-{%- set _ = ns.errors.append(name ~ ' is not a profile') -%}
+{%- if profile is none and not (svc.get('project') and svc.get('netvm')) -%}
+{%- set _ = ns.errors.append(name ~ ' is not a profile and has no inline project/netvm') -%}
 {%- else -%}
-{%- set project = profile.project | string -%}
-{%- set netvm = profile.netvm | string -%}
+{%- set project = (svc.get('project') or profile.project) | string -%}
+{%- set netvm = (svc.get('netvm') or profile.netvm) | string -%}
 {%- if port_s != (port_i | string) or port_i < 1 or port_i > 65535 or port_i in reserved or port_i in ns.ports -%}
 {%- set _ = ns.errors.append(name ~ ' port ' ~ port_s ~ ' is invalid, reserved, or duplicated') -%}
 {%- endif -%}
@@ -176,9 +177,9 @@ fi
 
 {%- set looked = namespace(errors=[], rules=[]) -%}
 {%- for name, svc in mg.services.items() -%}
-{%- set profile = cfg.profiles[name] -%}
-{%- set project = profile.project | string -%}
-{%- set hop3 = profile.netvm | string -%}
+{%- set profile = cfg.profiles.get(name) -%}
+{%- set project = (svc.get('project') or (profile.project if profile else '')) | string -%}
+{%- set hop3 = (svc.get('netvm') or (profile.netvm if profile else '')) | string -%}
 {%- set got = namespace(project_ip='', live_netvm='', hop3_ip='', hop2='', hop2_ip='', hop1='') -%}
 {%- set got.project_ip = salt['cmd.run']('qvm-prefs ' ~ project ~ ' ip 2>/dev/null', python_shell=True).strip() -%}
 {%- set got.live_netvm = salt['cmd.run']('qvm-prefs ' ~ project ~ ' netvm 2>/dev/null', python_shell=True).strip() -%}

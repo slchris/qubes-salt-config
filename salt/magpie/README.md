@@ -1,8 +1,8 @@
 # magpie
 
-Publish an existing profile project qube's magpie on the house LAN. The
-Mac's own magpie adds that qube as a remote magpie. Model calls leave
-through the profile netvm. The Mac's agent stays on the Mac.
+Publish an existing project qube's magpie on the house LAN. The Mac's
+own magpie adds that qube as a remote magpie. Model calls leave through
+the project qube's netvm. The Mac's agent stays on the Mac.
 
 `cfg.magpie.enabled` is True, and slchris is published. A magpie state
 still does nothing while that switch is False.
@@ -16,7 +16,7 @@ still does nothing while that switch is False.
 ```
 
 slchris is `3425` on `slchris-project`, netvm `sys-bwg-mullvad`. Another
-profile is another `cfg.magpie.services` entry. The steps are below.
+project is another `cfg.magpie.services` entry. The steps are below.
 
 `3425` is not 2333, 6080, or 18080. The chains are `custom-dnat-magpie`
 and `custom-snat-magpie`. Each hop DNATs and SNATs. The later hops accept
@@ -86,26 +86,42 @@ knows. On this Mac the list is
 the keiki flake and reopen the menu-bar Magpie and Claude Code. The
 default Claude Code model stays `myclaw/claude-opus-5.5`.
 
-## More than one profile
+## More than one project
 
-The dict in `salt/config.jinja` publishes only slchris. A second profile
-is another key in `cfg.profiles` and another entry in
-`cfg.magpie.services`. The project qube and its netvm already exist.
-These states do not create either one, and they do not change the qube's
-netvm. The qube's live netvm has to equal `profiles.<key>.netvm`.
+A second published project is another entry in `cfg.magpie.services`. It
+can name its `project` and `netvm` inline and needs no `cfg.profiles`
+entry — for example a plain agent AppVM with no gpg/pass qube, which is
+not a profile. Without an inline `project`/`netvm`, the entry falls back
+to the profile of the same key. The project qube and its netvm already
+exist. These states do not create either one, and they do not change the
+qube's netvm. The qube's live netvm has to equal the service's `netvm`
+(or `profiles.<key>.netvm`).
+
+```
+  "magpie": {
+    "services": {
+      "slchris": {"port": 3425},
+      "myproject": {
+        "port": 3427,
+        "project": "myproject-project",
+        "netvm": "sys-myproject-net",
+      },
+    },
+  },
+```
 
 `netfw` requires this chain:
 
 ```
-sys-net -> middle qube -> profiles.<key>.netvm -> profiles.<key>.project
+sys-net -> middle qube -> the service's netvm -> the service's project
 ```
 
 On this host the middle qube is `sys-firewall`. Apply refuses the entry
-when the service key is not a profile, when the netvm is empty, `none`,
-`sys-net`, `sys-firewall`, or the project qube itself, when the port is
-not an integer from 1 to 65535, when the port is `22`, `2333`, `6080`,
-`8080`, `8443`, `8444`, or `18080`, when two services use the same port,
-or when two services name the same project qube.
+when the netvm is empty, `none`, `sys-net`, `sys-firewall`, or the project
+qube itself, when the port is not an integer from 1 to 65535, when the
+port is `22`, `2333`, `6080`, `8080`, `8443`, `8444`, or `18080`, when
+two services use the same port, or when two services name the same
+project qube.
 
 `example` is not a qube here. It only shows the shape. This one shares
 `sys-bwg-mullvad` with slchris, so both publishes use that Mullvad exit.
