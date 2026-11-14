@@ -185,6 +185,25 @@ window).
 > verification section. The read-only `qpolicy` action on the remote-debug
 > channel prints the policy files and the qrexec-policy journal.
 
+> **After restarting `sys-gui-vnc`, restart every AppVM that uses it as its
+> guivm.** A Qubes GUI session is a handshake between the guivm and the AppVM:
+> while it is up the qube holds `/var/run/qubes/qrexec-server.user.sock`, and
+> `qubes.WaitForSession` waits for that socket. Restarting the GUI domain drops
+> the old session, and an AppVM that was already running keeps waiting for a
+> socket that never reappears. The symptom is a qube whose menu items (Run
+> Terminal, Chrome, Claude) do nothing: `qubes.StartApp` runs, blocks in
+> `qubes.WaitForSession`, and never draws a window. `qrexec-server.user.sock`
+> is absent in that qube. The fix is to restart it, not to touch the policy:
+>
+> ```sh
+> qvm-shutdown --wait <project-qube>
+> qvm-start <project-qube>
+> ```
+>
+> Credentials live on the private volume and survive this. Do not `qvm-kill`
+> the guivm as a shortcut to a wedged GUI domain: kill+start has the same
+> effect on every AppVM and should be followed by the same restarts.
+
 ### Performance / latency
 
 A LAN session can still feel laggy because the path is software-only, not
