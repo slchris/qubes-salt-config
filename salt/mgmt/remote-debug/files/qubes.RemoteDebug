@@ -507,8 +507,14 @@ ALLOW=(
   '^qvm-copy-to-vm [a-zA-Z0-9._-]+ [a-zA-Z0-9._/-]+$'
   '^qvm-volume (list|info)( [a-zA-Z0-9:._-]+)?$'
   '^qvm-volume resize [a-zA-Z0-9._-]+:private [0-9]+[GM]?$'
-  '^qvm-shutdown( --wait)? [a-zA-Z0-9._-]+$'
-  '^qvm-start [a-zA-Z0-9._-]+$'
+  # The qube name is matched with a leading letter/digit so a bare `--all`
+  # (or any other long flag) cannot be read as a qube name and slip through.
+  '^qvm-shutdown( --wait)? [a-zA-Z0-9][a-zA-Z0-9._-]*$'
+  '^qvm-start [a-zA-Z0-9][a-zA-Z0-9._-]*$'
+  # qvm-kill is needed for a qube whose qrexec is dead: qvm-shutdown then
+  # waits out its timeout and leaves it Running. Scoped to ONE named qube;
+  # `qvm-kill --all` (and a bare `--all` read as a name) does not match.
+  '^qvm-kill [a-zA-Z0-9][a-zA-Z0-9._-]*$'
   '^qvm-sync-appmenus( --force-rpc)? [a-zA-Z0-9._-]+$'
 )
 
