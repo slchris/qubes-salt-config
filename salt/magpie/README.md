@@ -50,10 +50,11 @@ https://github.com/yetone/magpie-releases/releases/download/v0.1.4656/magpie-cli
 
 That digest is the `magpie-cli-linux-amd64` line in the tag's
 `SHA256SUMS`. Put the file at `/rw/config/magpie/bin/magpie`, mode
-`0755`, owner `user`, then restart the unit. Do not restart the qube:
-the path is on the private volume, and a qube restart drops the Claude
-login. `/usr/bin/magpie` is only a fallback. With no binary the unit
-exits 0 and stays stopped.
+`0755`, owner `user`, then restart the unit. Restarting the unit is
+enough: it re-reads the binary, and the Claude login is untouched
+because both it and the binary live on the private volume (`/rw`, also
+mounted at `/home`), which survives a qube restart. `/usr/bin/magpie` is
+only a fallback. With no binary the unit exits 0 and stays stopped.
 
 ```
 sudo systemctl restart qubes-magpie.service
@@ -166,7 +167,11 @@ sudo systemctl restart qubes-magpie.service
 ```
 
 `mac` is the key's name on that qube only. The add command prints the
-key once. Leave the qube running. A restart drops its vendor login.
+key once. A qube restart keeps the login: `.claude/.credentials.json`
+and magpie's `logins.json` are on the private volume, not in the root
+image. A restart does end any in-flight Claude run and drops the running
+unit's memory, so prefer `systemctl restart qubes-magpie.service` when
+you only changed the binary or a gateway key.
 
 `magpie.serve` is once per project qube. `magpie.netfw` is once, and
 that one apply rewrites every hop for every published port, including
@@ -205,8 +210,9 @@ Claude Code model stays `myclaw/claude-opus-5.5`.
 
 ## Apply
 
-Do not `top.enable magpie`. The project qube is already running. Do not
-restart it.
+Do not `top.enable magpie`. The project qube is already running. Restarting
+it is not required to apply these states (and it would end any in-flight
+Claude run); the states update files and restart only the unit.
 
 ```
 sudo qubesctl --skip-dom0 --targets=slchris-project state.apply magpie.serve

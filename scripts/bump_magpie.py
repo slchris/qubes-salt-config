@@ -160,7 +160,9 @@ def pr_body(version):
         "```sh\n"
         "sudo systemctl restart qubes-magpie.service\n"
         "```\n\n"
-        "Do not restart the qube. A qube restart drops the Claude login.\n"
+        "The unit restart is enough. The binary and the Claude login are both "
+        "on the private volume (`/rw`, also mounted at `/home`), so a qube "
+        "restart keeps the login too; it only ends an in-flight run.\n"
     )
 
 
