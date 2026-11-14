@@ -19,6 +19,7 @@ Code's DISABLE_UPDATES managed setting is checked explicitly.
         mkdir -p /tmp/agents-verify
         test -x /opt/agents-bundle/node/current/bin/node
         grep -q 'DISABLE_UPDATES' /etc/claude-code/managed-settings.json
+        grep -q 'CLAUDE_STREAM_IDLE_TIMEOUT_MS' /etc/claude-code/managed-settings.json
         for c in claude codex opencode pi grok; do
           command -v "$c" >/dev/null
           printf '%s: ' "$c"

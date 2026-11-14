@@ -59,12 +59,21 @@ fi
 # both the background updater and `claude update` / `claude install`: the
 # binary is owned by the template, and an AppVM must not grow a shadow copy
 # under ~/.local that survives template updates.
+#
+# The stream timeouts match Mac-side defaults for a remote magpie. Claude Code
+# gives a non-first-party provider only 300s of byte silence before it aborts
+# the reply ("stream idle: no bytes"), and a long effort:max turn through a
+# WireGuard exit can go quiet for longer than that. 900s idle / 30min API
+# keeps a slow reply alive without letting a dead one hang forever.
 echo "==> writing Claude Code managed settings"
 install -d -m 0755 /etc/claude-code
 cat > /etc/claude-code/managed-settings.json <<'JSON'
 {
   "env": {
-    "DISABLE_UPDATES": "1"
+    "DISABLE_UPDATES": "1",
+    "CLAUDE_STREAM_IDLE_TIMEOUT_MS": "900000",
+    "CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS": "900000",
+    "API_TIMEOUT_MS": "1800000"
   }
 }
 JSON

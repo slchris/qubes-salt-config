@@ -322,7 +322,12 @@ The template owns the binaries:
 
 - Claude Code: `/etc/claude-code/managed-settings.json` sets
   `DISABLE_UPDATES=1`, which blocks background updates and `claude update` /
-  `claude install`.
+  `claude install`. The same file raises the stream timeouts
+  (`CLAUDE_STREAM_IDLE_TIMEOUT_MS` / `CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS` to
+  900000, `API_TIMEOUT_MS` to 1800000): for a non-first-party provider Claude
+  Code aborts a reply after only 300s of byte silence, and an `effort: max`
+  turn through a WireGuard exit can go quiet longer than that. A magpie
+  provider published this way (see `salt/magpie/`) hits this first.
 - opencode: `OPENCODE_DISABLE_AUTOUPDATE=true` is set in
   `/etc/profile.d/agents.sh` and `/etc/environment.d/90-agents.conf`.
 - Codex, pi and Grok Build update only when you run their update command;
