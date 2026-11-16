@@ -74,6 +74,7 @@ sudo qubesctl state.apply fedora-minimal.create
 | [vault](salt/templates/vault/) | debian-13-minimal | Password management (offline) | tpl-vault, vault |
 | [vpn](salt/templates/vpn/) | fedora-44-minimal | VPN gateway | tpl-vpn, sys-vpn |
 | [project-net](salt/templates/project-net/) | debian-13-minimal | Per-project WireGuard gateway (fail-closed) | tpl-project-net, sys-project-net |
+| [http-proxy-net](salt/templates/http-proxy-net/) | debian-13-minimal | Transparent HTTP-CONNECT proxy gateway (fail-closed) | tpl-http-proxy-net, sys-http-proxy |
 | [gentoo-dev](salt/templates/gentoo-dev/) | gentoo-xfce | Ebuild/package development | tpl-gentoo-dev, gentoo-dev |
 
 **Note:** `gentoo-dev` requires a Gentoo base template, which Qubes does not ship

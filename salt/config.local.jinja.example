@@ -18,3 +18,21 @@ creating the NetworkManager connection. Leave it empty to skip creation.
 An existing connection is left alone either way.
 -#}
 {% set _ = cfg['hotspot'].update({'password': ''}) %}
+
+{# HTTP-CONNECT proxy gateway. The default key is in config.jinja; add
+   per-key overrides here (label, netvm, memory, maxmem). The proxy hostname
+   and credentials are NOT here: they live only in
+   /rw/config/http-proxy-net/upstream.conf inside sys-http-proxy.
+
+   agents.exit needs an entry for every agent qube's netvm, so give the
+   proxy gateway the timezone/locale of the proxy's region. The value below
+   is an example; change it if the proxy exits elsewhere. Use a locale that
+   tpl-agents generates (the exits in config.jinja are all en_US.UTF-8).
+
+   A new private project qube created from tpl-agents also belongs here,
+   not in the committed agents.qubes list; uncomment and name it.
+-#}
+{% set _ = cfg['agents']['exits'].update({
+  'sys-http-proxy': {'timezone': 'Asia/Shanghai', 'locale': 'en_US.UTF-8'},
+}) %}
+{# {% set _ = cfg['agents']['qubes'].append('<proxy-project>') %} #}

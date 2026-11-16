@@ -1,0 +1,16 @@
+{#
+SPDX-FileCopyrightText: 2026 Chris Su
+SPDX-License-Identifier: MIT
+#}
+
+{% from 'config.jinja' import cfg with context %}
+base:
+  'dom0':
+    - match: nodegroup
+    - templates.http-proxy-net.create
+  'tpl-http-proxy-net':
+    - templates.http-proxy-net.install
+{% for key in cfg.http_proxy_nets %}
+  'sys-{{ key }}':
+    - templates.http-proxy-net.configure
+{% endfor %}

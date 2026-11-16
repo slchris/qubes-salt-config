@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+{% from 'config.jinja' import cfg with context %}
+base:
+{% for key in cfg.http_proxy_nets %}
+  'sys-{{ key }}':
+    - templates.http-proxy-net.configure
+{% endfor %}

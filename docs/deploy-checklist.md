@@ -141,7 +141,7 @@ Apply the ones you use. Each is `create` (dom0) → `install` (template) →
 `configure` (the app/dvm qube). **[remote-ok]** once remote-debug works.
 
 Debian-based: `dev`, `mcp`, `media`, `im`, `tools`, `gpg` (offline),
-`vault` (offline), `project-net`, `ai`. Fedora-based: `vpn`.
+`vault` (offline), `project-net`, `http-proxy-net`, `ai`. Fedora-based: `vpn`.
 Gentoo-based: `gentoo-dev` (needs a Gentoo base template — you already
 have `gentoo-minimal`).
 
@@ -149,6 +149,13 @@ have `gentoo-minimal`).
 > (install + configure + wg0.conf in place, see
 > `salt/templates/project-net/README.md`) before first starting `ai`, whose
 > netvm is pinned to `sys-project-net`.
+
+> `http-proxy-net` is configured in two stages. Finish the template install
+> before starting the gateway. `configure` then leaves it **fully closed**
+> until you fill `/rw/config/http-proxy-net/upstream.conf` inside
+> `sys-http-proxy` and restart `http-proxy-net-start.service`. See
+> `salt/templates/http-proxy-net/README.md`. Do not attach a project qube to
+> it before those steps.
 
 Example — `dev`:
 

@@ -491,6 +491,16 @@ project_nets — one entry per project-network gateway. The key becomes
   original sys-project-net. Adding a key is all the Salt side needs; the other
   end (BWG peer/subnet/table) lives in the homelab repo.
 
+http_proxy_nets — one entry per transparent HTTP-CONNECT proxy gateway. The
+  key becomes sys-<key> ("http-proxy" -> sys-http-proxy). Every gateway uses
+  tpl-http-proxy-net and sends all downstream TCP through one upstream HTTP
+  proxy using CONNECT; downstream DNS goes out as DoH through the same
+  proxy. The proxy hostname and credentials are a secret: they live only in
+  /rw/config/http-proxy-net/upstream.conf inside the gateway, never here.
+  Optional fields per key: template (default tpl-http-proxy-net), label,
+  netvm (default sys-firewall), memory, maxmem. Adding a key is all the Salt
+  side needs; each gateway needs its own upstream.conf.
+
 agents.build.netvm — NetVM of the agent-build AppVM. Chrome, Claude Desktop,
   Claude Code and the npm agents are downloaded here, not by a template.
   Point it at a project-net gateway whose WireGuard tunnel is up, and keep
@@ -546,6 +556,10 @@ agents.template.locale — locale generated in the image. The boot service
 
   "project_nets": {
     "project-net": {},
+  },
+
+  "http_proxy_nets": {
+    "http-proxy": {},
   },
 
   "remote_debug": {

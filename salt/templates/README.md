@@ -43,6 +43,7 @@ Before using any template, ensure:
 | [gpg](gpg/) | GPG key management (offline) | tpl-gpg, gpg |
 | [vault](vault/) | Password management (offline) | tpl-vault, vault |
 | [project-net](project-net/) | Per-project WireGuard gateway (fail-closed) | tpl-project-net, sys-project-net |
+| [http-proxy-net](http-proxy-net/) | Transparent HTTP-CONNECT proxy gateway (fail-closed) | tpl-http-proxy-net, sys-http-proxy |
 
 Claude login is [agents](../agents/) (`tpl-agents`). `templates.retire-ai-mcp`
 removes the old `tpl-ai` and `tpl-mcp` qubes.
