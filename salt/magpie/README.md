@@ -41,11 +41,11 @@ a newer terminal build is published. Merging that pull request does not
 copy the file onto a qube.
 
 The CLI on `slchris-project` is the official terminal build
-`magpie-cli-linux-amd64` v0.1.4265, not the GTK build:
+`magpie-cli-linux-amd64` v0.1.4386, not the GTK build:
 
 ```
-https://github.com/yetone/magpie-releases/releases/download/v0.1.4265/magpie-cli-linux-amd64
-21120a89b1683b1c4445856caed7cf2b0c5805cdf0fb7c96b03ee620114cd87e
+https://github.com/yetone/magpie-releases/releases/download/v0.1.4386/magpie-cli-linux-amd64
+e6057ba06143868e8e9acd474b11fdf9db5791c78f49f23496b24979a62bc3db
 ```
 
 That digest is the `magpie-cli-linux-amd64` line in the tag's
