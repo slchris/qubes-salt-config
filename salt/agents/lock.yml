@@ -58,7 +58,7 @@ agents:
   grok:
     method: npm
     package: "@xai-official/grok"
-    version: "1.0.77"
+    version: "1.0.88"
     bin: grok
 
 # GUI applications installed into tpl-agents from the same verified bundle.
