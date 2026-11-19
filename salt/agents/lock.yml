@@ -38,13 +38,13 @@ agents:
   codex:
     method: npm
     package: "@openai/codex"
-    version: "0.169.0"
+    version: "0.170.0"
     bin: codex
 
   opencode:
     method: npm
     package: "@opencode/cli"
-    version: "2.3.0"
+    version: "2.3.2"
     bin: opencode
 
   pi:
@@ -58,7 +58,7 @@ agents:
   grok:
     method: npm
     package: "@xai-official/grok"
-    version: "1.0.88"
+    version: "1.0.89"
     bin: grok
 
 # GUI applications installed into tpl-agents from the same verified bundle.
@@ -76,16 +76,16 @@ gui_apps:
 
   google-chrome:
     method: deb
-    version: "157.0.8103.78-1"
-    url: "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_157.0.8103.78-1_amd64.deb"
-    sha256: "4d740636b5c96f687798602c5aad6a5a270f44dd02e48db0638ae77aa4867b1b"
+    version: "158.0.8127.36-1"
+    url: "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_158.0.8127.36-1_amd64.deb"
+    sha256: "4696bce00b128f385a870ba2eb6eede61698f22374ea0d8e09af8a1c6543d397"
     desktop_file: "google-chrome.desktop"
 
   vscode:
     method: deb
-    version: "1.146.0-1794340865"
-    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.146.0-1794340865_amd64.deb"
-    sha256: "f83565f7f11a60b256807fe2216da8405f9728f193754959695242eecd148992"
+    version: "1.147.0-1794903003"
+    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.147.0-1794903003_amd64.deb"
+    sha256: "749efcdf5008a8323d76773b836199cdecf708fdb993f0f0544d9475176837ab"
     desktop_file: "com.microsoft.VSCode.desktop"
 
 # CLI tools installed into tpl-agents by agents.template.tools.
