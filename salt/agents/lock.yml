@@ -38,7 +38,7 @@ agents:
   codex:
     method: npm
     package: "@openai/codex"
-    version: "0.170.0"
+    version: "0.171.0"
     bin: codex
 
   opencode:
@@ -50,7 +50,7 @@ agents:
   pi:
     method: npm
     package: "@earendil-works/pi-coding-agent"
-    version: "1.5.2"
+    version: "1.6.0"
     bin: pi
     # pi's npm docs recommend --ignore-scripts for global installs.
     ignore_scripts: true
