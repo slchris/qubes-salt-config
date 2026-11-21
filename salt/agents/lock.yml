@@ -27,9 +27,9 @@ agents:
   # with dpkg in tpl-agents.
   claude-code:
     method: deb
-    version: "2.1.311-1"
-    url: "https://downloads.claude.ai/claude-code/apt/stable/pool/main/c/claude-code/claude-code_2.1.311-1_amd64.deb"
-    sha256: "f8c5d162f17ce0cc2327ce31db33bddfd7448b73b4a9aa5b71f5edb632d74330"
+    version: "2.1.323-1"
+    url: "https://downloads.claude.ai/claude-code/apt/stable/pool/main/c/claude-code/claude-code_2.1.323-1_amd64.deb"
+    sha256: "9e6036114376ab1b1428d31f4aa629bc893b06f23c07ee7a1dfd3627a319000a"
     bin: claude
 
   # The remaining agents are installed into a versioned npm prefix inside the
@@ -58,7 +58,7 @@ agents:
   grok:
     method: npm
     package: "@xai-official/grok"
-    version: "1.0.89"
+    version: "1.0.92"
     bin: grok
 
 # GUI applications installed into tpl-agents from the same verified bundle.
@@ -69,9 +69,9 @@ agents:
 gui_apps:
   claude-desktop:
     method: deb
-    version: "5.11492.5"
-    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_5.11492.5_amd64.deb"
-    sha256: "b96208b207e450b740f7dbe304f6077fed80e7f3d37ddd545991c4e8201564cf"
+    version: "6.28899.2"
+    url: "https://downloads.claude.ai/claude-desktop/apt/stable/pool/main/c/claude-desktop/claude-desktop_6.28899.2_amd64.deb"
+    sha256: "b7cbcc47a8c37cfe409eb146885b0196ffcd9b1f29be1642eb78a894d89ef6b1"
     desktop_file: "com.anthropic.Claude.desktop"
 
   google-chrome:
