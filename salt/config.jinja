@@ -501,6 +501,20 @@ http_proxy_nets — one entry per transparent HTTP-CONNECT proxy gateway. The
   netvm (default sys-firewall), memory, maxmem. Adding a key is all the Salt
   side needs; each gateway needs its own upstream.conf.
 
+hysteria_nets — one entry per transparent Hysteria2 (QUIC) gateway. The key
+  becomes sys-<key> ("hysteria" -> sys-hysteria). Every gateway uses
+  tpl-hysteria-net and runs sing-box with a userspace gvisor tun whose address
+  is the Qubes virtual-DNS subnet 10.139.1.0/30, carrying a Hysteria2 outbound.
+  Downstream traffic is forwarded into tun0 (the same forwarding model as
+  templates/project-net), so no DNAT-to-local is needed. This is the right exit
+  on a long-RTT cross-border path where a WireGuard/BBR tunnel collapses to a
+  few hundred KB/s — QUIC keeps much higher per-stream throughput. The server,
+  password and TLS are a secret: they live only in
+  /rw/config/hysteria-net/config.json inside the gateway, never here. Optional
+  fields per key: template (default tpl-hysteria-net), label, netvm (default
+  sys-firewall), memory, maxmem. hysteria_net.singbox_version pins the sing-box
+  release fetched into the gateway (1.9.x: 1.10+ segfaults on this VM).
+
 agents.build.netvm — NetVM of the agent-build AppVM. Chrome, Claude Desktop,
   Claude Code and the npm agents are downloaded here, not by a template.
   Point it at a project-net gateway whose WireGuard tunnel is up, and keep
@@ -528,7 +542,7 @@ agents.template.locale — locale generated in the image. The boot service
 {#- scripts/bump_templates.py writes these two versions. sys-gui-vnc stays
     fedora-43-xfce; its KasmVNC RPM is built for that Fedora. -#}
 {%- set qvm_debian_version = "13" -%}
-{%- set qvm_fedora_version = "44" -%}
+{%- set qvm_fedora_version = "43" -%}
 
 {%- set cfg = {
   "qvm": {
@@ -560,6 +574,13 @@ agents.template.locale — locale generated in the image. The boot service
 
   "http_proxy_nets": {
     "http-proxy": {},
+  },
+
+  "hysteria_nets": {
+  },
+
+  "hysteria_net": {
+    "singbox_version": "1.9.7",
   },
 
   "remote_debug": {

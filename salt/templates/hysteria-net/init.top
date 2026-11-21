@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 Chris Su
+# SPDX-License-Identifier: MIT
+
+{% from 'config.jinja' import cfg with context %}
+base:
+  'dom0':
+    - match: nodegroup
+    - templates.hysteria-net.create
+  'tpl-hysteria-net':
+    - templates.hysteria-net.install
+{% for key in cfg.hysteria_nets %}
+  'sys-{{ key }}':
+    - templates.hysteria-net.configure
+{% endfor %}
