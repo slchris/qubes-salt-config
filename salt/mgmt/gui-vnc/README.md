@@ -40,6 +40,7 @@ stream; TLS terminates at KasmVNC inside the GUI domain.
 | `web-install` | web template | `socat` + networking agent; removes `novnc`/`websockify` |
 | `web-configure` | `sys-vncweb` | the socat TCP relay, persisted in `/rw` |
 | `netfw` | dom0 | optional LAN DNAT to the front end (only if `web.network=portforward`) |
+| `healthcheck` | dom0 | systemd timer that probes the GUI domain and auto-recovers a wedged one (see below) |
 | `teardown` | dom0 | revert `default_guivm`, revoke policy, remove the qubes |
 
 It is a port of Qubes' `qvm.sys-gui-vnc` / `qvm.sys-gui-template` /
@@ -269,6 +270,64 @@ no DNAT is installed and `6080` is not reachable from the LAN. The units keep
 running inside `sys-vncweb`; if you need to poke at them, do it from dom0 with
 `qvm-run`.
 
+## Health check / auto-recovery
+
+The GUI domain can **wedge**: a `kasmxproxy` segfault (or a hung lightdm/`:0`
+session) leaves the whole qube's qrexec agent unresponsive. Every qube then
+silently stops rendering windows, and `qvm-shutdown` cannot stop it — on the
+reference machine this went unnoticed for days. Note that `kasmxproxy`'s
+`Restart=always` only helps when it **exits**; a hang is not an exit.
+
+`mgmt.gui-vnc.healthcheck` installs a systemd timer (default every 5 min) that
+runs `qvm-run --no-gui <guivm> true` under a timeout. A healthy domain answers
+at once; a wedged one hangs. After `fail_threshold` consecutive failures it:
+
+1. `qvm-kill` the GUI domain (qvm-shutdown hangs on a wedged qube),
+2. `qvm-start` it and wait for qrexec to answer,
+3. restart the running AppVMs that use it as their GUI domain, so their
+   `qubes-gui` reconnects to the fresh session (a qube started under the dead
+   GUI domain keeps showing no windows until it is restarted).
+
+It is opt-in via `cfg.gui_vnc.healthcheck` (enabled by default when
+`gui_vnc.enabled` is True):
+
+```jinja
+"healthcheck": {
+  "enabled": True,
+  "probe_timeout": "20s",   # per-probe qvm-run bound
+  "fail_threshold": 3,      # consecutive fails before recovery
+  "interval": "5min",       # timer period
+},
+```
+
+```sh
+sudo qubesctl state.apply mgmt.gui-vnc.healthcheck
+```
+
+State and log live in `/var/lib/gui-vnc-healthcheck/` (`fail_count`,
+`down_since`, `health.log`). Check it with:
+
+```sh
+systemctl list-timers gui-vnc-healthcheck.timer
+journalctl -t gui-vnc-healthcheck -n 20
+cat /var/lib/gui-vnc-healthcheck/health.log
+```
+
+### If a qube still shows no windows
+
+It almost always means its `qubes-gui` is still bound to a **previous** GUI
+domain session, or a stale X lock is in the way. Fix per qube:
+
+```sh
+qvm-shutdown --wait <qube> && qvm-start <qube>
+```
+
+If the qube has a leftover X lock from a manual experiment, clear it inside the
+qube first (`rm -f /tmp/.X0-lock /var/run/xf86-qubes-socket`) — never start
+`Xorg`/`xinit` by hand in an AppVM; only `qubes-gui-agent` should own `:0`.
+Also keep `guivm`/`audiovm` inheriting `default_guivm` (the VNC domain); setting
+`guivm dom0` sends windows to dom0, where the KasmVNC desktop never sees them.
+
 ## Verify
 
 ```sh
@@ -426,6 +485,26 @@ sys-gui-vnc`:**
   them with `mgmt.gui-vnc.global-settings` after setting
   `gui_vnc.enabled = False`, or delete
   `/etc/qubes/policy.d/51-gui-global-settings.policy` in dom0.
+- **The GUI domain's own notifications and icon updates must be denied in
+  its policy.** dom0's `/etc/qubes/rpc-config/qubes.Notifications` and
+  `.../qubes.WindowIconUpdater` carry `wait-for-session=1`, and for a
+  dom0-target call `qrexec-daemon` runs dom0's `qubes.WaitForSession`, which
+  waits for `/var/run/qubes/guid-running.<domid>` — a marker only a GUI
+  daemon running in dom0 creates. A GUI-domain setup runs no GUI daemon in
+  dom0, so each notification or icon update the GUI domain emits for itself
+  never starts and leaks one `qrexec-daemon` request slot forever
+  (`MAX_CLIENTS = 256`). Verified on 2026-11-18: after ~2 days the daemon
+  had exactly 256 stuck `qubes.WaitForSession` children and every outbound
+  qrexec from the GUI domain was refused in milliseconds with `Service
+  request denied, too many pending requests` — Qubes Manager and the app
+  menu showed no qubes, which looks like a missing-qube or VNC problem.
+  `mgmt.gui-vnc.create` now writes explicit `deny` lines for
+  `qubes.Notifications` and `qubes.WindowIconUpdater` from the GUI domain,
+  for both the `@default` and explicit `dom0` destinations. Self-targeting
+  is not an alternative: qrexec refuses loopback connections. Nothing is
+  lost — neither destination can work in a GUI-domain setup. After the fix
+  a restart of `sys-gui-vnc` cleared the stuck slots; a fresh daemon
+  starts with `children=0` and the refusals stop.
 
 Bugs found and fixed while moving from x11vnc/noVNC to KasmVNC:
 

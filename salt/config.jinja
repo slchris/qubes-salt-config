@@ -745,6 +745,12 @@ agents.template.locale — locale generated in the image. The boot service
       "ext_port": 6080,
     },
     "keep_qubes": False,
+    "healthcheck": {
+      "enabled": True,
+      "probe_timeout": "20s",
+      "fail_threshold": 3,
+      "interval": "5min",
+    },
   },
 
   "tailscale": {
