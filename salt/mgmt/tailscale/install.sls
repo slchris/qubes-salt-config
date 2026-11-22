@@ -37,6 +37,26 @@ include:
   - mgmt.mirror.debian
 {% endif %}
 
+# Bootstrap the very tools the next state uses. A *-minimal template ships
+# neither curl nor ca-certificates, but the keyring fetch below runs curl, so
+# without this the install aborts with "curl: command not found" before the
+# pkg.installed that lists curl is ever reached. Install one copy of Debian's
+# own repos first (through the Qubes update-proxy), then fetch the Tailscale key.
+"tailscale-bootstrap-tools":
+  pkg.installed:
+    - pkgs:
+      - curl
+      - ca-certificates
+    - require:
+      - cmd: "tailscale-apt-update-debian"
+
+# Refresh the base (Debian) index the bootstrap install needs. This runs before
+# the Tailscale repo exists, so it must not require tailscale-apt-source.
+"tailscale-apt-update-debian":
+  cmd.run:
+    - name: apt-get update
+    - runas: root
+
 # Tailscale's signing key + apt source. Debian 13 = trixie. keyrings/sources are
 # placed the modern (deb822-free) way to match Tailscale's documented install.
 "tailscale-apt-keyring":
@@ -50,6 +70,8 @@ include:
         fi
     - runas: root
     - unless: test -s /usr/share/keyrings/tailscale-archive-keyring.gpg
+    - require:
+      - pkg: "tailscale-bootstrap-tools"
 
 "tailscale-apt-source":
   file.managed:
