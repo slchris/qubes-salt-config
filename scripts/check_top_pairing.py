@@ -25,6 +25,7 @@ EXCLUDE_EXACT = {
     "salt/dotfiles/shell.sls",
     "salt/agents/configure.sls",  # applied per-AppVM via --targets (timezone/browser)
     "salt/agents/split.sls",      # applied per-AppVM via --targets (split GPG/SSH client)
+    "salt/mgmt/tailscale/node.sls",  # applied per-qube via --targets (any tailnet member)
 }
 
 
