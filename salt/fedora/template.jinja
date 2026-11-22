@@ -8,7 +8,7 @@ Version and repo are configurable in config.jinja (cfg.qvm.fedora).
 
 {% from 'config.jinja' import cfg with context -%}
 {% set base = 'fedora' -%}
-{% set version = cfg.qvm.fedora.get('version', '43') -%}
+{% set version = cfg.qvm.fedora.get('version', '44') -%}
 {% set flavor = '' -%}
 {% set repo = cfg.qvm.fedora.get('repo', 'qubes-templates-itl') -%}
 {% if flavor -%}
