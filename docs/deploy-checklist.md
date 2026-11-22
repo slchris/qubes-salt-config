@@ -32,7 +32,7 @@ once remote-debug is up are marked **[remote-ok]**.
 - [ ] Base minimal templates present (install if missing — **dom0**):
   ```sh
   qvm-check debian-13-minimal || sudo qubes-dom0-update --clean qubes-template-debian-13-minimal
-  qvm-check fedora-43-minimal || sudo qubes-dom0-update --clean qubes-template-fedora-43-minimal
+  qvm-check fedora-44-minimal || sudo qubes-dom0-update --clean qubes-template-fedora-44-minimal
   ```
 - [ ] A networked **transfer qube** for moving files (e.g. your `dev` qube).
 
