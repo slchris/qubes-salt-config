@@ -33,6 +33,19 @@ the image), and cfg.tailscale.enabled with a non-empty login_server.
 {%- set node_hostnames = ts.get('node_hostnames', {}) -%}
 {%- set qube_name = grains['id'] -%}
 {%- set hostname = node_hostnames.get(qube_name, '') -%}
+{#- ts.node_ports maps a qube name to TCP ports this node must accept on
+    tailscale0 (e.g. sys-vncweb -> [6080]). A plain member only listens on 22
+    (remote-debug already opened it); a service like the KasmVNC front end needs
+    its own port opened explicitly, since AppVM input is default-drop. When this
+    qube IS the KasmVNC web front end and gui_vnc.web.tailscale is on, derive its
+    port from web.listen/ext_port so it need not also be listed in node_ports. -#}
+{%- set node_ports = ts.get('node_ports', {}).get(qube_name, []) -%}
+{%- set gv = cfg.get('gui_vnc', {}) -%}
+{%- set gv_web = gv.get('web', {}) -%}
+{%- if not node_ports and gv_web.get('tailscale', {}).get('enabled', False)
+      and gv_web.get('qube', 'sys-vncweb') == qube_name -%}
+{%-   set node_ports = [gv_web.get('ext_port', 6080)] -%}
+{%- endif -%}
 
 {% if grains['nodename'] != 'dom0' %}
 {% if ts.get('enabled', False) %}
@@ -84,6 +97,30 @@ the image), and cfg.tailscale.enabled with a non-empty login_server.
     - runas: root
     - require:
       - cmd: "tailscale-node-bind-dirs-seed"
+
+# Start tailscaled on every boot. `systemctl enable` above does NOT persist on an
+# AppVM (/etc is reset from the template each boot), so the daemon must be pulled
+# up from rc.local, which qubes-misc-post runs on every AppVM boot — the same
+# path remote-debug uses for sshd. bind-dirs has already restored /var/lib/
+# tailscale by then, so the node keeps its identity instead of re-registering.
+"tailscale-node-rc-local-daemon":
+  file.blockreplace:
+    - name: /rw/config/rc.local
+    - marker_start: "# >>> tailscale-node >>>"
+    - marker_end: "# <<< tailscale-node <<<"
+    - append_if_not_found: True
+    - show_changes: True
+    - content: |
+        systemctl start tailscaled 2>/dev/null || true
+
+"tailscale-node-rc-local-daemon-shebang":
+  cmd.run:
+    - name: |
+        f=/rw/config/rc.local
+        head -n1 "$f" | grep -q '^#!' || sed -i '1i #!/bin/sh' "$f"
+        chmod 0755 "$f"
+    - require:
+      - file: "tailscale-node-rc-local-daemon"
 
 # --- 3. Join the tailnet (no advertised routes / exit node) ----------------
 {#- Stage the pre-auth key in tmpfs-backed /run, never on the cmdline (salt
@@ -151,6 +188,45 @@ the image), and cfg.tailscale.enabled with a non-empty login_server.
     - runas: root
     - require:
       - cmd: "tailscale-node-join"
+
+{% if node_ports %}
+# Accept the node's service ports on tailscale0. AppVM input is default-drop, so
+# without this a tailnet client reaches the tailscale0 interface but the port is
+# dropped. Marker-merged into rc.local (AppVM qubes-firewall.service does not
+# run here) so the rules survive a reboot; applied now for the current boot too.
+"tailscale-node-rc-local-ports":
+  file.blockreplace:
+    - name: /rw/config/rc.local
+    - marker_start: "# >>> tailscale-node-ports >>>"
+    - marker_end: "# <<< tailscale-node-ports <<<"
+    - append_if_not_found: True
+    - show_changes: True
+    - content: |
+        {%- for p in node_ports %}
+        nft list chain ip qubes custom-input 2>/dev/null | grep -q 'tcp dport {{ p }}' \
+          || nft add rule ip qubes custom-input tcp dport {{ p }} ct state new,established,related counter accept 2>/dev/null || true
+        {%- endfor %}
+
+"tailscale-node-rc-local-ports-shebang":
+  cmd.run:
+    - name: |
+        f=/rw/config/rc.local
+        head -n1 "$f" | grep -q '^#!' || sed -i '1i #!/bin/sh' "$f"
+        chmod 0755 "$f"
+    - require:
+      - file: "tailscale-node-rc-local-ports"
+
+"tailscale-node-ports-apply-now":
+  cmd.run:
+    - name: |
+        {%- for p in node_ports %}
+        nft list chain ip qubes custom-input 2>/dev/null | grep -q 'tcp dport {{ p }}' \
+          || nft add rule ip qubes custom-input tcp dport {{ p }} ct state new,established,related counter accept 2>/dev/null || true
+        {%- endfor %}
+    - runas: root
+    - require:
+      - file: "tailscale-node-rc-local-ports"
+{% endif %}
 
 {% endif %}
 {% else %}

@@ -65,6 +65,17 @@ scripts/setup.sh. Keys:
                   "tailscale" = Tailscale SSH (verify your Headscale supports
                   it first); "none" = no SSH from the gateway
   authorized_keys [] => inherit cfg.remote_debug.authorized_keys
+  node_hostnames / node_ports — per-qube tailnet MEMBERS (not the sys-tailscale
+                   gateway, which is the exit/subnet router). Apply
+                   mgmt.tailscale.node to a qube to make it its own tailnet
+                   node: e.g. mgmt-jump (reach it at ssh user@<100.x> with no LAN
+                   port-forward) or sys-vncweb (reach the KasmVNC UI at
+                   https://<100.x>:6080). node_hostnames (qube -> name) overrides
+                   a node's tailnet hostname (default: qube name). node_ports
+                   (qube -> [tcp ports]) opens those ports on tailscale0; a plain
+                   member only gets 22 via remote-debug. The KasmVNC front end's
+                   6080 is derived automatically when gui_vnc.web.tailscale is on,
+                   so it need not be repeated here.
 
 remote_debug.lan_subnet — which client subnets may reach the forwarded SSH
 port on sys-net. Accepts a single CIDR string OR a list of them; one DNAT rule
@@ -745,6 +756,7 @@ agents.template.locale — locale generated in the image. The boot service
       "kasm_port": 8444,
       "network": "portforward",
       "ext_port": 6080,
+      "tailscale": {"enabled": False},
     },
     "keep_qubes": False,
     "healthcheck": {
@@ -773,6 +785,8 @@ agents.template.locale — locale generated in the image. The boot service
     "forward_downstream_dns": True,
     "ssh": "sshd",
     "authorized_keys": [],
+    "node_hostnames": {},
+    "node_ports": {},
   },
 
   "hotspot": {
