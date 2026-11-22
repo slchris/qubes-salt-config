@@ -303,12 +303,19 @@ Deploy (from dom0):
 # would re-trigger login). `tailscale set` is a no-op when already at the desired
 # value, so this enforces drift from config.jinja on every apply. Only runs once
 # the backend is Running (otherwise there is nothing to set).
+{#- Compute the flag set BEFORE the # comment that precedes the next state id:
+    a whitespace-stripping Jinja tag eats the trailing newline above it, and if
+    that line is a # comment it glues onto the state id, silently turning the
+    whole state into a comment (which is what happened here before this fix —
+    the reconcile state never rendered). -#}
 {%- set set_args = '--accept-dns=' ~ ('true' if accept_dns else 'false') -%}
 {%- set set_args = set_args ~ ' --advertise-exit-node=' ~ ('true' if exit_node else 'false') -%}
 {%- set set_args = set_args ~ ' --advertise-routes=' ~ (routes|join(',') if routes else '') -%}
 {%- set set_args = set_args ~ ' --accept-routes=' ~ ('true' if accept_routes else 'false') -%}
 {%- if hostname %}{% set set_args = set_args ~ ' --hostname=' ~ hostname %}{% endif -%}
 {%- set set_args = set_args ~ ' --ssh=' ~ ('true' if ssh_mode == 'tailscale' else 'false') -%}
+
+# --- reconcile -----------------------------------------------------------
 "tailscale-reconcile-flags":
   cmd.run:
     - name: tailscale set {{ set_args }}

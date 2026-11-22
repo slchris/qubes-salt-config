@@ -127,10 +127,16 @@ the image), and cfg.tailscale.enabled with a non-empty login_server.
       - cmd: "tailscale-node-join"
 {% endif %}
 
-# --- 4. Reconcile flags on an already-joined node without re-running `up` ---
+{#- Compute the flag set BEFORE any # comment that precedes the state id.
+    A whitespace-stripping Jinja tag eats the trailing newline of the line
+    above it; if that line is a # comment, the comment glues onto the state id
+    and the whole state becomes a comment, or the YAML mapping breaks. Keeping
+    the tags above the comment block leaves comment and id cleanly separated. -#}
 {%- set set_args = '--accept-dns=' ~ ('true' if accept_dns else 'false') -%}
 {%- set set_args = set_args ~ ' --accept-routes=' ~ ('true' if accept_routes else 'false') -%}
 {%- if hostname %}{% set set_args = set_args ~ ' --hostname=' ~ hostname %}{% endif -%}
+
+# --- 4. Reconcile flags on an already-joined node without re-running `up` ---
 "tailscale-node-reconcile-flags":
   cmd.run:
     - name: tailscale set {{ set_args }}
