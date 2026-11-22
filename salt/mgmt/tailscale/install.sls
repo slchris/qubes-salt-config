@@ -65,7 +65,13 @@ include:
         set -e
         install -d -m 0755 /usr/share/keyrings
         if [ ! -s /usr/share/keyrings/tailscale-archive-keyring.gpg ]; then
-          curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg \
+          # A template has netvm=none: only the Qubes update-proxy can leave the
+          # machine, and a bare curl does not use it, so it fails to resolve
+          # pkgs.tailscale.com ("Could not resolve host"). Route curl through the
+          # same 127.0.0.1:8082 proxy that apt/dnf use. Retry a few times for a
+          # slow uplink.
+          curl -fsSL -x http://127.0.0.1:8082 --max-time 120 --retry 3 --retry-delay 5 \
+            https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg \
             -o /usr/share/keyrings/tailscale-archive-keyring.gpg
         fi
     - runas: root
