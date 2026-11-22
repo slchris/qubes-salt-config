@@ -35,6 +35,17 @@ Deploy (from dom0), after web-install and with the qube started:
 {% if grains['nodename'] != 'dom0' %}
 {% if gv.get('enabled', False) and web.get('enabled', False) %}
 
+{% if web.get('tailscale', {}).get('enabled', False) %}
+# Join this front end to the tailnet as its own node, so the KasmVNC UI is
+# reachable at https://<100.x>:6080 without the LAN port-forward. web-install
+# already put tailscaled in this template; node.sls does the bind-dirs + join,
+# and gui_vnc/web/tailscale opens 6080 on tailscale0 (see node_ports below —
+# set alongside via config so node.sls sees it). Keep the LAN 6080 DNAT too;
+# both paths coexist.
+include:
+  - mgmt.tailscale.node
+{% endif %}
+
 "gui-vnc-web-attach":
   file.managed:
     - name: {{ dir }}/attach.sh

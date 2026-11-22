@@ -46,6 +46,16 @@ Deploy (from dom0):
       - novnc
       - websockify
 
+{% if web.get('tailscale', {}).get('enabled', False) %}
+# The KasmVNC UI must be reachable over the tailnet too, so tailscaled has to be
+# in this template (an AppVM root is reset each boot, a per-qube install would
+# vanish). Reuse mgmt.tailscale.install's logic by requiring its packages here:
+# including it would target this template anyway, and this keeps the "no novnc"
+# intent in one file. install.sls is idempotent.
+include:
+  - mgmt.tailscale.install
+{% endif %}
+
 {% else %}
 
 "gui-vnc-web-install-disabled-note":
