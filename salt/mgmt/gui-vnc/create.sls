@@ -122,24 +122,58 @@ service:
         qubes.Notifications                 *   @tag:guivm-{{ qube }}  @default  allow target={{ qube }} autostart=no
         qubes.WaitForSession                *   {{ qube }}  @tag:guivm-{{ qube }}  allow
 
+        # The GUI domain's OWN notifications and icon updates are denied
+        # outright. Their destination is dom0 ({{ qube }}'s guivm), and dom0's
+        # /etc/qubes/rpc-config carries wait-for-session=1 for these two
+        # services, so qrexec-daemon runs dom0's qubes.WaitForSession, which
+        # waits for /var/run/qubes/guid-running.<id> — a marker only a GUI
+        # daemon running in dom0 creates. A GUI-domain setup runs no GUI daemon
+        # in dom0, so the call never starts and each one leaks a qrexec-daemon
+        # request slot forever (MAX_CLIENTS = 256). After ~2 days every
+        # outbound qrexec from the GUI domain was refused with "Service
+        # request denied, too many pending requests" (verified: 256 stuck
+        # WaitForSession children), which broke Qubes Manager, the app menu and
+        # every qvm-* tool inside the GUI domain. Self-targeting (the obvious
+        # alternative) is no better: qrexec refuses loopback connections. Deny
+        # makes the intent explicit and fails fast without leaking slots.
+        # Both spellings of the destination need a line: default-target calls
+        # (logged as `-> :`) and an explicit `dom0`. The latter would otherwise
+        # only fall through to qrexec's implicit default deny.
+        qubes.Notifications             *   {{ qube }}  @default  deny
+        qubes.Notifications             *   {{ qube }}  dom0      deny
+        qubes.WindowIconUpdater         *   {{ qube }}  @default  deny
+        qubes.WindowIconUpdater         *   {{ qube }}  dom0      deny
+
         # Admin API subset a GUI session needs (matches the Qubes default grant).
-        admin.vm.List                       *   {{ qube }}  dom0                      allow
+        # Every line whose target is dom0 needs `target=dom0`: the Admin API
+        # request is sent to dom0's qubesd, and without the routing parameter
+        # the policy does not match the dom0 destination — the GUI domain then
+        # gets `QubesDaemonAccessError: Request refused` from qvm-ls, Qubes
+        # Manager and qvm-sync-appmenus (verified on R4.3).
+        # A bare `admin.vm.List` (list every qube) carries the AdminVM as its
+        # target; Qubes' own integration tests spell that target `@adminvm`,
+        # not `dom0`. The include/admin-* files carry the same grant, but
+        # qubesd's in-process admin-permission check does not expand
+        # !include-service, so the GUI domain needs it as a direct line here.
+        admin.vm.List                       *   {{ qube }}  @adminvm                  allow target=dom0
+        admin.vm.List                       *   {{ qube }}  dom0                      allow target=dom0
         admin.vm.List                       *   {{ qube }}  @tag:guivm-{{ qube }}    allow target=dom0
-        admin.Events                        *   {{ qube }}  dom0                      allow
+        admin.Events                        *   {{ qube }}  dom0                      allow target=dom0
         admin.Events                        *   {{ qube }}  @tag:guivm-{{ qube }}    allow target=dom0
-        admin.label.Get                     *   {{ qube }}  dom0                      allow
-        admin.label.Index                   *   {{ qube }}  dom0                      allow
+        admin.label.Get                     *   {{ qube }}  dom0                      allow target=dom0
+        admin.label.Index                   *   {{ qube }}  dom0                      allow target=dom0
         admin.vm.feature.Set                +keyboard-layout   {{ qube }}  {{ qube }}  allow target=dom0
-        admin.vm.property.Get               *   {{ qube }}  dom0                      allow
-        admin.vm.volume.List                *   {{ qube }}  dom0                      allow
+        admin.vm.feature.Set                +menu-items {{ qube }}  @tag:guivm-{{ qube }} allow target=dom0
+        admin.vm.property.Get               *   {{ qube }}  dom0                      allow target=dom0
+        admin.vm.volume.List                *   {{ qube }}  dom0                      allow target=dom0
         # qubes-global-config needs read-only device/property/feature grants on
         # @anyvm to open; that widening is deliberately a separate, explicit
         # apply: mgmt.gui-vnc.global-settings.
-        admin.vm.device.pci.Available       *   {{ qube }}  dom0                      allow
-        admin.vm.device.mic.Available       *   {{ qube }}  dom0                      allow
-        admin.vm.feature.Get                +internal {{ qube }}  dom0                allow
-        admin.vm.feature.Get                +servicevm {{ qube }}  dom0               allow
-        admin.vm.CurrentState               *   {{ qube }}  dom0                      allow
+        admin.vm.device.pci.Available       *   {{ qube }}  dom0                      allow target=dom0
+        admin.vm.device.mic.Available       *   {{ qube }}  dom0                      allow target=dom0
+        admin.vm.feature.Get                +internal {{ qube }}  dom0                allow target=dom0
+        admin.vm.feature.Get                +servicevm {{ qube }}  dom0               allow target=dom0
+        admin.vm.CurrentState               *   {{ qube }}  dom0                      allow target=dom0
 
 # The Admin API includes are shared files; marker-merge our grant so re-applies
 # never duplicate it (file.append, as Qubes' formula uses, would).
