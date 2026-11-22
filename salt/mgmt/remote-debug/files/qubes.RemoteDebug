@@ -82,11 +82,100 @@ if [[ "$cmdline" == "qpolicy" ]]; then
         echo "--- $f"
         sudo cat "$f" 2>&1
     done
+    # Admin API grants are split between the policy file above and Qubes'
+    # shared include files, which 90-admin-default.policy references. A grant
+    # appended to an include that no admin.* line includes is dead text, so the
+    # diagnostic has to show both sides. Filtered to the admin services a GUI
+    # domain needs to keep the dump readable.
+    for f in /etc/qubes/policy.d/include/admin-local-rwx \
+             /etc/qubes/policy.d/include/admin-global-rwx \
+             /etc/qubes/policy.d/include/admin-global-ro; do
+        echo "--- $f"
+        sudo cat "$f" 2>&1
+    done
+    for f in /etc/qubes/policy.d/90-admin-default.policy \
+             /etc/qubes/policy.d/91-admin-default-deny.policy; do
+        echo "--- $f (admin.vm.List / feature / Events lines)"
+        sudo grep -nE 'admin\.vm\.(List|feature|Events)|admin\.label|include/admin' "$f" 2>&1
+    done
     echo "=== qrexec policy units ==="
     systemctl list-units --all --no-legend 2>/dev/null | grep -i qrexec-policy || true
-    echo "=== qrexec policy journal ==="
+    echo "=== dom0 qrexec services (admin.* and count) ==="
+    sudo ls /etc/qubes-rpc/ 2>&1 | grep -c . || true
+    sudo ls -l /etc/qubes-rpc/ 2>&1 | grep -E 'admin\.|admin-socket' | head -10 || true
+    echo "=== qubesd journal (admin refusals) ==="
+    sudo journalctl -u qubesd --no-pager 2>&1 | grep -iE 'refus|denied|admin\.vm\.List|not allowed' | tail -15 || true
+    echo "=== qrexec policy journal (denials/parse errors) ==="
+    sudo journalctl -u qubes-qrexec-policy -u qubes-qrexec-policy-daemon \
+        --no-pager 2>&1 | grep -iE 'fail|error|pars|denied|admin\.vm\.List' | tail -40 || true
+    echo "=== qrexec policy journal (tail) ==="
     sudo journalctl -u qubes-qrexec-policy -u qubes-qrexec-policy-daemon \
         -n 100 --no-pager 2>&1 | tail -100
+    exit 0
+fi
+
+# Dedicated qrexecd action: read-only dump of the qrexec-daemon / qrexec-policy
+# machinery and the journal lines that explain a "Request refused" which never
+# reaches the policy daemon (a refused service call leaves a REFUSED in the
+# source VM but no policy line at all). Fixed commands, no argument.
+if [[ "$cmdline" == "qrexecd" ]]; then
+    echo "=== qrexec processes ==="
+    ps -eo user,pid,ppid,args 2>/dev/null | grep -E '[q]rexec-(daemon|policy)' | head -30 || true
+    echo "=== daemon child counts ==="
+    for p in $(ps -eo pid,args 2>/dev/null | grep '[q]rexec-daemon' | awk '{print $1}'); do
+        printf 'pid %s children=%s\n' "$p" "$(ps -o pid= --ppid "$p" 2>/dev/null | wc -l)"
+    done
+    DPID="$(ps -eo pid,ppid,args 2>/dev/null | grep '[q]rexec-daemon' \
+        | awk '$2==1 && /sys-gui-vnc/ {print $1; exit}')"
+    echo "=== sys-gui-vnc daemon=$DPID children detail ==="
+    for c in $(ps -o pid= --ppid "$DPID" 2>/dev/null | head -3); do
+        echo "--- child $c"
+        grep -E '^(State|Threads)' "/proc/$c/status" 2>&1
+        echo "wchan: $(cat "/proc/$c/wchan" 2>&1)"
+        ls -l "/proc/$c/fd" 2>&1 | head -10
+        echo "--- grandchildren of $c"
+        ps -eo pid,ppid,stat,wchan:24,etime,args 2>/dev/null | awk -v p="$c" '$2==p' | head -4
+        for gc in $(ps -o pid= --ppid "$c" 2>/dev/null | head -2); do
+            echo "--- grandchild $gc status/fds"
+            grep -E '^State' "/proc/$gc/status" 2>&1
+            echo "wchan: $(cat "/proc/$gc/wchan" 2>&1)"
+            sudo ls -l "/proc/$gc/fd" 2>&1 | head -10
+        done
+    done
+    echo "=== daemon log tail (qrexec.sys-gui-vnc.log) ==="
+    sudo tail -40 /var/log/qubes/qrexec.sys-gui-vnc.log 2>&1
+    echo "=== wait-for-session rpc-config ==="
+    sudo ls /etc/qubes/rpc-config/ 2>&1
+    sudo grep -l 'wait-for-session *= *\(true\|1\)' /etc/qubes/rpc-config/* 2>&1
+    echo "=== configs with wait-for-session (content) ==="
+    for f in /etc/qubes/rpc-config/*; do
+        sudo grep -H 'wait-for-session' "$f" 2>/dev/null
+    done
+    echo "=== stuck WaitForSession count ==="
+    ps -eo args 2>/dev/null | grep -c '[q]ubes.WaitForSession' || true
+    echo "=== guid-running markers ==="
+    sudo ls -l /var/run/qubes/ 2>&1 | grep -E 'guid-running|qrexec\.(sys-gui-vnc|[0-9]+)' | head -10
+    echo "=== qrexec units ==="
+    systemctl list-units --all --no-legend 2>/dev/null | grep -E 'qrexec' | head -40 || true
+    echo "=== journal: daemon / policy-exec / system-info errors (last 60 min) ==="
+    sudo journalctl --since '-60min' --no-pager 2>&1 \
+        | grep -iE 'qrexec-daemon|qrexec_policy_exec|policy-exec|GetSystemInfo|Traceback|qubesd\.internal' \
+        | tail -80 || true
+    echo "=== journal: requests with sys-gui-vnc as source (last 60 min) ==="
+    sudo journalctl --since '-60min' --no-pager 2>&1 | grep -F 'sys-gui-vnc ->' | tail -40 || true
+    echo "=== journal: GUI-domain services (tail) ==="
+    sudo journalctl -u qubes-qrexec-policy-daemon --no-pager 2>&1 \
+        | grep -E 'GetImageRGBA|GetAppmenus|WindowIconUpdater|Notify' | tail -20 || true
+    echo "=== policy socket ==="
+    ls -l /run/qubes/policy.sock /usr/bin/qrexec-policy-exec 2>&1
+    echo "=== policy-exec trial (evaluate only) ==="
+    # Reproduces exactly what qrexec-daemon runs for a request, as the same
+    # unprivileged user the daemon runs as, for a working and a broken source.
+    for SRC in mgmt-jump sys-gui-vnc; do
+        echo "--- source=$SRC"
+        /usr/bin/qrexec-policy-exec --just-evaluate -- "$SRC" dom0 'qubes.GetDate+nanoseconds' 2>&1
+        echo "rc=$?"
+    done
     exit 0
 fi
 
