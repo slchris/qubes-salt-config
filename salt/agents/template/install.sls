@@ -83,6 +83,9 @@ include:
       # Locales selected by cfg.agents.exits. The boot service switches LANG
       # per qube; the image has to have the locale already generated.
       - locales
+      # /usr/share/zoneinfo must exist before tpl-agents-timezone links
+      # /etc/localtime into it; a minimal template does not always ship tzdata.
+      - tzdata
       # GUI applications (Chrome, VS Code, Claude Desktop) arrive as pinned
       # .debs in the bundle; these are the menu/desktop helpers, while the
       # applications' own library dependencies are resolved by
@@ -110,9 +113,22 @@ include:
 
 # Fallback only. dom0's zone is copied over this at every AppVM boot, and
 # qubes-agents-exit.service then applies cfg.agents.exits for that qube.
+#
+# Not timezone.system: on debian-13-minimal the state runs before anything has
+# created /etc/localtime and Salt's module then fails outright ("Failed to read
+# /etc/localtime to determine current timezone"). Write both files directly,
+# after the packages (tzdata) are in place, and skip when already correct.
+{%- set tpl_tz = cfg.agents.template.get('timezone', 'UTC') %}
 "tpl-agents-timezone":
-  timezone.system:
-    - name: {{ cfg.agents.template.get('timezone', 'UTC') }}
+  cmd.run:
+    - name: |
+        ln -sfn "/usr/share/zoneinfo/{{ tpl_tz }}" /etc/localtime
+        printf '%s\n' "{{ tpl_tz }}" > /etc/timezone
+    - unless: |
+        [ "$(readlink -f /etc/localtime 2>/dev/null)" = "/usr/share/zoneinfo/{{ tpl_tz }}" ] &&
+        [ "$(cat /etc/timezone 2>/dev/null)" = "{{ tpl_tz }}" ]
+    - require:
+      - pkg: tpl-agents-packages
 
 {% for loc in cfg.agents.exits.values() | map(attribute='locale') | unique | list %}
 "tpl-agents-locale-{{ loc }}":
