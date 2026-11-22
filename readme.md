@@ -178,6 +178,7 @@ scripts/
   qubes-mirror.sh       # Optional: point Qubes at a download mirror
   lint.sh               # Run yamllint + salt-lint locally
   check_top_pairing.py  # Enforce .sls <-> .top pairing
+  check-exit.sh         # Check a qube's egress IP and purity score
 docs/
   install.md            # Detailed installation guide
   deploy-checklist.md   # Ordered deploy checklist (fresh machine -> everything)
