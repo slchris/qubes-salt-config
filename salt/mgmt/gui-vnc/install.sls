@@ -218,7 +218,15 @@ Deploy (from dom0):
         set -eu
         TMP="$(mktemp -d)"
         trap 'rm -rf "$TMP"' EXIT
-        curl -fsSL -o "$TMP/kasmvncserver.rpm" {{ kasm['url'] | yaml_encode }}
+        # GitHub is not reachable from every network. If an operator staged the
+        # pinned RPM in the template (mgmt.remote-debug's `push-file` exists for
+        # exactly this), use it and skip the download; the digest below is still
+        # enforced, so a stale or wrong local file fails loudly.
+        if [ -s /home/user/kasmvncserver.rpm ]; then
+            cp /home/user/kasmvncserver.rpm "$TMP/kasmvncserver.rpm"
+        else
+            curl -fsSL -x http://127.0.0.1:8082 -o "$TMP/kasmvncserver.rpm" {{ kasm['url'] | yaml_encode }}
+        fi
         echo "{{ kasm['sha256'] }}  $TMP/kasmvncserver.rpm" | sha256sum -c -
         installed="$(rpm -q --qf '%{VERSION}-%{RELEASE}' kasmvncserver 2>/dev/null || true)"
         if [ "$installed" = "{{ kasm_version }}" ]; then

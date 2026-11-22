@@ -47,15 +47,18 @@ if [ ! -s "$D/kasmpasswd" ]; then
     chmod 0600 "$D/credentials.txt"
 fi
 
-# The RFB password is not used by the web client, but Xvnc is started with
-# -rfbauth. Keep one in persistent storage as well.
-if [ ! -s "$D/passwd" ]; then
-    pw=$(openssl rand -base64 12)
-    printf '%s\n%s\n' "$pw" "$pw" | vncpasswd -f > "$D/passwd"
-fi
+# The RFB password is not used by the web client. KasmVNC 1.5.x authenticates
+# the web UI against its own user database (kasmpasswd) and, at server start,
+# vncserver's DisableLegacyVncAuth writes a fixed legacy passwd file to disable
+# RFB auth. Its `vncpasswd` IS kasmvncpasswd (a `-u user` database tool) and no
+# longer supports the classic `vncpasswd -f`, so do not generate that file here:
+# /root/.vnc/passwd is symlinked into /rw below and vncserver fills it in.
 # A migrated file keeps the old runtime's mode (it was 0644); enforce 0600 on
-# both password databases regardless of how they arrived.
-chmod 0600 "$D/passwd" "$D/kasmpasswd"
+# the web password database, and on the RFB file if one already exists.
+chmod 0600 "$D/kasmpasswd"
+if [ -e "$D/passwd" ]; then
+    chmod 0600 "$D/passwd"
+fi
 
 # KasmVNC prompts for a desktop environment when this marker is missing, even
 # with a custom xstartup. The mirror display has no desktop of its own.
