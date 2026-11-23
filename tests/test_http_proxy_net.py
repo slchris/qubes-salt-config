@@ -36,7 +36,7 @@ class InstallTest(unittest.TestCase):
 
     def test_base_table_is_fail_closed(self):
         self.assertEqual(self.sls.count("policy drop;"), 2)
-        self.assertIn("iifname \"vif*\" meta nfproto ipv4 tcp counter redirect to :12345", self.sls)
+        self.assertIn("iifname \"vif*\" meta nfproto ipv4 meta l4proto tcp counter redirect to :12345", self.sls)
         self.assertIn("udp dport 53 counter redirect to :53", self.sls)
         self.assertIn("jump output-dynamic", self.sls)
         self.assertIn("jump bootstrap", self.sls)

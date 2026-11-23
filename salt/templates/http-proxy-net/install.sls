@@ -91,7 +91,7 @@ include:
             type nat hook prerouting priority -110; policy accept;
             iifname "vif*" meta nfproto ipv4 udp dport 53 counter redirect to :53
             iifname "vif*" meta nfproto ipv4 tcp dport 53 counter redirect to :53
-            iifname "vif*" meta nfproto ipv4 tcp counter redirect to :12345
+            iifname "vif*" meta nfproto ipv4 meta l4proto tcp counter redirect to :12345
           }
           chain forward {
             type filter hook forward priority -10; policy drop;
