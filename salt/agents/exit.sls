@@ -24,7 +24,17 @@ immediately and uses it on the next start.
 
 {% if grains['nodename'] == 'dom0' %}
 {% for name in cfg.agents.get('qubes', []) %}
-{% set netvm = salt['cmd.run']('qvm-prefs ' ~ name ~ ' netvm').strip() %}
+{#- A listed qube may not exist: it was removed by hand, or it is a template
+    example (mvtest) that no longer has a live qube. `qvm-prefs` on a missing
+    domain prints a MULTI-LINE usage/error to stderr; captured as the "netvm"
+    value it then lands inside an echo, and the colons/newlines make the whole
+    rendered SLS invalid YAML ("mapping values are not allowed in this
+    context") — one stale name took down the entire state. So: skip a qube that
+    does not exist, and keep only the first token of the netvm output so an
+    error string can never leak into the echoed message. -#}
+{% set exists = salt['cmd.run']('qvm-check --quiet ' ~ name ~ ' >/dev/null 2>&1; echo $?', python_shell=True).strip() == '0' %}
+{% if exists %}
+{% set netvm = salt['cmd.run']('qvm-prefs ' ~ name ~ ' netvm 2>/dev/null', python_shell=True).strip().split() | first | default('') %}
 {% set exit = cfg.agents.get('exits', {}).get(netvm) %}
 {% if not exit %}
 "{{ name }}-exit-missing":
@@ -45,6 +55,7 @@ immediately and uses it on the next start.
   cmd.run:
     - name: qvm-features {{ name }} vm-config.locale {{ exit.locale }}
     - unless: test "$(qvm-features {{ name }} vm-config.locale)" = "{{ exit.locale }}"
+{% endif %}
 {% endif %}
 {% endfor %}
 {% endif %}
