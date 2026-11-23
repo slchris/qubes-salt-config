@@ -232,6 +232,50 @@ if [[ "$cmdline" == "qhost" ]]; then
     exit 0
 fi
 
+# Dedicated qdiag action: read-only WHY a qube failed to start. `qdiag <qube>`
+# dumps the dom0-side evidence a qvm-start failure leaves behind but that qrexec
+# never relays: qubesd/libvirt journal lines mentioning the name, the last boot's
+# libvirt/VM errors, and a fresh qvm-start attempt with its stderr captured.
+# Fixed commands, one validated qube name — no arbitrary shell.
+if [[ "$cmdline" =~ ^qdiag\ ([a-zA-Z0-9][a-zA-Z0-9._-]*)$ ]]; then
+    VM="${BASH_REMATCH[1]}"
+    echo "=== qubesd journal: $VM (last 1h) ==="
+    sudo journalctl -u qubesd --since '-1h' --no-pager 2>&1 \
+        | grep -iF "$VM" | tail -40
+    echo "=== libvirt/VM startup errors (this boot, $VM) ==="
+    sudo journalctl -b --no-pager 2>&1 \
+        | grep -iF "$VM" | grep -iE 'error|fail|cannot|denied|traceback|abort|panic|oom|no space|not found' | tail -40
+    echo "=== xl dmesg tail ==="
+    sudo xl dmesg 2>&1 | tail -30
+    echo "=== fresh qvm-start $VM (stderr+stdout) ==="
+    sudo qvm-start "$VM" 2>&1 | tail -20
+    echo "=== qvm-ls state after start ==="
+    sudo qvm-ls --fields NAME,CLASS,STATE "$VM" 2>&1
+    echo "=== qubesd journal: $VM (after start) ==="
+    sudo journalctl -u qubesd --since '-30s' --no-pager 2>&1 | grep -iF "$VM" | tail -30
+    exit 0
+fi
+
+# Dedicated qtpl action: read-only template/volume sanity for a freshly installed
+# template. `qtpl <template>` shows the root/private/kernel volume sizes (a too-
+# small root is a common install failure), the kernel in use vs another template,
+# and whether the template is registered by rpm. Fixed commands.
+if [[ "$cmdline" =~ ^qtpl\ ([a-zA-Z0-9][a-zA-Z0-9._-]*)$ ]]; then
+    T="${BASH_REMATCH[1]}"
+    echo "=== volumes: $T ==="
+    sudo qvm-volume list "$T" 2>&1
+    echo "=== root size: $T ==="
+    sudo qvm-volume info "$T:root" 2>&1 | grep -iE 'size|vid|rw'
+    echo "=== private size: $T ==="
+    sudo qvm-volume info "$T:private" 2>&1 | grep -iE 'size|vid|rw'
+    echo "=== rpm registration ==="
+    rpm -qa 2>/dev/null | grep -iF "template-$T" || echo "(not an rpm-installed template)"
+    echo "=== disk headroom ==="
+    sudo lvs -o lv_name,lv_size,data_percent,metadata_percent 2>&1 | grep -iE 'pool|'"$T" || true
+    exit 0
+fi
+
+
 # Dedicated qshow action: `qshow <substr>` prints the first Qubes python file whose path
 # matches <substr> (read-only), for reading the RemoteVM class etc.
 if [[ "$cmdline" =~ ^qshow\ ([a-zA-Z0-9._/-]+)$ ]]; then
