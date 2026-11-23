@@ -108,6 +108,24 @@ fi
 
 # Clean old installation. Removing $PILLAR_DST is important: a stale bare
 # top.sls there breaks Qubes dom0 pillar loading. This project uses no pillar.
+#
+# config.local.jinja is the machine's OPERATOR OVERLAY: a gitignored file that
+# exists only in /srv/salt on the deployed machine (project exits, gateways,
+# per-qube git identity, ...) and is NOT in this source tree. A plain
+# `rm -rf $SALT_DST` would destroy it and silently break every project qube on
+# redeploy. Stash it aside before the wipe and restore it after the copy.
+OVERLAY="$SALT_DST/config.local.jinja"
+OVERLAY_BAK=""
+if [ -f "$OVERLAY" ]; then
+    OVERLAY_BAK="$(mktemp /tmp/qsc-overlay.XXXXXX)"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "  (preserve existing config.local.jinja overlay)"
+    else
+        cp -a "$OVERLAY" "$OVERLAY_BAK"
+        info "Preserving operator overlay config.local.jinja across redeploy"
+    fi
+fi
+
 if [ "$DRY_RUN" -eq 1 ]; then
     echo "  rm -rf $SALT_DST"
     echo "  rm -rf $PILLAR_DST   # remove old, broken pillar deployment"
@@ -141,6 +159,18 @@ if [ "$DRY_RUN" -eq 1 ]; then
 else
     info "Copying salt files..."
     cp -r "$SALT_SRC"/* "$SALT_DST"/
+fi
+
+# Restore the operator overlay stashed above, so this redeploy does not wipe the
+# machine-specific config.local.jinja (the source tree never contains it).
+if [ -n "$OVERLAY_BAK" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "  restore config.local.jinja overlay"
+    else
+        cp -a "$OVERLAY_BAK" "$OVERLAY"
+        rm -f "$OVERLAY_BAK"
+        info "Restored operator overlay config.local.jinja"
+    fi
 fi
 
 # Sync salt modules (no pillar to refresh — this project uses config.jinja).
