@@ -90,6 +90,13 @@ apply_rules() {
   # 1. reply path: downstream subnet must exit via its vif, not table 2022.
   ip rule show | grep -q '10.137.0.0/16 lookup main' \
     || ip rule add to 10.137.0.0/16 lookup main priority 8999
+  # 1b. upstream return path: replies toward the Qubes internal uplink subnet
+  # (10.138.0.0/16) must also exit via eth0, not table 2022. Without this,
+  # sing-box's auto_route pulls every non-downstream return packet into tun0,
+  # so a forwarded LAN service (e.g. magpie: netvm eth0 -> vif) accepts the
+  # SYN but its reply/RST is swallowed by the tunnel and the client times out.
+  ip rule show | grep -q '10.138.0.0/16 lookup main' \
+    || ip rule add to 10.138.0.0/16 lookup main priority 8997
   # 2. accept vif<->tun0 and tun0 in Qubes' forward chains (policy drop).
   add_accept() {
     nft list chain "$1" 2>/dev/null | grep -qF "$2" && return 0
