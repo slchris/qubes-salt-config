@@ -27,9 +27,9 @@ agents:
   # with dpkg in tpl-agents.
   claude-code:
     method: deb
-    version: "2.1.323-1"
-    url: "https://downloads.claude.ai/claude-code/apt/stable/pool/main/c/claude-code/claude-code_2.1.323-1_amd64.deb"
-    sha256: "9e6036114376ab1b1428d31f4aa629bc893b06f23c07ee7a1dfd3627a319000a"
+    version: "2.1.325-1"
+    url: "https://downloads.claude.ai/claude-code/apt/stable/pool/main/c/claude-code/claude-code_2.1.325-1_amd64.deb"
+    sha256: "2df4d4844a06a5e4f1950b8bc736948b3261e6e649b7065d48e563a8febec02a"
     bin: claude
 
   # The remaining agents are installed into a versioned npm prefix inside the
@@ -38,13 +38,13 @@ agents:
   codex:
     method: npm
     package: "@openai/codex"
-    version: "0.171.0"
+    version: "0.172.0"
     bin: codex
 
   opencode:
     method: npm
     package: "@opencode/cli"
-    version: "2.3.2"
+    version: "2.4.1"
     bin: opencode
 
   pi:
@@ -76,9 +76,9 @@ gui_apps:
 
   google-chrome:
     method: deb
-    version: "158.0.8127.36-1"
-    url: "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_158.0.8127.36-1_amd64.deb"
-    sha256: "4696bce00b128f385a870ba2eb6eede61698f22374ea0d8e09af8a1c6543d397"
+    version: "158.0.8127.88-1"
+    url: "https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_158.0.8127.88-1_amd64.deb"
+    sha256: "a656b2db00a8cb7f13a1d754f6aad91f84014906452c6dfb7f3ead93035da03b"
     desktop_file: "google-chrome.desktop"
 
   vscode:
