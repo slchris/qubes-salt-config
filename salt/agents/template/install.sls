@@ -94,6 +94,11 @@ include:
       - desktop-file-utils
       - fonts-liberation
       - dbus-x11
+      # Firefox (Debian ESR, not snap). Some sign-in flows reject the
+      # default Chrome/WebView path ("Couldn't complete sign-in"); ESR gives
+      # a second browser to try. Installed from apt, so it is not in the
+      # gui_apps bundle/lock.
+      - firefox-esr
       # WebRTC audio: the Qubes PulseAudio client plus tools. The AppVM must
       # ALSO have an audiovm (the repo's old examples set audiovm ""); see the
       # README. Chrome bundles WebRTC itself.

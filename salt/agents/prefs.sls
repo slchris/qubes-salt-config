@@ -27,6 +27,7 @@ entries outside the menu the user actually sees. Halted qubes are left halted.
 
 {% if grains['nodename'] == 'dom0' %}
 {% set gui_desktops = lock.get('gui_apps', {}).values() | map(attribute='desktop_file') | select | join(' ') %}
+{% set gui_desktops = gui_desktops ~ ' firefox-esr.desktop' %}
 {% set items = 'qubes-run-terminal.desktop qubes-start.desktop ' ~ gui_desktops %}
 {{ set_menu_items(cfg.agents.template.name, items) }}
 {% for name in cfg.agents.get('qubes', []) %}

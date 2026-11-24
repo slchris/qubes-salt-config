@@ -18,6 +18,7 @@ Credentials and agent configurations (~/.claude, ~/.codex, ~/.config/opencode,
 {%- from "qvm/template.jinja" import load -%}
 {% set t = cfg.agents.template %}
 {% set gui_desktops = lock.get('gui_apps', {}).values() | map(attribute='desktop_file') | select | join(' ') %}
+{% set gui_desktops = gui_desktops ~ ' firefox-esr.desktop' %}
 
 include:
   - agents.template.clone
