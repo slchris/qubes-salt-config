@@ -39,6 +39,14 @@ fail_closed() {
              | sed -n 's/.*\(iifname "tun0"[^\n]*\)handle \([0-9]*\).*/\2/p'); do
     nft delete rule ip qubes-firewall forward handle "$c" 2>/dev/null || true
   done
+  # Hard leak-stop: `ip qubes forward` is policy accept, so a downstream qube
+  # could otherwise reach eth0 (clearnet) when the tunnel is down. Guarantee
+  # the vif->!tun0 drop exists even if apply_rules never ran this boot (e.g.
+  # CHANGEME skeleton, broken config, sing-box failed to start).
+  # Only NEW clearnet connections are dropped; established magpie/LAN replies
+  # (vif->eth0) must still pass, so this is state-scoped, not a blind drop.
+  nft list chain ip qubes-firewall forward 2>/dev/null | grep -qF 'iifname "vif*" oifname "eth0" ct state new drop' \
+    || nft insert rule ip qubes-firewall forward iifname "vif*" oifname "eth0" ct state new drop 2>/dev/null || true
   rm -f /run/hysteria-net/ready
   stop_singbox
 }
@@ -107,6 +115,17 @@ apply_rules() {
   add_accept "ip qubes-firewall forward" 'iifname "tun0"'
   add_accept "ip qubes forward" 'iifname "tun0"'
   add_accept "ip qubes forward" 'oifname "tun0"'
+  # 2b. HARD fail-closed: downstream (vif*) traffic may ONLY be forwarded into
+  # tun0. `ip qubes forward` has policy accept and Qubes' oifgroup-2 drop only
+  # covers vif->vif, NOT vif->eth0 (the uplink) — so with the tunnel down a
+  # downstream qube would otherwise leak straight out eth0 (its real ISPs IP).
+  # This rule must sit AFTER the tun0 accepts above; vif->tun0 hits those first,
+  # everything else is dropped. It is harmless while up and is the whole
+  # guarantee while down, so it is installed unconditionally here.
+  # Only NEW clearnet connections are dropped; established magpie/LAN replies
+  # (vif->eth0) must still pass, so this is state-scoped, not a blind drop.
+  nft list chain ip qubes-firewall forward 2>/dev/null | grep -qF 'iifname "vif*" oifname "eth0" ct state new drop' \
+    || nft insert rule ip qubes-firewall forward iifname "vif*" oifname "eth0" ct state new drop 2>/dev/null || true
   # 3. clamp MSS on tun0 egress so downstream 1500-MTU SYNs fit the tunnel.
   nft list chain ip qubes-firewall forward 2>/dev/null | grep -q 'tcp option maxseg size set rt mtu' \
     || nft insert rule ip qubes-firewall forward oifname "tun0" tcp flags syn tcp option maxseg size set rt mtu 2>/dev/null || true
