@@ -131,4 +131,33 @@ include:
       - file: tpl-hysteria-net-start-unit
       - file: tpl-hysteria-net-singbox-unit
 
+# Purge a stale fail-closed that is NOT part of this formula. An earlier,
+# hand-edited build of this template shipped /etc/hysteria-net/base.nft plus a
+# hysteria-net-fail-closed.service that loaded it at boot. That table's output
+# chain is `policy drop` with EMPTY bootstrap/output-dynamic chains, so it
+# drops the gateway's OWN egress (QUIC handshake to the server, DNS, the
+# sing-box download) before the tunnel can ever come up — a hard deadlock.
+# This formula's fail-closed is the `fail_closed()` step in start.sh, which
+# acts on Qubes' own `ip qubes-firewall forward` chain instead. Remove the
+# foreign artifacts so a rebuilt template matches what this file declares.
+"tpl-hysteria-net-disable-stale-failclosed":
+  cmd.run:
+    - name: |
+        systemctl disable hysteria-net-fail-closed.service 2>/dev/null || true
+        nft delete table inet hysteria-net 2>/dev/null || true
+    - runas: root
+    - onlyif: test -e /etc/systemd/system/hysteria-net-fail-closed.service
+
+"tpl-hysteria-net-remove-stale-failclosed-unit":
+  file.absent:
+    - name: /etc/systemd/system/hysteria-net-fail-closed.service
+
+"tpl-hysteria-net-remove-stale-base-nft":
+  file.absent:
+    - name: /etc/hysteria-net/base.nft
+
+"tpl-hysteria-net-remove-stale-redsocks-conf":
+  file.absent:
+    - name: /etc/hysteria-net/redsocks.conf
+
 {% endif %}
