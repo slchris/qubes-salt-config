@@ -133,3 +133,23 @@ qvm-run --pass-io vc-project 'curl -s -o /dev/null -w "%{speed_download}\n" \
 - **Secrets** (`/etc/hysteria/config.yaml`, the client `config.json`,
   `server.key`) live only on the host / in the gateway's `/rw`; none belong in
   this repo.
+
+## Publishing a service through the gateway (magpie)
+
+A project qube whose netvm is this gateway can still be published on the LAN
+(e.g. `magpie`, `cfg.magpie.services` with inline `project`/`netvm`). The
+three-hop `magpie.netfw` DNAT works unchanged, but the gateway's reply path
+had to be fixed: sing-box `auto_route` puts a table-2022 default route in
+place, so replies toward the Qubes uplink (`10.138.0.0/16`) were being pulled
+into `tun0` and the LAN client timed out even though the downstream qube
+answered. `hysteria-net-start.sh` now adds
+`ip rule to 10.138.0.0/16 lookup main priority 8997` (next to the existing
+`10.137.0.0/16` rule), so those replies leave via `eth0`. No change to the
+fail-closed forward policy is needed: the gateway's `ip qubes-firewall
+forward` already accepts the eth0->vif direction via `iifname != "vif*"`.
+
+To publish, the project qube needs the pinned magpie CLI at
+`/rw/config/magpie/bin/magpie`, then `magpie.serve` in the qube and
+`magpie.netfw` in dom0. Grab a gateway key with
+`magpie gateway-key add mac` inside the qube; the Mac adds it with
+`magpie provider add remote-magpie <key> url=http://<.145-ip>:<port> id=<id>`.
