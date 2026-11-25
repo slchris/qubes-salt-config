@@ -296,4 +296,29 @@ include:
           "WebRtcIPHandling": "disable_non_proxied_udp"
         }
 
+# Firefox over the Hysteria2 tunnel: pages that "take very long to load" are
+# almost always QUIC (HTTP/3) probing UDP 443 that the tunnel path drops, or
+# the built-in DoH resolver timing out — not raw bandwidth (curl to the same
+# hosts completes in <0.5s). Turn both off so Firefox goes straight to TCP/443
+# with the system resolver. Read from /etc/firefox-esr/policies/policies.json
+# on Debian's firefox-esr.
+"tpl-agents-firefox-policy":
+  file.managed:
+    - name: /etc/firefox-esr/policies/policies.json
+    - makedirs: True
+    - user: root
+    - group: root
+    - mode: '0644'
+    - contents: |
+        {
+          "policies": {
+            "NetworkPrediction": false,
+            "DNSOverHTTPS": {"Enabled": false, "Locked": true},
+            "Preferences": {
+              "network.http.http3.enable": {"Value": false, "Status": "locked"},
+              "network.trr.mode": {"Value": 5, "Status": "locked"}
+            }
+          }
+        }
+
 {% endif %}
