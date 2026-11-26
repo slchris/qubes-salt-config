@@ -27,9 +27,9 @@ agents:
   # with dpkg in tpl-agents.
   claude-code:
     method: deb
-    version: "2.1.325-1"
-    url: "https://downloads.claude.ai/claude-code/apt/stable/pool/main/c/claude-code/claude-code_2.1.325-1_amd64.deb"
-    sha256: "2df4d4844a06a5e4f1950b8bc736948b3261e6e649b7065d48e563a8febec02a"
+    version: "2.1.326-1"
+    url: "https://downloads.claude.ai/claude-code/apt/stable/pool/main/c/claude-code/claude-code_2.1.326-1_amd64.deb"
+    sha256: "123181c74727f25d1d6ff8f4abfeed1ee3972edcdc7298ded83f993dfd66e4ce"
     bin: claude
 
   # The remaining agents are installed into a versioned npm prefix inside the
@@ -44,13 +44,13 @@ agents:
   opencode:
     method: npm
     package: "@opencode/cli"
-    version: "2.4.1"
+    version: "2.4.2"
     bin: opencode
 
   pi:
     method: npm
     package: "@earendil-works/pi-coding-agent"
-    version: "1.6.0"
+    version: "1.6.1"
     bin: pi
     # pi's npm docs recommend --ignore-scripts for global installs.
     ignore_scripts: true
@@ -83,9 +83,9 @@ gui_apps:
 
   vscode:
     method: deb
-    version: "1.147.0-1794903003"
-    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.147.0-1794903003_amd64.deb"
-    sha256: "749efcdf5008a8323d76773b836199cdecf708fdb993f0f0544d9475176837ab"
+    version: "1.148.0-1795526052"
+    url: "https://packages.microsoft.com/repos/code/pool/main/c/code/code_1.148.0-1795526052_amd64.deb"
+    sha256: "da33c10565e17b83f93508a365222f31bba116ab5c9e7bef7f562783943fd513"
     desktop_file: "com.microsoft.VSCode.desktop"
 
 # CLI tools installed into tpl-agents by agents.template.tools.
